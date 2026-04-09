@@ -89,6 +89,12 @@
     }
     buildingMeshes = {};
     missileMeshes = [];
+    // Remove robot meshes
+    for (const r of robotMeshes) {
+      if (r && r._mesh) {
+        Renderer.removeMeshFromScene(r._mesh);
+      }
+    }
     robotMeshes = [];
     effectGroups = [];
     combatAnimQueue = [];
@@ -121,6 +127,13 @@
       Renderer.removeMeshFromScene(buildingMeshes[segmentIndex]);
       delete buildingMeshes[segmentIndex];
     }
+    // If a radar was destroyed on player side, recompute reveals (will refog cells not covered by another radar)
+    AI.processRadar(state, CONST.SIDE_PLAYER);
+    const revealed = new Set(state.revealedEnemySegments || []);
+    for (let i = 0; i < state.segments.length; i++) {
+      if (state.segments[i].side !== CONST.SIDE_AI) continue;
+      Renderer.setFogRevealed(i, revealed.has(i));
+    }
   }
 
   // ════════════════════════════════════════
@@ -129,22 +142,28 @@
   function startPlanningPhase() {
     state.phase = CONST.PHASE_PLANNING;
 
-    // Recalculate income
-    state.playerIncome = calculateIncome(state, CONST.SIDE_PLAYER);
-    state.aiIncome = calculateIncome(state, CONST.SIDE_AI);
-    state.playerEnergy = state.playerIncome;
-    state.aiEnergy = state.aiIncome;
+    // Recalculate incomes
+    state.playerEnergyIncome = calculateEnergyIncome(state, CONST.SIDE_PLAYER);
+    state.aiEnergyIncome     = calculateEnergyIncome(state, CONST.SIDE_AI);
+    state.playerCreditIncome = calculateCreditIncome(state, CONST.SIDE_PLAYER);
+    state.aiCreditIncome     = calculateCreditIncome(state, CONST.SIDE_AI);
+
+    // Accrue resources
+    state.playerEnergy  += state.playerEnergyIncome;
+    state.aiEnergy      += state.aiEnergyIncome;
+    state.playerCredits += state.playerCreditIncome;
+    state.aiCredits     += state.aiCreditIncome;
 
     // Reset per-turn states
     Weapons.resetAntiMissileBatteries(state);
     Weapons.resetShieldGenerators(state);
     Robots.resetHangars(state);
     state.combatLog = [];
-    state.activeRobots = [];
+    state.incomingWarnings = [];
     pendingPlayerMissiles = [];
     pendingPlayerRobots = [];
 
-    // Process radar for player
+    // Process radar for player (persistent scan)
     AI.processRadar(state, CONST.SIDE_PLAYER);
 
     // Update fog of war visuals (all AI cells)
@@ -173,8 +192,8 @@
       for (const action of aiActions) {
         if (action.type === CONST.ACTION.BUILD) {
           const cost = getCostForBuild(action.buildingType);
-          if (state.aiEnergy >= cost) {
-            state.aiEnergy -= cost;
+          if (state.aiCredits >= cost) {
+            state.aiCredits -= cost;
             state.segments[action.segmentIndex].building = createBuilding(
               action.buildingType, CONST.SIDE_AI, action.segmentIndex
             );
@@ -184,9 +203,29 @@
         }
       }
 
-      // Collect combat actions
+      // Deduct energy for AI fire/deploy actions (weapons.js already deducts for player)
+      for (const action of aiActions) {
+        if (action.type === CONST.ACTION.FIRE_MISSILE) {
+          if (state.aiEnergy >= CONST.ENERGY_FIRE_MISSILE) {
+            state.aiEnergy -= CONST.ENERGY_FIRE_MISSILE;
+          } else {
+            action._invalid = true;
+          }
+          // Add incoming warning for player
+          state.incomingWarnings.push(action.targetSegment);
+          showIncomingWarning(action.targetSegment);
+        } else if (action.type === CONST.ACTION.DEPLOY_ROBOT) {
+          if (state.aiEnergy >= CONST.ENERGY_DEPLOY_ROBOT) {
+            state.aiEnergy -= CONST.ENERGY_DEPLOY_ROBOT;
+          } else {
+            action._invalid = true;
+          }
+        }
+      }
+
+      // Collect combat actions (drop invalid ones)
       state.aiActions = aiActions.filter(a =>
-        a.type === CONST.ACTION.FIRE_MISSILE || a.type === CONST.ACTION.DEPLOY_ROBOT
+        (a.type === CONST.ACTION.FIRE_MISSILE || a.type === CONST.ACTION.DEPLOY_ROBOT) && !a._invalid
       );
 
       // Start combat phase
@@ -202,6 +241,8 @@
       [CONST.BUILDING.ANTI_MISSILE]: 'ANTI_MISSILE',
       [CONST.BUILDING.ROBOT_HANGAR]: 'ROBOT_HANGAR',
       [CONST.BUILDING.SHIELD_GENERATOR]: 'SHIELD_GENERATOR',
+      [CONST.BUILDING.SUPPLY_DEPOT]: 'SUPPLY_DEPOT',
+      [CONST.BUILDING.GUN_POD]: 'GUN_POD',
       [CONST.BUILDING.COMMAND_CENTER]: 'COMMAND_CENTER'
     };
     return CONST.COST[keyMap[type]] || 0;
@@ -234,13 +275,38 @@
       combatAnimQueue.push(animEvent);
     });
 
-    // Resolve robots
+    // Resolve robot deployments (landing)
     Robots.resolveRobotDeployments(state, allRobotActions, function(animEvent) {
+      combatAnimQueue.push(animEvent);
+    });
+
+    // Resolve ongoing robot combat (gun pods, melee, attacks on buildings)
+    Robots.resolveRobotCombat(state, function(animEvent) {
       combatAnimQueue.push(animEvent);
     });
 
     // Process combat animation queue
     processCombatAnimations();
+  }
+
+  // ── Incoming missile warning (flash the target cell red) ──
+  function showIncomingWarning(segmentIndex) {
+    const mesh = Renderer.segmentMeshes[segmentIndex];
+    if (!mesh) return;
+    const origColor = mesh.userData.originalColor;
+    let flashes = 0;
+    const interval = setInterval(function() {
+      flashes++;
+      if (flashes % 2 === 1) {
+        mesh.material.color.setHex(0xFF0000);
+      } else {
+        mesh.material.color.setHex(origColor);
+      }
+      if (flashes > 7) {
+        clearInterval(interval);
+        mesh.material.color.setHex(origColor);
+      }
+    }, 180);
   }
 
   function processCombatAnimations() {
@@ -388,22 +454,118 @@
         break;
       }
       case 'robot_death': {
-        if (event.position) {
-          SFX.spawnSmoke(event.position.x, event.position.y + 5, 0, 6);
+        let wx = 0, wy = 0, wz = 0;
+        if (event.robot && event.robot.currentSegment !== undefined) {
+          const wp = robotToWorld(event.robot);
+          wx = wp.x; wy = wp.y; wz = wp.z;
+        } else if (event.position) {
+          wx = event.position.x; wy = event.position.y; wz = event.position.z || 0;
         }
+        SFX.spawnExplosion(wx, wy + 5, wz, 20);
+        SFX.spawnSmoke(wx, wy + 5, wz, 8);
+        SFX.play('explosion');
+        removeRobotMesh(event.robot);
+        break;
+      }
+      case 'robot_landed': {
+        // Create persistent robot mesh at the landing cell
+        createOrUpdateRobotMesh(event.robot);
+        const pos = Renderer.segmentToWorldPos(event.segment);
+        SFX.spawnSmoke(pos.x, pos.y + 2, pos.z, 12);
+        SFX.spawnSparks(pos.x, pos.y + 1, pos.z, 14);
+        UI.addLogEntry('Robot landed at segment ' + event.segment,
+          event.robot.side === CONST.SIDE_PLAYER ? 'player' : 'enemy');
+        break;
+      }
+      case 'robot_move': {
+        createOrUpdateRobotMesh(event.robot);
+        break;
+      }
+      case 'gun_pod_fire': {
+        const gunPos = Renderer.segmentToWorldPos(event.gunSegment);
+        const rob = event.targetRobot;
+        const rPos = robotToWorld(rob);
+        // Tracer line
+        spawnTracer(gunPos.x, gunPos.y + 4, gunPos.z, rPos.x, rPos.y + 4, rPos.z);
+        SFX.spawnSparks(rPos.x, rPos.y + 4, rPos.z, 6);
+        SFX.play('robotAttack');
+        UI.addLogEntry('Gun pod fires at robot (-' + CONST.GUN_POD_DAMAGE + ' HP)', 'system');
+        break;
+      }
+      case 'robot_vs_robot': {
+        const aPos = robotToWorld(event.a);
+        SFX.spawnSparks(aPos.x, aPos.y + 5, aPos.z, 10);
+        UI.addLogEntry('Robots clash!', 'damage');
         break;
       }
     }
   }
 
+  // ── Robot mesh management ──
+  function robotToWorld(robot) {
+    const xy = indexToXY(robot.currentSegment);
+    return {
+      x: xy.x * CONST.CELL_SIZE + CONST.CELL_SIZE / 2,
+      y: 1,
+      z: xy.y * CONST.CELL_SIZE + CONST.CELL_SIZE / 2
+    };
+  }
+
+  function createOrUpdateRobotMesh(robot) {
+    if (!robot._mesh) {
+      const mesh = Robots.createRobotMesh(robot.side);
+      mesh.scale.set(0.35, 0.35, 0.35);
+      Renderer.addMeshToScene(mesh);
+      robot._mesh = mesh;
+      robotMeshes.push(robot);
+    }
+    const pos = robotToWorld(robot);
+    robot._mesh.position.set(pos.x, pos.y, pos.z);
+  }
+
+  function removeRobotMesh(robot) {
+    if (robot && robot._mesh) {
+      Renderer.removeMeshFromScene(robot._mesh);
+      robot._mesh.traverse(function(o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      robot._mesh = null;
+    }
+    const idx = robotMeshes.indexOf(robot);
+    if (idx >= 0) robotMeshes.splice(idx, 1);
+  }
+
+  function spawnTracer(x1, y1, z1, x2, y2, z2) {
+    const geo = new THREE.BufferGeometry();
+    const verts = new Float32Array([x1, y1, z1, x2, y2, z2]);
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0xFFFF88, transparent: true, opacity: 1 });
+    const line = new THREE.Line(geo, mat);
+    Renderer.addMeshToScene(line);
+    let fade = 0;
+    const interval = setInterval(function() {
+      fade += 0.2;
+      mat.opacity = Math.max(0, 1 - fade);
+      if (fade >= 1) {
+        clearInterval(interval);
+        Renderer.removeMeshFromScene(line);
+        geo.dispose();
+        mat.dispose();
+      }
+    }, 30);
+  }
+
   // ── Reveal fog of war around a target cell (3x3 area) ──
   function revealAreaThroughFog(segmentIndex) {
+    if (!state._stickyReveals) state._stickyReveals = new Set();
     const revealed = new Set(state.revealedEnemySegments || []);
     const toReveal = [segmentIndex].concat(getAdjacentCells(segmentIndex));
     for (const idx of toReveal) {
       const seg = state.segments[idx];
       if (!seg || seg.side !== CONST.SIDE_AI) continue;
       revealed.add(idx);
+      state._stickyReveals.add(idx);
       Renderer.setFogRevealed(idx, true);
     }
     state.revealedEnemySegments = Array.from(revealed);
@@ -579,8 +741,10 @@
   function endCombatPhase() {
     combatAnimating = false;
 
-    // Clean up robots
+    // Clean up destroyed robots (keep alive ones persistent)
     Robots.cleanUpRobots(state);
+    // Prune robotMeshes list to match
+    robotMeshes = robotMeshes.filter(function(r) { return r && r._mesh; });
 
     // Check win condition
     if (state.winner) {
@@ -650,7 +814,12 @@
 
     // Check UI targeting mode first
     const segIdx = getClickedSegment(event);
-    if (segIdx === -1) return;
+    if (segIdx === -1) {
+      // Click on empty space closes the building popup
+      UI.hideBuildingInfo();
+      Renderer.hideRangeRing();
+      return;
+    }
 
     // If UI is in targeting mode, handle that
     if (UI.isTargeting()) {
@@ -662,7 +831,33 @@
     const selectedType = UI.getSelectedBuildType();
     if (selectedType) {
       attemptBuild(segIdx, selectedType);
+      return;
     }
+
+    // Otherwise, if the clicked cell has a building, show its info popup
+    const seg = state.segments[segIdx];
+    if (seg && seg.building && seg.building.active) {
+      // Only show if it's the player's own building or a revealed enemy building
+      const isRevealed = seg.side === CONST.SIDE_PLAYER || state.revealedEnemySegments.indexOf(segIdx) !== -1;
+      if (isRevealed) {
+        UI.showBuildingInfo(segIdx, state);
+        // If AA or Gun Pod, show range ring
+        const t = seg.building.type;
+        if (t === CONST.BUILDING.ANTI_MISSILE) {
+          Renderer.showRangeRing(segIdx, 8, 0x00CCFF);
+        } else if (t === CONST.BUILDING.GUN_POD) {
+          Renderer.showRangeRing(segIdx, CONST.GUN_POD_RANGE, 0xFFB000);
+        } else if (t === CONST.BUILDING.RADAR_STATION) {
+          Renderer.showRangeRing(segIdx, CONST.RADAR_RANGE, 0x66FF99);
+        } else {
+          Renderer.hideRangeRing();
+        }
+        return;
+      }
+    }
+    // Clicked empty/fogged cell — close popup
+    UI.hideBuildingInfo();
+    Renderer.hideRangeRing();
   }
 
   function getClickedSegment(event) {
@@ -707,16 +902,16 @@
       return;
     }
 
-    // Validate: enough energy
+    // Validate: enough credits
     const cost = getCostForBuild(buildingType);
-    if (state.playerEnergy < cost) {
-      UI.addLogEntry('Not enough energy! Need ' + cost, 'system');
+    if (state.playerCredits < cost) {
+      UI.addLogEntry('Not enough credits! Need ' + cost, 'system');
       SFX.play('error');
       return;
     }
 
     // Build it!
-    state.playerEnergy -= cost;
+    state.playerCredits -= cost;
     state.segments[segmentIndex].building = createBuilding(buildingType, CONST.SIDE_PLAYER, segmentIndex);
     placeBuilding(segmentIndex, buildingType, CONST.SIDE_PLAYER);
 
@@ -726,11 +921,22 @@
     UI.updateHUD(state);
     UI.updateBuildMenu(state);
 
-    // Recalculate income if power plant
+    // Recalculate income if economic building
     if (buildingType === CONST.BUILDING.POWER_PLANT) {
-      state.playerIncome = calculateIncome(state, CONST.SIDE_PLAYER);
-      UI.updateHUD(state);
+      state.playerEnergyIncome = calculateEnergyIncome(state, CONST.SIDE_PLAYER);
     }
+    if (buildingType === CONST.BUILDING.SUPPLY_DEPOT) {
+      state.playerCreditIncome = calculateCreditIncome(state, CONST.SIDE_PLAYER);
+    }
+    // If it's a radar, re-run reveals immediately
+    if (buildingType === CONST.BUILDING.RADAR_STATION) {
+      AI.processRadar(state, CONST.SIDE_PLAYER);
+      for (let i = 0; i < state.segments.length; i++) {
+        if (state.segments[i].side !== CONST.SIDE_AI) continue;
+        Renderer.setFogRevealed(i, state.revealedEnemySegments.indexOf(i) !== -1);
+      }
+    }
+    UI.updateHUD(state);
   }
 
   // ════════════════════════════════════════
@@ -747,11 +953,18 @@
 
     // Use first available silo
     const silo = silos[0];
+    if (state.playerEnergy < CONST.ENERGY_FIRE_MISSILE) {
+      UI.addLogEntry('Not enough energy! Need ' + CONST.ENERGY_FIRE_MISSILE, 'system');
+      SFX.play('error');
+      return;
+    }
     const action = Weapons.fireMissile(state, silo.segmentIndex, segmentIndex);
     if (action) {
       pendingPlayerMissiles.push(action);
-      UI.addLogEntry('Missile targeted at segment ' + segmentIndex, 'player');
+      UI.addLogEntry('Missile targeted at segment ' + segmentIndex + ' (-' + CONST.ENERGY_FIRE_MISSILE + ' energy)', 'player');
       SFX.play('menuClick');
+      UI.updateHUD(state);
+      UI.updateBuildMenu(state);
       // Pan camera toward target
       const targetPos = Renderer.segmentToWorldPos(segmentIndex);
       Renderer.setCameraTarget(targetPos.x, targetPos.z);
@@ -768,12 +981,18 @@
     }
 
     const hangar = available[0];
+    if (state.playerEnergy < CONST.ENERGY_DEPLOY_ROBOT) {
+      UI.addLogEntry('Not enough energy! Need ' + CONST.ENERGY_DEPLOY_ROBOT, 'system');
+      SFX.play('error');
+      return;
+    }
     const action = Robots.deployRobot(state, hangar.segmentIndex, segmentIndex);
     if (action) {
       pendingPlayerRobots.push(action);
-      UI.addLogEntry('Robot targeted at segment ' + segmentIndex, 'player');
+      UI.addLogEntry('Robot targeted at segment ' + segmentIndex + ' (-' + CONST.ENERGY_DEPLOY_ROBOT + ' energy)', 'player');
       SFX.play('menuClick');
     }
+    UI.updateHUD(state);
     UI.updateBuildMenu(state);
   }
 
@@ -800,6 +1019,21 @@
 
     // Animate buildings (radar dish rotation, etc)
     Buildings.animateBuildings(dt);
+
+    // Animate active robot meshes (bob/walk cycle)
+    const now = performance.now() / 1000;
+    for (const r of robotMeshes) {
+      if (!r || !r._mesh) continue;
+      const wc = (now * 2) % 1;
+      r._mesh.position.y = 1 + Math.abs(Math.sin(wc * Math.PI * 2)) * 0.4;
+      const leg = r._mesh.getObjectByName('legLeft');
+      const rleg = r._mesh.getObjectByName('legRight');
+      if (leg && rleg) {
+        const swing = Math.sin(wc * Math.PI * 2) * 0.35;
+        leg.rotation.x = swing;
+        rleg.rotation.x = -swing;
+      }
+    }
 
     // Update effect groups
     for (let i = effectGroups.length - 1; i >= 0; i--) {

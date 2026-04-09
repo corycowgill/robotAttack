@@ -54,6 +54,11 @@
 
     const side = seg.building.side;
 
+    // Energy check — deduct cost immediately
+    const energyField = side === CONST.SIDE_PLAYER ? 'playerEnergy' : 'aiEnergy';
+    if (state[energyField] < CONST.ENERGY_FIRE_MISSILE) return null;
+    state[energyField] -= CONST.ENERGY_FIRE_MISSILE;
+
     return createAction(CONST.ACTION.FIRE_MISSILE, side, {
       fromSegment: fromSegment,
       targetSegment: targetSegment,
@@ -167,10 +172,11 @@
     });
 
     if (seg.building.hp <= 0) {
+      const destroyedType = seg.building.type;
       combatLog.push({
         event: 'destroyed',
         segment: segmentIndex,
-        buildingType: seg.building.type
+        buildingType: destroyedType
       });
       seg.building.active = false;
       seg.building.hp = 0;
@@ -178,14 +184,12 @@
       seg.building = null;
 
       // Check for command center destruction → game over
-        // Check if a command center was destroyed
-      if (seg.building === null) {
-        // already nulled — we need to check what was there
-      }
-      if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_PLAYER) {
-        state.winner = CONST.SIDE_AI;
-      } else if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_AI) {
-        state.winner = CONST.SIDE_PLAYER;
+      if (destroyedType === CONST.BUILDING.COMMAND_CENTER) {
+        if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_PLAYER) {
+          state.winner = CONST.SIDE_AI;
+        } else if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_AI) {
+          state.winner = CONST.SIDE_PLAYER;
+        }
       }
     }
   }

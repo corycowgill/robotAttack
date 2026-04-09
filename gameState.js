@@ -9,55 +9,71 @@ const CONST = {
   GRID_H: 24,
   CELL_SIZE: 12,       // world units per cell
 
-  // Energy
-  STARTING_ENERGY: 4,
-  POWER_PLANT_INCOME: 3,
+  // Resources
+  STARTING_CREDITS: 400,
+  STARTING_ENERGY:  20,
+  POWER_PLANT_ENERGY: 4,   // energy generated per power plant per turn
+  SUPPLY_DEPOT_CREDITS: 5, // credits generated per supply depot per turn
+  BASE_CREDITS_PER_TURN: 8, // baseline income
+  BASE_ENERGY_PER_TURN: 2,  // baseline energy
+
+  // Energy costs for actions
+  ENERGY_FIRE_MISSILE: 10,
+  ENERGY_DEPLOY_ROBOT: 15,
 
   // Command Center positions (x, y)
   CC_PLAYER_X: 2,
   CC_PLAYER_Y: 12,
   CC_AI_X: 37,
   CC_AI_Y: 12,
-  COMMAND_CENTER_HP: 20,
+  COMMAND_CENTER_HP: 150,
 
-  // Building costs
+  // Building CREDIT costs (spent on construction)
   COST: {
-    POWER_PLANT:       2,
-    RADAR_STATION:     2,
-    MISSILE_SILO:      3,
-    ANTI_MISSILE:      3,
-    ROBOT_HANGAR:      4,
-    SHIELD_GENERATOR:  3,
-    COMMAND_CENTER:    0
+    POWER_PLANT:      100,
+    RADAR_STATION:    120,
+    MISSILE_SILO:     180,
+    ANTI_MISSILE:     160,
+    ROBOT_HANGAR:     200,
+    SHIELD_GENERATOR: 170,
+    SUPPLY_DEPOT:     150,
+    GUN_POD:          120,
+    COMMAND_CENTER:     0
   },
 
   // Building HP
   HP: {
-    POWER_PLANT:       6,
-    RADAR_STATION:     4,
-    MISSILE_SILO:      8,
-    ANTI_MISSILE:      6,
-    ROBOT_HANGAR:     10,
-    SHIELD_GENERATOR:  5,
-    COMMAND_CENTER:   20
+    POWER_PLANT:       30,
+    RADAR_STATION:     25,
+    MISSILE_SILO:      50,
+    ANTI_MISSILE:      40,
+    ROBOT_HANGAR:      60,
+    SHIELD_GENERATOR:  35,
+    SUPPLY_DEPOT:      40,
+    GUN_POD:           50,
+    COMMAND_CENTER:   150
   },
 
   // Weapon stats
-  MISSILE_DAMAGE: 8,
-  MISSILE_AOE_RADIUS: 1,        // 2D radius (8-neighbors)
-  MISSILE_AOE_HALF_DAMAGE: 4,
+  MISSILE_DAMAGE: 25,
+  MISSILE_AOE_RADIUS: 1,
+  MISSILE_AOE_HALF_DAMAGE: 12,
   ANTI_MISSILE_SHOTS_PER_TURN: 2,
   SHIELD_ABSORB_COUNT: 1,
 
-  // Robot stats
-  ROBOT_MELEE_DAMAGE: 10,
-  ROBOT_HP: 5,
+  // Gun Pod
+  GUN_POD_DAMAGE: 8,
+  GUN_POD_RANGE: 3,
 
-  // Radar
-  RADAR_REVEAL_COUNT: 6,
+  // Robot stats
+  ROBOT_MELEE_DAMAGE: 15,
+  ROBOT_HP: 40,
+
+  // Radar — persistent scan radius
+  RADAR_RANGE: 4,
 
   // Combat phase
-  COMBAT_DURATION_MS: 8000,
+  COMBAT_DURATION_MS: 10000,
 
   // AI modes
   AI_MODE_PATROL: 'patrol',
@@ -83,6 +99,8 @@ const CONST = {
     ANTI_MISSILE:     'anti_missile',
     ROBOT_HANGAR:     'robot_hangar',
     SHIELD_GENERATOR: 'shield_generator',
+    SUPPLY_DEPOT:     'supply_depot',
+    GUN_POD:          'gun_pod',
     COMMAND_CENTER:   'command_center'
   },
 
@@ -111,11 +129,15 @@ const CONST = {
     SHIELD:       0x00CCFF,
     EXPLOSION:    0xFF6600,
     GRID:         0x553300,
+    CREDITS:      0x66FF99,
+    ENERGY:       0x00CCFF,
     HUD_BG:       'rgba(10, 10, 0, 0.85)',
     HUD_TEXT:     '#FFB000',
     HUD_DIM:      '#8B6914',
     HUD_DANGER:   '#FF3300',
-    HUD_SHIELD:   '#00CCFF'
+    HUD_SHIELD:   '#00CCFF',
+    HUD_CREDITS:  '#66FF99',
+    HUD_ENERGY:   '#00CCFF'
   }
 };
 
@@ -162,18 +184,22 @@ function createSegment(index, side) {
   return cell;
 }
 
+// ── Building type → HP key lookup ──
+const BUILDING_HP_KEY = {
+  [CONST.BUILDING.POWER_PLANT]:      'POWER_PLANT',
+  [CONST.BUILDING.RADAR_STATION]:    'RADAR_STATION',
+  [CONST.BUILDING.MISSILE_SILO]:     'MISSILE_SILO',
+  [CONST.BUILDING.ANTI_MISSILE]:     'ANTI_MISSILE',
+  [CONST.BUILDING.ROBOT_HANGAR]:     'ROBOT_HANGAR',
+  [CONST.BUILDING.SHIELD_GENERATOR]: 'SHIELD_GENERATOR',
+  [CONST.BUILDING.SUPPLY_DEPOT]:     'SUPPLY_DEPOT',
+  [CONST.BUILDING.GUN_POD]:          'GUN_POD',
+  [CONST.BUILDING.COMMAND_CENTER]:   'COMMAND_CENTER'
+};
+
 // ── Building Factory ──
 function createBuilding(type, side, segmentIndex) {
-  const keyMap = {
-    [CONST.BUILDING.POWER_PLANT]:      'POWER_PLANT',
-    [CONST.BUILDING.RADAR_STATION]:    'RADAR_STATION',
-    [CONST.BUILDING.MISSILE_SILO]:     'MISSILE_SILO',
-    [CONST.BUILDING.ANTI_MISSILE]:     'ANTI_MISSILE',
-    [CONST.BUILDING.ROBOT_HANGAR]:     'ROBOT_HANGAR',
-    [CONST.BUILDING.SHIELD_GENERATOR]: 'SHIELD_GENERATOR',
-    [CONST.BUILDING.COMMAND_CENTER]:   'COMMAND_CENTER'
-  };
-  const hpKey = keyMap[type] || 'POWER_PLANT';
+  const hpKey = BUILDING_HP_KEY[type] || 'POWER_PLANT';
   const hp = CONST.HP[hpKey];
 
   return {
@@ -193,17 +219,70 @@ function createBuilding(type, side, segmentIndex) {
 }
 
 function getBuildingHP(type) {
-  const keyMap = {
-    [CONST.BUILDING.POWER_PLANT]: 'POWER_PLANT',
-    [CONST.BUILDING.RADAR_STATION]: 'RADAR_STATION',
-    [CONST.BUILDING.MISSILE_SILO]: 'MISSILE_SILO',
-    [CONST.BUILDING.ANTI_MISSILE]: 'ANTI_MISSILE',
-    [CONST.BUILDING.ROBOT_HANGAR]: 'ROBOT_HANGAR',
-    [CONST.BUILDING.SHIELD_GENERATOR]: 'SHIELD_GENERATOR',
-    [CONST.BUILDING.COMMAND_CENTER]: 'COMMAND_CENTER'
-  };
-  return CONST.HP[keyMap[type]] || 6;
+  return CONST.HP[BUILDING_HP_KEY[type]] || 30;
 }
+
+function getBuildingCost(type) {
+  return CONST.COST[BUILDING_HP_KEY[type]] || 0;
+}
+
+// ── Building info table (descriptions, stats) ──
+const BUILDING_INFO_TABLE = {
+  [CONST.BUILDING.POWER_PLANT]: {
+    name: 'Power Plant',
+    short: 'PWR',
+    desc: 'Generates energy for firing missiles and deploying robots.',
+    stats: function() { return ['+' + CONST.POWER_PLANT_ENERGY + ' energy/turn']; }
+  },
+  [CONST.BUILDING.SUPPLY_DEPOT]: {
+    name: 'Supply Depot',
+    short: 'SUP',
+    desc: 'Stockpiles credits for construction.',
+    stats: function() { return ['+' + CONST.SUPPLY_DEPOT_CREDITS + ' credits/turn']; }
+  },
+  [CONST.BUILDING.RADAR_STATION]: {
+    name: 'Radar Station',
+    short: 'RDR',
+    desc: 'Persistently reveals enemy territory within its scan radius.',
+    stats: function() { return ['Scan radius: ' + CONST.RADAR_RANGE + ' cells']; }
+  },
+  [CONST.BUILDING.MISSILE_SILO]: {
+    name: 'Missile Silo',
+    short: 'SLO',
+    desc: 'Launches ballistic missiles at enemy targets.',
+    stats: function() { return ['Damage: ' + CONST.MISSILE_DAMAGE, 'AOE: ' + CONST.MISSILE_AOE_HALF_DAMAGE, 'Energy/fire: ' + CONST.ENERGY_FIRE_MISSILE]; }
+  },
+  [CONST.BUILDING.ANTI_MISSILE]: {
+    name: 'Anti-Missile',
+    short: 'AA',
+    desc: 'Intercepts incoming missiles.',
+    stats: function() { return ['Intercepts: ' + CONST.ANTI_MISSILE_SHOTS_PER_TURN + '/turn']; }
+  },
+  [CONST.BUILDING.ROBOT_HANGAR]: {
+    name: 'Robot Hangar',
+    short: 'HGR',
+    desc: 'Deploys battle mechs that land on enemy territory.',
+    stats: function() { return ['Robot HP: ' + CONST.ROBOT_HP, 'Melee dmg: ' + CONST.ROBOT_MELEE_DAMAGE, 'Energy/deploy: ' + CONST.ENERGY_DEPLOY_ROBOT]; }
+  },
+  [CONST.BUILDING.SHIELD_GENERATOR]: {
+    name: 'Shield Generator',
+    short: 'SHD',
+    desc: 'Absorbs one missile hit per turn on adjacent cells.',
+    stats: function() { return ['Absorbs: 1 hit/turn']; }
+  },
+  [CONST.BUILDING.GUN_POD]: {
+    name: 'Gun Pod',
+    short: 'GUN',
+    desc: 'Anti-robot turret that auto-fires at enemies in range.',
+    stats: function() { return ['Damage: ' + CONST.GUN_POD_DAMAGE, 'Range: ' + CONST.GUN_POD_RANGE + ' cells']; }
+  },
+  [CONST.BUILDING.COMMAND_CENTER]: {
+    name: 'Command Center',
+    short: 'HQ',
+    desc: 'Your headquarters. If destroyed, you lose.',
+    stats: function() { return ['HP: ' + CONST.HP.COMMAND_CENTER]; }
+  }
+};
 
 // ── Action Factory ──
 function createAction(type, side, params = {}) {
@@ -223,10 +302,13 @@ function createRobot(side, originSegment, targetSegment) {
     side,
     originSegment,
     targetSegment,
+    currentSegment: targetSegment,
     hp: CONST.ROBOT_HP,
+    maxHp: CONST.ROBOT_HP,
     state: 'launching',
     x: 0, y: 0, z: 0,
     attackTarget: null,
+    landed: false,
     _mesh: null
   };
 }
@@ -254,33 +336,60 @@ function createInitialGameState(aiMode = CONST.AI_MODE_PATROL) {
     aiMode,
     winner: null,
 
+    // Energy — for firing missiles and deploying robots
     playerEnergy: CONST.STARTING_ENERGY,
     aiEnergy: CONST.STARTING_ENERGY,
-    playerIncome: CONST.STARTING_ENERGY,
-    aiIncome: CONST.STARTING_ENERGY,
+    // Credits — for building construction
+    playerCredits: CONST.STARTING_CREDITS,
+    aiCredits: CONST.STARTING_CREDITS,
+    // Incomes (computed each turn)
+    playerEnergyIncome: CONST.BASE_ENERGY_PER_TURN,
+    aiEnergyIncome: CONST.BASE_ENERGY_PER_TURN,
+    playerCreditIncome: CONST.BASE_CREDITS_PER_TURN,
+    aiCreditIncome: CONST.BASE_CREDITS_PER_TURN,
 
-    segments,  // still called "segments" for backward compat, but it's a 2D grid
+    segments,
 
     playerActions: [],
     aiActions: [],
     activeRobots: [],
     revealedEnemySegments: [],
     combatLog: [],
-    turnLog: []
+    turnLog: [],
+
+    // Incoming missile warnings
+    incomingWarnings: []
   };
 }
 
-// ── Energy Calculation ──
-function calculateIncome(state, side) {
-  let income = CONST.STARTING_ENERGY;
+// ── Resource Calculation ──
+function calculateEnergyIncome(state, side) {
+  let income = CONST.BASE_ENERGY_PER_TURN;
   for (let i = 0; i < state.segments.length; i++) {
     const seg = state.segments[i];
     if (seg.side !== side) continue;
     if (seg.building && seg.building.type === CONST.BUILDING.POWER_PLANT && seg.building.active) {
-      income += CONST.POWER_PLANT_INCOME;
+      income += CONST.POWER_PLANT_ENERGY;
     }
   }
   return income;
+}
+
+function calculateCreditIncome(state, side) {
+  let income = CONST.BASE_CREDITS_PER_TURN;
+  for (let i = 0; i < state.segments.length; i++) {
+    const seg = state.segments[i];
+    if (seg.side !== side) continue;
+    if (seg.building && seg.building.type === CONST.BUILDING.SUPPLY_DEPOT && seg.building.active) {
+      income += CONST.SUPPLY_DEPOT_CREDITS;
+    }
+  }
+  return income;
+}
+
+// Legacy compat
+function calculateIncome(state, side) {
+  return calculateEnergyIncome(state, side);
 }
 
 // ── Segment Helpers ──
@@ -332,6 +441,39 @@ function getAdjacentCells(index) {
   return result;
 }
 
+// ── Cells within a radius (inclusive) ──
+function getCellsInRadius(index, radius) {
+  const { x, y } = indexToXY(index);
+  const result = [];
+  const r2 = radius * radius;
+  const rCeil = Math.ceil(radius);
+  for (let dy = -rCeil; dy <= rCeil; dy++) {
+    for (let dx = -rCeil; dx <= rCeil; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || nx >= CONST.GRID_W || ny < 0 || ny >= CONST.GRID_H) continue;
+      result.push(xyToIndex(nx, ny));
+    }
+  }
+  return result;
+}
+
+// ── Compute revealed enemy segments from active radars ──
+function computeRadarReveals(state, side) {
+  const enemySide = side === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
+  const revealed = new Set();
+  const radars = getBuildingsOfType(state, side, CONST.BUILDING.RADAR_STATION);
+  for (const radar of radars) {
+    const cells = getCellsInRadius(radar.segmentIndex, CONST.RADAR_RANGE);
+    for (const idx of cells) {
+      const seg = state.segments[idx];
+      if (seg && seg.side === enemySide) revealed.add(idx);
+    }
+  }
+  return revealed;
+}
+
 // ── Serialization (strip mesh refs) ──
 function serializeState(state) {
   return JSON.parse(JSON.stringify(state, (key, value) => {
@@ -341,7 +483,7 @@ function serializeState(state) {
 }
 
 // Legacy constant for backward compat (no longer per-side)
-CONST.SEGMENTS_PER_SIDE = (CONST.GRID_W / 2) * CONST.GRID_H;  // player/AI cell count
+CONST.SEGMENTS_PER_SIDE = (CONST.GRID_W / 2) * CONST.GRID_H;
 CONST.SEGMENT_WIDTH = CONST.CELL_SIZE;
 CONST.COMMAND_CENTER_SEGMENT_PLAYER = xyToIndex(CONST.CC_PLAYER_X, CONST.CC_PLAYER_Y);
 CONST.COMMAND_CENTER_SEGMENT_AI = xyToIndex(CONST.CC_AI_X, CONST.CC_AI_Y);
@@ -350,10 +492,11 @@ CONST.COMMAND_CENTER_SEGMENT_AI = xyToIndex(CONST.CC_AI_X, CONST.CC_AI_Y);
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CONST, TOTAL_CELLS, TOTAL_SEGMENTS,
-    xyToIndex, indexToXY, cellSide, cellDistance, getAdjacentCells,
+    xyToIndex, indexToXY, cellSide, cellDistance, getAdjacentCells, getCellsInRadius,
     createCell, createSegment, createBuilding, createAction, createRobot,
-    createInitialGameState, calculateIncome, getBuildingHP,
+    createInitialGameState, calculateIncome, calculateEnergyIncome, calculateCreditIncome,
+    getBuildingHP, getBuildingCost, computeRadarReveals,
     getPlayerSegments, getAISegments, getEmptySegments, getBuildingsOfType,
-    serializeState
+    serializeState, BUILDING_INFO_TABLE
   };
 }

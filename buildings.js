@@ -59,6 +59,8 @@
   SIZES[B.ROBOT_HANGAR]     = { width: 36, height: 20, depth: 28 };
   SIZES[B.SHIELD_GENERATOR] = { width: 18, height: 26, depth: 18 };
   SIZES[B.COMMAND_CENTER]   = { width: 30, height: 38, depth: 26 };
+  SIZES[B.SUPPLY_DEPOT]     = { width: 26, height: 14, depth: 22 };
+  SIZES[B.GUN_POD]          = { width: 18, height: 18, depth: 18 };
 
   // ── Animated parts registry ───────────────────────────────
   // Each entry: { mesh, animType, speed, ... }
@@ -283,6 +285,77 @@
     return g;
   }
 
+  // ── SUPPLY DEPOT ──────────────────────────────────────────
+
+  function createSupplyDepot(side) {
+    var g = new THREE.Group();
+    var bc = bodyColor(side);
+    var ac = sideAccent(side);
+    var tc = sideTint(side);
+
+    // Main warehouse body
+    addMesh(g, box(22, 10, 18), mat(bc), 0, 5, 0);
+    // Slanted roof (two tilted boxes)
+    var roofL = addMesh(g, box(12, 1.5, 18), mat(ac), -5, 11.5, 0);
+    roofL.rotation.z = 0.35;
+    var roofR = addMesh(g, box(12, 1.5, 18), mat(ac), 5, 11.5, 0);
+    roofR.rotation.z = -0.35;
+    // Ridge line
+    addMesh(g, box(0.8, 0.8, 18), mat(tc), 0, 13, 0);
+    // Loading bay door (front)
+    addMesh(g, box(10, 7, 1), mat(ac), 0, 4, 9.2);
+    addMesh(g, box(10, 0.5, 0.3), matBasic(tc), 0, 7.8, 9.5);
+    // Crates stacked on side
+    addMesh(g, box(4, 4, 4), mat(ac), -13, 2, 6);
+    addMesh(g, box(4, 4, 4), mat(ac), -13, 2, 0);
+    addMesh(g, box(4, 4, 4), mat(ac), -13, 6, 3);
+    // Supply marker (bright box)
+    addMesh(g, box(3, 0.5, 3), matBasic(tc), 0, 13.8, 0);
+    // Side panels
+    for (var p = -6; p <= 6; p += 4) {
+      addMesh(g, box(0.5, 6, 0.5), mat(ac), 11.2, 5, p);
+      addMesh(g, box(0.5, 6, 0.5), mat(ac), -11.2, 5, p);
+    }
+    return g;
+  }
+
+  // ── GUN POD (anti-robot turret) ───────────────────────────
+
+  function createGunPod(side) {
+    var g = new THREE.Group();
+    var bc = bodyColor(side);
+    var ac = sideAccent(side);
+    var tc = sideTint(side);
+
+    // Base pad
+    addMesh(g, box(16, 3, 16), mat(bc), 0, 1.5, 0);
+    // Reinforcement ring
+    addMesh(g, cyl(8, 8.5, 1.5, 10), mat(ac), 0, 3.5, 0);
+    // Rotating turret group
+    var turret = new THREE.Group();
+    turret.position.set(0, 5, 0);
+    // Turret body
+    addMesh(turret, box(8, 4, 10), mat(ac), 0, 2, 0);
+    // Turret dome
+    addMesh(turret, cyl(3, 4, 2, 10), mat(bc), 0, 5, -1);
+    // Barrel (long horizontal cylinder)
+    var barrel = addMesh(turret, cyl(0.8, 0.8, 12, 8), mat(tc), 0, 3, 6);
+    barrel.rotation.x = Math.PI / 2;
+    // Barrel tip
+    addMesh(turret, cyl(1.2, 1.2, 1, 8), mat(tc), 0, 3, 11.5);
+    // Ammo box side
+    addMesh(turret, box(2, 3, 4), mat(ac), 4.5, 2.5, -1);
+    // Sensor eye
+    addMesh(turret, box(1.5, 1.5, 1.5), matBasic(tc), 0, 6, 1);
+    g.add(turret);
+    g.userData.turret = turret;
+
+    // Track rotation (slowly sweeps looking for targets)
+    animatedParts.push({ mesh: turret, animType: 'rotate', speed: 0.4, axis: 'y' });
+
+    return g;
+  }
+
   // ── Builder dispatch ──────────────────────────────────────
 
   var builders = {};
@@ -293,6 +366,8 @@
   builders[B.ROBOT_HANGAR]     = createRobotHangar;
   builders[B.SHIELD_GENERATOR] = createShieldGenerator;
   builders[B.COMMAND_CENTER]   = createCommandCenter;
+  builders[B.SUPPLY_DEPOT]     = createSupplyDepot;
+  builders[B.GUN_POD]          = createGunPod;
 
   // ── PUBLIC: createBuildingMesh ─────────────────────────────
 

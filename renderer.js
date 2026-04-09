@@ -197,6 +197,54 @@
     fog.visible = !revealed;
   }
 
+  // ── Range Ring (for AA / gun pods) ──
+  let rangeRingMesh = null;
+
+  function showRangeRing(segmentIndex, radius, color) {
+    hideRangeRing();
+    const pos = segmentToWorldPos(segmentIndex);
+    const outer = radius * CELL;
+    const inner = Math.max(outer - 1.5, outer * 0.92);
+    const ringGeo = new THREE.RingGeometry(inner, outer, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: color || 0x00CCFF,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, pos.y + 1.3, pos.z);
+    ring.userData.isRangeRing = true;
+
+    // Also add a filled translucent disk underneath for visibility
+    const diskGeo = new THREE.CircleGeometry(outer, 48);
+    const diskMat = new THREE.MeshBasicMaterial({
+      color: color || 0x00CCFF,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    });
+    const disk = new THREE.Mesh(diskGeo, diskMat);
+    disk.rotation.x = -Math.PI / 2;
+    disk.position.set(pos.x, pos.y + 1.2, pos.z);
+    ring.add(disk);
+
+    scene.add(ring);
+    rangeRingMesh = ring;
+  }
+
+  function hideRangeRing() {
+    if (rangeRingMesh) {
+      scene.remove(rangeRingMesh);
+      rangeRingMesh.traverse(function(o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      rangeRingMesh = null;
+    }
+  }
+
   // ── Crater effect ──
   function createCrater(segmentIndex) {
     const mesh = segmentMeshes[segmentIndex];
@@ -423,6 +471,8 @@
     setCameraTarget,
     createCrater,
     setFogRevealed,
+    showRangeRing,
+    hideRangeRing,
     getScene,
     getCamera,
     shakeScreen,

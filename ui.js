@@ -374,6 +374,75 @@ window.UI = (function() {
     }
     #combat-overlay.visible { display: block; }
 
+    /* ── Building Info Popup ── */
+    #building-info {
+      position: absolute;
+      top: 60px; left: 12px;
+      width: 260px;
+      background: rgba(10, 10, 0, 0.95);
+      border: 1px solid #FFB000;
+      color: #FFB000;
+      padding: 10px 12px;
+      font-size: 12px;
+      display: none;
+      pointer-events: auto;
+      box-shadow: 0 0 16px rgba(255, 176, 0, 0.25);
+    }
+    #building-info.visible { display: block; }
+    #building-info .bi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #553300;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+    }
+    #building-info .bi-name {
+      color: #FFB000;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    #building-info .bi-close {
+      background: transparent;
+      border: 1px solid #553300;
+      color: #8B6914;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 11px;
+    }
+    #building-info .bi-close:hover { color: #FF3300; border-color: #FF3300; }
+    #building-info .bi-hp {
+      height: 8px;
+      background: rgba(85, 51, 0, 0.4);
+      border: 1px solid #553300;
+      margin: 4px 0;
+      position: relative;
+    }
+    #building-info .bi-hp-fill {
+      height: 100%;
+      background: #FFB000;
+      transition: width 0.2s;
+    }
+    #building-info .bi-hp-text {
+      font-size: 10px;
+      color: #8B6914;
+    }
+    #building-info .bi-desc {
+      color: #8B6914;
+      font-size: 11px;
+      margin: 6px 0;
+      line-height: 1.4;
+    }
+    #building-info .bi-stats {
+      color: #FFB000;
+      font-size: 11px;
+    }
+    #building-info .bi-stats div {
+      padding: 1px 0;
+    }
+
     /* ── Scrollbar styling ── */
     #turn-log::-webkit-scrollbar { width: 4px; }
     #turn-log::-webkit-scrollbar-track { background: #0A0A00; }
@@ -382,13 +451,15 @@ window.UI = (function() {
 
   // ── Building info for UI ──
   const BUILDING_INFO = {
-    [CONST.BUILDING.POWER_PLANT]:      { name: 'Power Plant',      desc: '+3 energy/turn',            icon: '[P]' },
-    [CONST.BUILDING.RADAR_STATION]:    { name: 'Radar Station',    desc: 'Reveals 3 enemy segs/turn', icon: '[R]' },
-    [CONST.BUILDING.MISSILE_SILO]:     { name: 'Missile Silo',     desc: 'Fire 1 missile/turn',       icon: '[M]' },
-    [CONST.BUILDING.ANTI_MISSILE]:     { name: 'Anti-Missile',     desc: 'Intercepts 2 missiles/turn',icon: '[A]' },
-    [CONST.BUILDING.ROBOT_HANGAR]:     { name: 'Robot Hangar',     desc: 'Deploy 1 mech/turn',        icon: '[H]' },
-    [CONST.BUILDING.SHIELD_GENERATOR]: { name: 'Shield Gen',       desc: 'Absorbs 1 hit on adj segs', icon: '[S]' },
-    [CONST.BUILDING.COMMAND_CENTER]:   { name: 'Command Center',   desc: 'HQ — Protect at all costs', icon: '[C]' }
+    [CONST.BUILDING.POWER_PLANT]:      { name: 'Power Plant',      desc: '+' + CONST.POWER_PLANT_ENERGY + ' energy/turn',          icon: '[P]' },
+    [CONST.BUILDING.SUPPLY_DEPOT]:     { name: 'Supply Depot',     desc: '+' + CONST.SUPPLY_DEPOT_CREDITS + ' credits/turn',        icon: '[$]' },
+    [CONST.BUILDING.RADAR_STATION]:    { name: 'Radar Station',    desc: 'Persistent scan ' + CONST.RADAR_RANGE + ' cells',         icon: '[R]' },
+    [CONST.BUILDING.MISSILE_SILO]:     { name: 'Missile Silo',     desc: 'Fire missile (' + CONST.ENERGY_FIRE_MISSILE + ' energy)', icon: '[M]' },
+    [CONST.BUILDING.ANTI_MISSILE]:     { name: 'Anti-Missile',     desc: 'Intercepts ' + CONST.ANTI_MISSILE_SHOTS_PER_TURN + ' missiles/turn', icon: '[A]' },
+    [CONST.BUILDING.ROBOT_HANGAR]:     { name: 'Robot Hangar',     desc: 'Deploy mech (' + CONST.ENERGY_DEPLOY_ROBOT + ' energy)',  icon: '[H]' },
+    [CONST.BUILDING.SHIELD_GENERATOR]: { name: 'Shield Gen',       desc: 'Absorbs 1 hit on adj cells',                              icon: '[S]' },
+    [CONST.BUILDING.GUN_POD]:          { name: 'Gun Pod',          desc: 'Anti-robot turret, ' + CONST.GUN_POD_RANGE + ' cell range', icon: '[G]' },
+    [CONST.BUILDING.COMMAND_CENTER]:   { name: 'Command Center',   desc: 'HQ — Protect at all costs',                               icon: '[C]' }
   };
 
   function getCostForType(type) {
@@ -399,6 +470,8 @@ window.UI = (function() {
       [CONST.BUILDING.ANTI_MISSILE]: 'ANTI_MISSILE',
       [CONST.BUILDING.ROBOT_HANGAR]: 'ROBOT_HANGAR',
       [CONST.BUILDING.SHIELD_GENERATOR]: 'SHIELD_GENERATOR',
+      [CONST.BUILDING.SUPPLY_DEPOT]: 'SUPPLY_DEPOT',
+      [CONST.BUILDING.GUN_POD]: 'GUN_POD',
       [CONST.BUILDING.COMMAND_CENTER]: 'COMMAND_CENTER'
     };
     return CONST.COST[keyMap[type]] || 0;
@@ -430,12 +503,14 @@ window.UI = (function() {
     hudEl.innerHTML = `
       <div class="hud-section">
         <div>
-          <span class="hud-label">Energy</span>
-          <span class="hud-value" id="hud-energy">4</span>
+          <span class="hud-label">Credits</span>
+          <span class="hud-value" id="hud-credits" style="color:#66FF99">400</span>
+          <span class="hud-label">(+<span id="hud-credit-income">8</span>)</span>
         </div>
         <div>
-          <span class="hud-label">Income</span>
-          <span class="hud-value" id="hud-income">4</span>
+          <span class="hud-label">Energy</span>
+          <span class="hud-value" id="hud-energy" style="color:#00CCFF">20</span>
+          <span class="hud-label">(+<span id="hud-energy-income">2</span>)</span>
         </div>
       </div>
       <div>
@@ -445,7 +520,7 @@ window.UI = (function() {
       <div class="hud-section">
         <div>
           <span class="hud-label">HQ HP</span>
-          <span class="hud-value" id="hud-hq-hp">20</span>
+          <span class="hud-value" id="hud-hq-hp">150</span>
         </div>
         <div>
           <span class="hud-label">Enemy HQ</span>
@@ -491,6 +566,22 @@ window.UI = (function() {
     tooltipEl = document.createElement('div');
     tooltipEl.id = 'tooltip';
     container.appendChild(tooltipEl);
+
+    // Building Info Popup
+    const bInfo = document.createElement('div');
+    bInfo.id = 'building-info';
+    bInfo.innerHTML = `
+      <div class="bi-header">
+        <div class="bi-name" id="bi-name">-</div>
+        <button class="bi-close" id="bi-close">X</button>
+      </div>
+      <div class="bi-hp-text" id="bi-hp-text">HP: -/-</div>
+      <div class="bi-hp"><div class="bi-hp-fill" id="bi-hp-fill" style="width:100%"></div></div>
+      <div class="bi-desc" id="bi-desc">-</div>
+      <div class="bi-stats" id="bi-stats"></div>
+    `;
+    container.appendChild(bInfo);
+    document.getElementById('bi-close').addEventListener('click', hideBuildingInfo);
 
     // Main Menu
     mainMenuEl = document.createElement('div');
@@ -551,8 +642,12 @@ window.UI = (function() {
   // STATE UPDATE
   // ════════════════════════════════════════
   function updateHUD(state) {
+    document.getElementById('hud-credits').textContent = state.playerCredits;
     document.getElementById('hud-energy').textContent = state.playerEnergy;
-    document.getElementById('hud-income').textContent = state.playerIncome;
+    const ciEl = document.getElementById('hud-credit-income');
+    if (ciEl) ciEl.textContent = state.playerCreditIncome;
+    const eiEl = document.getElementById('hud-energy-income');
+    if (eiEl) eiEl.textContent = state.playerEnergyIncome;
     document.getElementById('hud-turn').textContent = `Turn ${state.turn}`;
 
     // HQ HP
@@ -560,7 +655,7 @@ window.UI = (function() {
     const hqHp = playerCC ? playerCC.hp : 0;
     const hqEl = document.getElementById('hud-hq-hp');
     hqEl.textContent = hqHp;
-    hqEl.className = 'hud-value' + (hqHp <= 8 ? ' danger' : '');
+    hqEl.className = 'hud-value' + (hqHp <= 40 ? ' danger' : '');
 
     // Enemy HQ (show if revealed or unknown)
     const enemyCC = state.segments[CONST.COMMAND_CENTER_SEGMENT_AI].building;
@@ -590,17 +685,19 @@ window.UI = (function() {
 
     const buildableTypes = [
       CONST.BUILDING.POWER_PLANT,
+      CONST.BUILDING.SUPPLY_DEPOT,
       CONST.BUILDING.RADAR_STATION,
       CONST.BUILDING.MISSILE_SILO,
       CONST.BUILDING.ANTI_MISSILE,
       CONST.BUILDING.ROBOT_HANGAR,
-      CONST.BUILDING.SHIELD_GENERATOR
+      CONST.BUILDING.SHIELD_GENERATOR,
+      CONST.BUILDING.GUN_POD
     ];
 
     for (const type of buildableTypes) {
       const info = BUILDING_INFO[type];
       const cost = getCostForType(type);
-      const canAfford = state.playerEnergy >= cost;
+      const canAfford = state.playerCredits >= cost;
       const hasSlot = getEmptySegments(state, CONST.SIDE_PLAYER).length > 0;
       const enabled = canAfford && hasSlot;
 
@@ -608,7 +705,7 @@ window.UI = (function() {
       btn.className = 'build-btn' + (!enabled ? ' disabled' : '') + (selectedBuildType === type ? ' selected' : '');
       btn.innerHTML = `
         <span class="btn-name">${info.icon} ${info.name}</span>
-        <span class="btn-cost">Cost: ${cost} energy</span>
+        <span class="btn-cost">Cost: ${cost} credits</span>
         <span class="btn-desc">${info.desc}</span>
       `;
 
@@ -625,14 +722,16 @@ window.UI = (function() {
       grid.appendChild(btn);
     }
 
-    // Update missile/robot buttons
+    // Update missile/robot buttons (also disable if insufficient energy)
     const hasSilo = getBuildingsOfType(state, CONST.SIDE_PLAYER, CONST.BUILDING.MISSILE_SILO).length > 0;
+    const canFire = hasSilo && state.playerEnergy >= CONST.ENERGY_FIRE_MISSILE;
     const hasHangar = getBuildingsOfType(state, CONST.SIDE_PLAYER, CONST.BUILDING.ROBOT_HANGAR).some(h => !h.deployedThisTurn);
+    const canDeploy = hasHangar && state.playerEnergy >= CONST.ENERGY_DEPLOY_ROBOT;
 
-    document.getElementById('btn-fire-missile').style.opacity = hasSilo ? '1' : '0.3';
-    document.getElementById('btn-fire-missile').style.pointerEvents = hasSilo ? 'auto' : 'none';
-    document.getElementById('btn-deploy-robot').style.opacity = hasHangar ? '1' : '0.3';
-    document.getElementById('btn-deploy-robot').style.pointerEvents = hasHangar ? 'auto' : 'none';
+    document.getElementById('btn-fire-missile').style.opacity = canFire ? '1' : '0.3';
+    document.getElementById('btn-fire-missile').style.pointerEvents = canFire ? 'auto' : 'none';
+    document.getElementById('btn-deploy-robot').style.opacity = canDeploy ? '1' : '0.3';
+    document.getElementById('btn-deploy-robot').style.pointerEvents = canDeploy ? 'auto' : 'none';
   }
 
   // ════════════════════════════════════════
@@ -747,6 +846,52 @@ window.UI = (function() {
   }
 
   // ════════════════════════════════════════
+  // BUILDING INFO POPUP
+  // ════════════════════════════════════════
+  let _lastInfoSegment = -1;
+  function showBuildingInfo(segmentIndex, state) {
+    const seg = state.segments[segmentIndex];
+    if (!seg || !seg.building) { hideBuildingInfo(); return; }
+    const b = seg.building;
+    _lastInfoSegment = segmentIndex;
+
+    const info = BUILDING_INFO[b.type] || { name: b.type, desc: '' };
+    const tableInfo = (typeof BUILDING_INFO_TABLE !== 'undefined') ? BUILDING_INFO_TABLE[b.type] : null;
+
+    document.getElementById('bi-name').textContent = (info.icon || '') + ' ' + info.name;
+    const pct = Math.max(0, b.hp / b.maxHp);
+    document.getElementById('bi-hp-fill').style.width = (pct * 100) + '%';
+    document.getElementById('bi-hp-fill').style.background = pct > 0.5 ? '#FFB000' : (pct > 0.25 ? '#FF8800' : '#FF3300');
+    document.getElementById('bi-hp-text').textContent = 'HP: ' + b.hp + '/' + b.maxHp;
+    document.getElementById('bi-desc').textContent = tableInfo ? tableInfo.desc : info.desc;
+    const statsEl = document.getElementById('bi-stats');
+    statsEl.innerHTML = '';
+    const stats = tableInfo && tableInfo.stats ? tableInfo.stats() : [];
+    const cost = getCostForType(b.type);
+    if (cost > 0) stats.push('Cost: ' + cost + ' credits');
+    stats.push('Side: ' + b.side);
+    for (const s of stats) {
+      const d = document.createElement('div');
+      d.textContent = '• ' + s;
+      statsEl.appendChild(d);
+    }
+    document.getElementById('building-info').classList.add('visible');
+  }
+
+  function hideBuildingInfo() {
+    document.getElementById('building-info').classList.remove('visible');
+    _lastInfoSegment = -1;
+  }
+
+  function isBuildingInfoShowing() {
+    return _lastInfoSegment >= 0;
+  }
+
+  function getSelectedInfoSegment() {
+    return _lastInfoSegment;
+  }
+
+  // ════════════════════════════════════════
   // PUBLIC API
   // ════════════════════════════════════════
   return {
@@ -761,6 +906,10 @@ window.UI = (function() {
     clearLog,
     showTooltip,
     hideTooltip,
+    showBuildingInfo,
+    hideBuildingInfo,
+    isBuildingInfoShowing,
+    getSelectedInfoSegment,
     handleSegmentClick,
     enterTargetingMode,
     exitTargetingMode,

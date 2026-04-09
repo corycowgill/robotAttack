@@ -21,6 +21,11 @@
 
     var side = seg.building.side;
 
+    // Energy check
+    var energyField = side === CONST.SIDE_PLAYER ? 'playerEnergy' : 'aiEnergy';
+    if (state[energyField] < CONST.ENERGY_DEPLOY_ROBOT) return null;
+    state[energyField] -= CONST.ENERGY_DEPLOY_ROBOT;
+
     // Mark hangar as deployed
     seg.building.deployedThisTurn = true;
 
@@ -296,9 +301,8 @@
    * Processes robot deployments:
    * 1. Robot launches as delivery missile from hangar
    * 2. Can be intercepted by anti-missile batteries
-   * 3. If not intercepted: lands at target segment
-   * 4. On landing: auto-attacks nearest enemy building (melee)
-   * 5. Robot is destroyed at end of turn
+   * 3. If not intercepted: lands at target segment and PERSISTS
+   *    (attacks happen via resolveRobotCombat each turn)
    */
   function resolveRobotDeployments(state, actions, onAnimate) {
     var robotActions = actions.filter(function (a) {
@@ -351,10 +355,12 @@
       // Set robot cell position to target
       var targetXY = indexToXY(target);
       var hangarXY = indexToXY(ra.hangarSegment);
-      robot.x = targetXY.x * CONST.CELL_SIZE;
+      robot.x = targetXY.x * CONST.CELL_SIZE + CONST.CELL_SIZE / 2;
       robot.y = 0;
-      robot.z = targetXY.y * CONST.CELL_SIZE;
+      robot.z = targetXY.y * CONST.CELL_SIZE + CONST.CELL_SIZE / 2;
+      robot.currentSegment = target;
       robot.state = 'landing';
+      robot.landed = true;
 
       // Animate delivery arc (orchestrator recalculates with real world positions)
       if (onAnimate) {
@@ -374,108 +380,182 @@
         side: ra.side
       });
 
-      // Robot landed — find nearest enemy building and attack
-      robot.state = 'attacking';
-      var nearestEnemy = findNearestEnemyBuilding(state, target, ra.side);
-
-      if (nearestEnemy >= 0) {
-        robot.attackTarget = nearestEnemy;
-
-        if (onAnimate) {
-          onAnimate({
-            type: 'robot_attack',
-            robot: robot,
-            targetSegment: nearestEnemy
-          });
-        }
-
-        // Apply melee damage
-        var enemySeg = state.segments[nearestEnemy];
-        if (enemySeg.building && enemySeg.building.active) {
-          // Check shield
-          var shielded = false;
-          if (window.Weapons && window.Weapons.checkShieldAbsorb) {
-            shielded = window.Weapons.checkShieldAbsorb(state, nearestEnemy);
-          }
-
-          if (shielded) {
-            state.combatLog.push({
-              event: 'shield_absorb',
-              segment: nearestEnemy,
-              source: 'robot'
-            });
-            if (onAnimate) {
-              onAnimate({ type: 'shield_absorb', segment: nearestEnemy });
-            }
-          } else {
-            // Apply robot melee damage using Weapons.applyDamage if available
-            if (window.Weapons && window.Weapons.applyDamage) {
-              window.Weapons.applyDamage(state, nearestEnemy, CONST.ROBOT_MELEE_DAMAGE, state.combatLog);
-            } else {
-              // Inline damage application
-              enemySeg.building.hp -= CONST.ROBOT_MELEE_DAMAGE;
-              state.combatLog.push({
-                event: 'damage',
-                segment: nearestEnemy,
-                damage: CONST.ROBOT_MELEE_DAMAGE,
-                remainingHp: enemySeg.building.hp,
-                buildingType: enemySeg.building.type,
-                source: 'robot'
-              });
-              if (enemySeg.building.hp <= 0) {
-                state.combatLog.push({
-                  event: 'destroyed',
-                  segment: nearestEnemy,
-                  buildingType: enemySeg.building.type,
-                  source: 'robot'
-                });
-                enemySeg.building.active = false;
-                enemySeg.building.hp = 0;
-                enemySeg.destroyed = true;
-                enemySeg.building = null;
-
-                if (nearestEnemy === CONST.COMMAND_CENTER_SEGMENT_PLAYER) {
-                  state.winner = CONST.SIDE_AI;
-                } else if (nearestEnemy === CONST.COMMAND_CENTER_SEGMENT_AI) {
-                  state.winner = CONST.SIDE_PLAYER;
-                }
-              }
-            }
-
-            if (onAnimate) {
-              onAnimate({
-                type: 'robot_melee_hit',
-                robot: robot,
-                targetSegment: nearestEnemy,
-                damage: CONST.ROBOT_MELEE_DAMAGE
-              });
-            }
-          }
-        }
-      }
-
-      // Step 5: Robot is destroyed at end of turn
-      robot.state = 'destroyed';
+      // Robot lands and becomes persistent
+      robot.state = 'idle';
+      robot.attackTarget = findNearestEnemyBuilding(state, target, ra.side);
 
       if (onAnimate) {
-        onAnimate({
-          type: 'robot_death',
-          robot: robot,
-          position: { x: robot.x, y: robot.y, z: 0 }
-        });
+        onAnimate({ type: 'robot_landed', robot: robot, segment: target });
       }
 
-      state.combatLog.push({
-        event: 'robot_destroyed',
-        segment: target,
-        side: ra.side
-      });
-
-      // Add to active robots briefly (for rendering), then clean up
+      // Add to active robots — survives until killed
       state.activeRobots.push(robot);
 
       ra.resolved = true;
     }
+  }
+
+  // ── Resolve Robot Combat (per-turn) ──
+  /**
+   * Resolves combat for all active robots and gun pods:
+   * (a) Gun pods auto-fire at enemy robots in range
+   * (b) Robot-vs-robot melee in adjacent cells
+   * (c) Alive robots attack adjacent enemy buildings
+   */
+  function resolveRobotCombat(state, onAnimate) {
+    if (!state.activeRobots) state.activeRobots = [];
+
+    // (a) Gun pods fire at enemy robots
+    for (var s = 0; s < state.segments.length; s++) {
+      var seg = state.segments[s];
+      if (!seg.building || !seg.building.active) continue;
+      if (seg.building.type !== CONST.BUILDING.GUN_POD) continue;
+      var gunSide = seg.building.side;
+      // Find enemy robots in range
+      var bestTarget = null;
+      var bestDist = Infinity;
+      for (var r = 0; r < state.activeRobots.length; r++) {
+        var rob = state.activeRobots[r];
+        if (rob.side === gunSide) continue;
+        if (rob.hp <= 0 || rob.state === 'destroyed') continue;
+        var d = cellDistance(s, rob.currentSegment);
+        if (d <= CONST.GUN_POD_RANGE && d < bestDist) {
+          bestDist = d;
+          bestTarget = rob;
+        }
+      }
+      if (bestTarget) {
+        bestTarget.hp -= CONST.GUN_POD_DAMAGE;
+        state.combatLog.push({
+          event: 'gun_pod_fire',
+          gunSegment: s,
+          targetRobotId: bestTarget.id,
+          damage: CONST.GUN_POD_DAMAGE,
+          remainingHp: bestTarget.hp
+        });
+        if (onAnimate) {
+          onAnimate({
+            type: 'gun_pod_fire',
+            gunSegment: s,
+            targetRobot: bestTarget
+          });
+        }
+        if (bestTarget.hp <= 0) {
+          bestTarget.hp = 0;
+          bestTarget.state = 'destroyed';
+          state.combatLog.push({
+            event: 'robot_destroyed',
+            segment: bestTarget.currentSegment,
+            side: bestTarget.side,
+            source: 'gun_pod'
+          });
+          if (onAnimate) {
+            onAnimate({
+              type: 'robot_death',
+              robot: bestTarget,
+              position: { x: bestTarget.x, y: bestTarget.y, z: bestTarget.z }
+            });
+          }
+        }
+      }
+    }
+
+    // (b) Robot-vs-robot melee
+    for (var i = 0; i < state.activeRobots.length; i++) {
+      var a = state.activeRobots[i];
+      if (a.state === 'destroyed' || a.hp <= 0) continue;
+      for (var j = i + 1; j < state.activeRobots.length; j++) {
+        var b = state.activeRobots[j];
+        if (b.state === 'destroyed' || b.hp <= 0) continue;
+        if (a.side === b.side) continue;
+        var adj = cellDistance(a.currentSegment, b.currentSegment);
+        if (adj <= Math.SQRT2 + 0.01) {
+          // Mutual melee
+          a.hp -= CONST.ROBOT_MELEE_DAMAGE;
+          b.hp -= CONST.ROBOT_MELEE_DAMAGE;
+          state.combatLog.push({ event: 'robot_melee', a: a.id, b: b.id });
+          if (onAnimate) {
+            onAnimate({ type: 'robot_vs_robot', a: a, b: b });
+          }
+          if (a.hp <= 0) { a.state = 'destroyed'; if (onAnimate) onAnimate({ type: 'robot_death', robot: a, position: { x: a.x, y: a.y, z: a.z } }); }
+          if (b.hp <= 0) { b.state = 'destroyed'; if (onAnimate) onAnimate({ type: 'robot_death', robot: b, position: { x: b.x, y: b.y, z: b.z } }); }
+        }
+      }
+    }
+
+    // (c) Robots attack adjacent enemy buildings
+    for (var rr = 0; rr < state.activeRobots.length; rr++) {
+      var robot = state.activeRobots[rr];
+      if (robot.state === 'destroyed' || robot.hp <= 0) continue;
+
+      // Find adjacent enemy building (including own cell)
+      var candidates = [robot.currentSegment].concat(getAdjacentCells(robot.currentSegment));
+      var targetIdx = -1;
+      var enemySide = robot.side === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
+      for (var c = 0; c < candidates.length; c++) {
+        var cseg = state.segments[candidates[c]];
+        if (!cseg || !cseg.building || !cseg.building.active) continue;
+        if (cseg.building.side !== enemySide) continue;
+        targetIdx = candidates[c];
+        break;
+      }
+
+      if (targetIdx < 0) {
+        // No adjacent target — walk toward nearest enemy building
+        var nearest = findNearestEnemyBuilding(state, robot.currentSegment, robot.side);
+        if (nearest >= 0) {
+          // Move one cell closer
+          var rxy = indexToXY(robot.currentSegment);
+          var txy = indexToXY(nearest);
+          var stepX = Math.sign(txy.x - rxy.x);
+          var stepY = Math.sign(txy.y - rxy.y);
+          var newX = rxy.x + stepX;
+          var newY = rxy.y + stepY;
+          if (newX >= 0 && newX < CONST.GRID_W && newY >= 0 && newY < CONST.GRID_H) {
+            var newIdx = xyToIndex(newX, newY);
+            var nseg = state.segments[newIdx];
+            // Don't walk onto our own buildings
+            if (!nseg.building || nseg.building.side !== robot.side) {
+              robot.currentSegment = newIdx;
+              robot.x = newX * CONST.CELL_SIZE + CONST.CELL_SIZE / 2;
+              robot.z = newY * CONST.CELL_SIZE + CONST.CELL_SIZE / 2;
+              if (onAnimate) {
+                onAnimate({ type: 'robot_move', robot: robot, segment: newIdx });
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      // Attack the adjacent enemy building
+      var shielded = false;
+      if (window.Weapons && window.Weapons.checkShieldAbsorb) {
+        shielded = window.Weapons.checkShieldAbsorb(state, targetIdx);
+      }
+
+      if (shielded) {
+        state.combatLog.push({ event: 'shield_absorb', segment: targetIdx, source: 'robot' });
+        if (onAnimate) onAnimate({ type: 'shield_absorb', segment: targetIdx });
+      } else {
+        if (window.Weapons && window.Weapons.applyDamage) {
+          window.Weapons.applyDamage(state, targetIdx, CONST.ROBOT_MELEE_DAMAGE, state.combatLog);
+        }
+        if (onAnimate) {
+          onAnimate({
+            type: 'robot_melee_hit',
+            robot: robot,
+            targetSegment: targetIdx,
+            damage: CONST.ROBOT_MELEE_DAMAGE
+          });
+        }
+      }
+    }
+
+    // Remove destroyed robots
+    state.activeRobots = state.activeRobots.filter(function (r) {
+      return r.state !== 'destroyed' && r.hp > 0;
+    });
   }
 
   // ── Reset Hangars at Turn Start ──
@@ -489,11 +569,11 @@
     }
   }
 
-  // ── Clean Up Destroyed Robots ──
+  // ── Clean Up Destroyed Robots (only destroyed, keep alive ones persistent) ──
 
   function cleanUpRobots(state) {
-    state.activeRobots = state.activeRobots.filter(function (r) {
-      return r.state !== 'destroyed';
+    state.activeRobots = (state.activeRobots || []).filter(function (r) {
+      return r.state !== 'destroyed' && r.hp > 0;
     });
   }
 
@@ -502,6 +582,7 @@
   window.Robots = {
     deployRobot: deployRobot,
     resolveRobotDeployments: resolveRobotDeployments,
+    resolveRobotCombat: resolveRobotCombat,
     createRobotMesh: createRobotMesh,
     createRobotLandingAnim: createRobotLandingAnim,
     animateRobotAttack: animateRobotAttack,

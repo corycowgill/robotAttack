@@ -53,61 +53,63 @@ window.AI = (function() {
   // ═══════════════════════════════════════════════════
   function planPatrol(state) {
     const actions = [];
+    let credits = state.aiCredits;
     let energy = state.aiEnergy;
     const emptySegs = getEmptyAISegments(state);
     const silos = getBuildings(state, CONST.SIDE_AI, CONST.BUILDING.MISSILE_SILO);
     const hangars = getBuildings(state, CONST.SIDE_AI, CONST.BUILDING.ROBOT_HANGAR);
 
-    // Phase 1: Fire existing weapons randomly
+    // Phase 1: Fire existing weapons randomly (energy-limited)
     for (const silo of silos) {
+      if (energy < CONST.ENERGY_FIRE_MISSILE) break;
       const target = pickRandomEnemySegment(state);
       if (target) {
         actions.push(createAction(CONST.ACTION.FIRE_MISSILE, CONST.SIDE_AI, {
           fromSegment: silo.segmentIndex,
           targetSegment: target.index
         }));
+        energy -= CONST.ENERGY_FIRE_MISSILE;
       }
     }
 
     // Deploy robots from hangars randomly
     for (const hangar of hangars) {
-      if (!hangar.deployedThisTurn) {
-        const target = pickRandomEnemySegment(state);
-        if (target) {
-          actions.push(createAction(CONST.ACTION.DEPLOY_ROBOT, CONST.SIDE_AI, {
-            hangarSegment: hangar.segmentIndex,
-            targetSegment: target.index
-          }));
-        }
+      if (hangar.deployedThisTurn) continue;
+      if (energy < CONST.ENERGY_DEPLOY_ROBOT) break;
+      const target = pickRandomEnemySegment(state);
+      if (target) {
+        actions.push(createAction(CONST.ACTION.DEPLOY_ROBOT, CONST.SIDE_AI, {
+          hangarSegment: hangar.segmentIndex,
+          targetSegment: target.index
+        }));
+        energy -= CONST.ENERGY_DEPLOY_ROBOT;
       }
     }
 
-    // Phase 2: Build stuff randomly
+    // Phase 2: Build stuff randomly (credit-limited)
     const buildOptions = [];
 
     if (emptySegs.length > 0) {
-      // Always want power if income is low
       if (countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.POWER_PLANT) < 3) {
-        buildOptions.push({
-          type: CONST.BUILDING.POWER_PLANT,
-          cost: CONST.COST.POWER_PLANT,
-          priority: 5 + Math.random() * 3
-        });
+        buildOptions.push({ type: CONST.BUILDING.POWER_PLANT, cost: CONST.COST.POWER_PLANT, priority: 5 + Math.random() * 3 });
+      }
+      if (countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.SUPPLY_DEPOT) < 3) {
+        buildOptions.push({ type: CONST.BUILDING.SUPPLY_DEPOT, cost: CONST.COST.SUPPLY_DEPOT, priority: 5 + Math.random() * 3 });
       }
 
-      // Random building selection
       const allTypes = [
         { type: CONST.BUILDING.MISSILE_SILO, cost: CONST.COST.MISSILE_SILO, priority: 3 + Math.random() * 4 },
         { type: CONST.BUILDING.ANTI_MISSILE, cost: CONST.COST.ANTI_MISSILE, priority: 2 + Math.random() * 3 },
         { type: CONST.BUILDING.ROBOT_HANGAR, cost: CONST.COST.ROBOT_HANGAR, priority: 2 + Math.random() * 3 },
         { type: CONST.BUILDING.SHIELD_GENERATOR, cost: CONST.COST.SHIELD_GENERATOR, priority: 1 + Math.random() * 3 },
-        { type: CONST.BUILDING.RADAR_STATION, cost: CONST.COST.RADAR_STATION, priority: 1 + Math.random() * 2 }
+        { type: CONST.BUILDING.RADAR_STATION, cost: CONST.COST.RADAR_STATION, priority: 1 + Math.random() * 2 },
+        { type: CONST.BUILDING.GUN_POD, cost: CONST.COST.GUN_POD, priority: 2 + Math.random() * 3 }
       ];
 
       buildOptions.push(...allTypes);
     }
 
-    const plan = createSpendingPlan(energy, buildOptions);
+    const plan = createSpendingPlan(credits, buildOptions);
 
     for (const item of plan) {
       const seg = pickRandom(emptySegs);
@@ -116,10 +118,9 @@ window.AI = (function() {
           buildingType: item.type,
           segmentIndex: seg.index
         }));
-        // Remove segment from available
         const idx = emptySegs.indexOf(seg);
         if (idx > -1) emptySegs.splice(idx, 1);
-        energy -= item.cost;
+        credits -= item.cost;
       }
     }
 
@@ -131,6 +132,7 @@ window.AI = (function() {
   // ═══════════════════════════════════════════════════
   function planCommander(state) {
     const actions = [];
+    let credits = state.aiCredits;
     let energy = state.aiEnergy;
     const emptySegs = getEmptyAISegments(state);
     const silos = getBuildings(state, CONST.SIDE_AI, CONST.BUILDING.MISSILE_SILO);
@@ -189,7 +191,7 @@ window.AI = (function() {
     const primaryTarget = findBestTarget();
 
     for (const silo of silos) {
-      // Commander focuses fire — 70% chance to hit primary target, 30% secondary
+      if (energy < CONST.ENERGY_FIRE_MISSILE) break;
       let target;
       if (primaryTarget && Math.random() < 0.7) {
         target = primaryTarget;
@@ -201,25 +203,26 @@ window.AI = (function() {
           fromSegment: silo.segmentIndex,
           targetSegment: target.index
         }));
+        energy -= CONST.ENERGY_FIRE_MISSILE;
       }
     }
 
     // Deploy robots toward command center or key buildings
     for (const hangar of hangars) {
-      if (!hangar.deployedThisTurn) {
-        // Robots target command center in late game
-        let target;
-        if (turn >= 4 && Math.random() < 0.6) {
-          target = state.segments[CONST.COMMAND_CENTER_SEGMENT_PLAYER];
-        } else {
-          target = primaryTarget || pickRandomEnemySegment(state);
-        }
-        if (target) {
-          actions.push(createAction(CONST.ACTION.DEPLOY_ROBOT, CONST.SIDE_AI, {
-            hangarSegment: hangar.segmentIndex,
-            targetSegment: target.index
-          }));
-        }
+      if (hangar.deployedThisTurn) continue;
+      if (energy < CONST.ENERGY_DEPLOY_ROBOT) break;
+      let target;
+      if (turn >= 4 && Math.random() < 0.6) {
+        target = state.segments[CONST.COMMAND_CENTER_SEGMENT_PLAYER];
+      } else {
+        target = primaryTarget || pickRandomEnemySegment(state);
+      }
+      if (target) {
+        actions.push(createAction(CONST.ACTION.DEPLOY_ROBOT, CONST.SIDE_AI, {
+          hangarSegment: hangar.segmentIndex,
+          targetSegment: target.index
+        }));
+        energy -= CONST.ENERGY_DEPLOY_ROBOT;
       }
     }
 
@@ -231,20 +234,26 @@ window.AI = (function() {
     const numHangars = countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.ROBOT_HANGAR);
     const numShields = countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.SHIELD_GENERATOR);
     const numRadar = countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.RADAR_STATION);
+    const numDepot = countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.SUPPLY_DEPOT);
+    const numGunPods = countBuildings(state, CONST.SIDE_AI, CONST.BUILDING.GUN_POD);
 
     // Early game (turns 1-3): economy focus
     if (turn <= 3) {
       if (numPower < 2) buildItems.push({ type: CONST.BUILDING.POWER_PLANT, cost: CONST.COST.POWER_PLANT, priority: 10 });
+      if (numDepot < 2) buildItems.push({ type: CONST.BUILDING.SUPPLY_DEPOT, cost: CONST.COST.SUPPLY_DEPOT, priority: 9 });
       if (numRadar < 1) buildItems.push({ type: CONST.BUILDING.RADAR_STATION, cost: CONST.COST.RADAR_STATION, priority: 8 });
       if (numSilos < 1) buildItems.push({ type: CONST.BUILDING.MISSILE_SILO, cost: CONST.COST.MISSILE_SILO, priority: 7 });
       if (numAM < 1) buildItems.push({ type: CONST.BUILDING.ANTI_MISSILE, cost: CONST.COST.ANTI_MISSILE, priority: 6 });
+      if (numGunPods < 1) buildItems.push({ type: CONST.BUILDING.GUN_POD, cost: CONST.COST.GUN_POD, priority: 5 });
     }
     // Mid game (turns 4-7): military buildup
     else if (turn <= 7) {
       if (numPower < 3) buildItems.push({ type: CONST.BUILDING.POWER_PLANT, cost: CONST.COST.POWER_PLANT, priority: 8 });
+      if (numDepot < 3) buildItems.push({ type: CONST.BUILDING.SUPPLY_DEPOT, cost: CONST.COST.SUPPLY_DEPOT, priority: 7 });
       if (numSilos < 3) buildItems.push({ type: CONST.BUILDING.MISSILE_SILO, cost: CONST.COST.MISSILE_SILO, priority: 9 });
       if (numHangars < 2) buildItems.push({ type: CONST.BUILDING.ROBOT_HANGAR, cost: CONST.COST.ROBOT_HANGAR, priority: 7 });
       if (numAM < 2) buildItems.push({ type: CONST.BUILDING.ANTI_MISSILE, cost: CONST.COST.ANTI_MISSILE, priority: 6 });
+      if (numGunPods < 2) buildItems.push({ type: CONST.BUILDING.GUN_POD, cost: CONST.COST.GUN_POD, priority: 6 });
       if (numShields < 1) buildItems.push({ type: CONST.BUILDING.SHIELD_GENERATOR, cost: CONST.COST.SHIELD_GENERATOR, priority: 5 });
     }
     // Late game (turn 8+): full aggression
@@ -252,11 +261,13 @@ window.AI = (function() {
       if (numSilos < 4) buildItems.push({ type: CONST.BUILDING.MISSILE_SILO, cost: CONST.COST.MISSILE_SILO, priority: 10 });
       if (numHangars < 3) buildItems.push({ type: CONST.BUILDING.ROBOT_HANGAR, cost: CONST.COST.ROBOT_HANGAR, priority: 9 });
       if (numPower < 4) buildItems.push({ type: CONST.BUILDING.POWER_PLANT, cost: CONST.COST.POWER_PLANT, priority: 7 });
+      if (numDepot < 3) buildItems.push({ type: CONST.BUILDING.SUPPLY_DEPOT, cost: CONST.COST.SUPPLY_DEPOT, priority: 7 });
       if (numAM < 2) buildItems.push({ type: CONST.BUILDING.ANTI_MISSILE, cost: CONST.COST.ANTI_MISSILE, priority: 6 });
+      if (numGunPods < 3) buildItems.push({ type: CONST.BUILDING.GUN_POD, cost: CONST.COST.GUN_POD, priority: 6 });
       if (numShields < 2) buildItems.push({ type: CONST.BUILDING.SHIELD_GENERATOR, cost: CONST.COST.SHIELD_GENERATOR, priority: 5 });
     }
 
-    const plan = createSpendingPlan(energy, buildItems);
+    const plan = createSpendingPlan(credits, buildItems);
 
     for (const item of plan) {
       // Commander places buildings strategically
@@ -278,7 +289,7 @@ window.AI = (function() {
         }));
         const idx = emptySegs.indexOf(seg);
         if (idx > -1) emptySegs.splice(idx, 1);
-        energy -= item.cost;
+        credits -= item.cost;
       }
     }
 
@@ -289,33 +300,17 @@ window.AI = (function() {
   // RADAR REVEAL — Process radar stations
   // ═══════════════════════════════════════════════════
   function processRadar(state, side) {
-    const radars = getBuildings(state, side, CONST.BUILDING.RADAR_STATION);
-    const revealed = new Set(state.revealedEnemySegments || []);
+    // Persistent scan zone: each radar reveals a radius of cells.
+    // Missile-fire reveals (stored as 'sticky' reveals) also persist until computed.
+    if (side !== CONST.SIDE_PLAYER) return; // AI has full vision
 
-    const enemySide = side === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
-    const unrevealed = [];
+    const radarReveals = computeRadarReveals(state, CONST.SIDE_PLAYER);
+    // Merge with any sticky reveals from missile fires
+    const sticky = state._stickyReveals || new Set();
+    const combined = new Set(radarReveals);
+    sticky.forEach(function(i) { combined.add(i); });
 
-    for (let i = 0; i < state.segments.length; i++) {
-      const seg = state.segments[i];
-      if (seg.side !== enemySide) continue;
-      if (!revealed.has(i) && !seg.destroyed) {
-        unrevealed.push(i);
-      }
-    }
-
-    for (const radar of radars) {
-      for (let r = 0; r < CONST.RADAR_REVEAL_COUNT; r++) {
-        if (unrevealed.length === 0) break;
-        const idx = Math.floor(Math.random() * unrevealed.length);
-        revealed.add(unrevealed[idx]);
-        unrevealed.splice(idx, 1);
-      }
-    }
-
-    if (side === CONST.SIDE_PLAYER) {
-      state.revealedEnemySegments = Array.from(revealed);
-    }
-    // AI always sees everything (no fog for AI)
+    state.revealedEnemySegments = Array.from(combined);
   }
 
   // ═══════════════════════════════════════════════════
