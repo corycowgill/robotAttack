@@ -1,147 +1,143 @@
 // ============================================================
 // Robot Strategy Attack 2026 — Three.js Renderer
-// ============================================================
-// Depends on: gameState.js (CONST, TOTAL_SEGMENTS)
-// Depends on: Three.js r128 loaded from CDN
+// 2D GRID VERSION: Tilted top-down view of a 40x24 grid
 // ============================================================
 
 (function () {
   'use strict';
 
-  // ── Local references ──
   const COLORS = CONST.COLORS;
-  const SEG_W = CONST.SEGMENT_WIDTH;
-  const TOTAL = TOTAL_SEGMENTS; // 28
-  const HALF = CONST.SEGMENTS_PER_SIDE; // 14
+  const CELL = CONST.CELL_SIZE;
+  const GW = CONST.GRID_W;
+  const GH = CONST.GRID_H;
+  const TOTAL = TOTAL_CELLS;
 
-  // ── Renderer state ──
-  let scene, camera, renderer;
+  let scene, camera, renderer, clock;
   let ambientLight, directionalLight;
-  let clock;
 
-  // Terrain
-  const segmentMeshes = [];   // THREE.Mesh[] indexed by segment index
-  const gridLineMeshes = [];  // grid overlay meshes per segment
-  const fogMeshes = [];       // fog of war overlay meshes (AI side only)
-  const segmentElevations = []; // base Y for each segment
+  const segmentMeshes = [];   // tile mesh per cell index
+  const gridLineMeshes = [];
+  const fogMeshes = [];       // fog over AI cells
+  const segmentElevations = [];
 
-  // Camera control
+  // Camera control — now 2D pan (X, Z)
   let cameraTargetX = 0;
+  let cameraTargetZ = 0;
   let cameraDragActive = false;
-  let cameraDragStartX = 0;
-  let cameraDragCamStartX = 0;
+  let cameraDragStartMouse = { x: 0, y: 0 };
+  let cameraDragStart = { x: 0, z: 0 };
+  let cameraZoom = 1.0;
 
   // Screen shake
   let shakeIntensity = 0;
   let shakeDuration = 0;
   let shakeElapsed = 0;
-  let shakeOffsetX = 0;
-  let shakeOffsetY = 0;
 
-  // Map bounds for camera panning
-  const MAP_LEFT = -SEG_W * 2;
-  const MAP_RIGHT = TOTAL * SEG_W + SEG_W * 2;
-  const MAP_CENTER_X = (TOTAL * SEG_W) / 2;
-
-  // Platform geometry constants
-  const PLATFORM_HEIGHT = 4;
-  const PLATFORM_DEPTH = 60;
-  const CRATER_DEPTH = -8;
+  const PLATFORM_HEIGHT = 1.5;
   const BASE_Y = 0;
+  const CRATER_DEPTH = -3;
 
-  // ── CSS Overlay Setup ──
+  // World dimensions
+  const WORLD_W = GW * CELL;
+  const WORLD_H = GH * CELL;
+  const WORLD_CENTER_X = WORLD_W / 2;
+  const WORLD_CENTER_Z = WORLD_H / 2;
+
+  // Camera bounds
+  const CAM_MIN_X = -CELL * 2;
+  const CAM_MAX_X = WORLD_W + CELL * 2;
+  const CAM_MIN_Z = -CELL * 2;
+  const CAM_MAX_Z = WORLD_H + CELL * 2;
+
+  // ── CSS Overlays ──
   function createCSSOverlays() {
-    // Scanline overlay
     const scanlineEl = document.createElement('div');
     scanlineEl.id = 'crt-scanlines';
     scanlineEl.style.cssText = [
-      'position: fixed',
-      'top: 0',
-      'left: 0',
-      'width: 100%',
-      'height: 100%',
-      'pointer-events: none',
-      'z-index: 100',
-      'background: repeating-linear-gradient(' +
-        '0deg,' +
-        'rgba(0, 0, 0, 0.15) 0px,' +
-        'rgba(0, 0, 0, 0.15) 1px,' +
-        'transparent 1px,' +
-        'transparent 3px' +
-      ')',
+      'position: fixed', 'top: 0', 'left: 0',
+      'width: 100%', 'height: 100%',
+      'pointer-events: none', 'z-index: 100',
+      'background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 1px, transparent 3px)',
       'mix-blend-mode: multiply'
     ].join(';');
     document.body.appendChild(scanlineEl);
 
-    // Vignette overlay
     const vignetteEl = document.createElement('div');
     vignetteEl.id = 'crt-vignette';
     vignetteEl.style.cssText = [
-      'position: fixed',
-      'top: 0',
-      'left: 0',
-      'width: 100%',
-      'height: 100%',
-      'pointer-events: none',
-      'z-index: 99',
-      'background: radial-gradient(' +
-        'ellipse at center,' +
-        'transparent 50%,' +
-        'rgba(0, 0, 0, 0.55) 100%' +
-      ')'
+      'position: fixed', 'top: 0', 'left: 0',
+      'width: 100%', 'height: 100%',
+      'pointer-events: none', 'z-index: 99',
+      'background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)'
     ].join(';');
     document.body.appendChild(vignetteEl);
   }
 
-  // ── Seed-based pseudo-random for consistent terrain ──
+  // ── Seeded random for terrain ──
   function seededRandom(seed) {
     let s = seed;
     return function () {
-      s = (s * 16807 + 0) % 2147483647;
+      s = (s * 16807) % 2147483647;
       return (s - 1) / 2147483646;
     };
   }
 
-  // ── Generate elevation map ──
   function generateElevations() {
     const rng = seededRandom(42);
     for (let i = 0; i < TOTAL; i++) {
-      // Gentle rolling terrain, slight variation
-      const base = Math.sin(i * 0.4) * 2 + Math.sin(i * 0.15) * 3;
-      const noise = (rng() - 0.5) * 2;
+      const { x, y } = indexToXY(i);
+      // Gentle rolling terrain with 2D noise
+      const base =
+        Math.sin(x * 0.3) * 0.8 +
+        Math.sin(y * 0.4) * 0.6 +
+        Math.sin((x + y) * 0.2) * 0.4;
+      const noise = (rng() - 0.5) * 0.6;
       segmentElevations[i] = base + noise;
     }
   }
 
-  // ── Convert segment index to world position ──
+  // ── World position for a cell ──
   function segmentToWorldPos(index) {
-    const x = index * SEG_W + SEG_W / 2;
-    const y = BASE_Y + (segmentElevations[index] || 0) + PLATFORM_HEIGHT / 2;
-    const z = 0;
-    return { x: x, y: y, z: z };
+    const { x, y } = indexToXY(index);
+    return {
+      x: x * CELL + CELL / 2,
+      y: BASE_Y + (segmentElevations[index] || 0) + PLATFORM_HEIGHT / 2,
+      z: y * CELL + CELL / 2
+    };
   }
 
-  // ── Create a single terrain segment mesh ──
+  // Also expose as cellToWorldPos for clarity
+  function cellToWorldPos(x, y) {
+    return segmentToWorldPos(xyToIndex(x, y));
+  }
+
+  // ── Create a cell tile ──
   function createSegmentMesh(index) {
+    const { x, y } = indexToXY(index);
     const elev = segmentElevations[index] || 0;
-    const side = index < HALF ? CONST.SIDE_PLAYER : CONST.SIDE_AI;
+    const side = cellSide(x);
 
-    // Determine color — alternate slightly for visual grid
-    const isEven = index % 2 === 0;
-    const baseColor = isEven ? COLORS.TERRAIN : COLORS.TERRAIN_LIGHT;
+    // Color tint: slight tint per side, checker pattern
+    const isEven = (x + y) % 2 === 0;
+    let baseColor;
+    if (side === CONST.SIDE_PLAYER) {
+      baseColor = isEven ? COLORS.TERRAIN_PLAYER : COLORS.TERRAIN;
+    } else {
+      baseColor = isEven ? COLORS.TERRAIN_AI : COLORS.TERRAIN;
+    }
 
-    // Platform geometry
-    const geo = new THREE.BoxGeometry(SEG_W - 1, PLATFORM_HEIGHT, PLATFORM_DEPTH);
+    const geo = new THREE.BoxGeometry(CELL - 0.3, PLATFORM_HEIGHT, CELL - 0.3);
     const mat = new THREE.MeshLambertMaterial({ color: baseColor });
     const mesh = new THREE.Mesh(geo, mat);
 
     const pos = segmentToWorldPos(index);
     mesh.position.set(pos.x, pos.y, pos.z);
 
-    // Assign metadata
     mesh.userData = {
       segmentIndex: index,
-      side: side,
+      cellX: x,
+      cellY: y,
+      side,
       destroyed: false,
       originalY: pos.y,
       originalColor: baseColor
@@ -149,80 +145,45 @@
 
     scene.add(mesh);
     segmentMeshes[index] = mesh;
-
-    // Grid line on top of segment (thin box as a line)
-    createGridLines(index, pos);
-
-    return mesh;
   }
 
-  // ── Create grid line markings on a segment ──
-  function createGridLines(index, pos) {
-    const lineGroup = new THREE.Group();
-
-    // Border lines (left and right edges)
-    const edgeGeo = new THREE.BoxGeometry(0.5, 0.3, PLATFORM_DEPTH);
-    const lineMat = new THREE.MeshBasicMaterial({ color: COLORS.GRID });
-
-    // Left edge
-    const leftLine = new THREE.Mesh(edgeGeo, lineMat);
-    leftLine.position.set(
-      pos.x - (SEG_W - 1) / 2,
-      pos.y + PLATFORM_HEIGHT / 2 + 0.2,
-      0
-    );
-    lineGroup.add(leftLine);
-
-    // Right edge
-    const rightLine = new THREE.Mesh(edgeGeo, lineMat);
-    rightLine.position.set(
-      pos.x + (SEG_W - 1) / 2,
-      pos.y + PLATFORM_HEIGHT / 2 + 0.2,
-      0
-    );
-    lineGroup.add(rightLine);
-
-    // Cross line (front-to-back center)
-    const crossGeo = new THREE.BoxGeometry(SEG_W - 1, 0.3, 0.5);
-    const crossLine = new THREE.Mesh(crossGeo, lineMat);
-    crossLine.position.set(
-      pos.x,
-      pos.y + PLATFORM_HEIGHT / 2 + 0.2,
-      0
-    );
-    lineGroup.add(crossLine);
-
-    scene.add(lineGroup);
-    gridLineMeshes[index] = lineGroup;
-  }
-
-  // ── Create terrain (all 28 segments) ──
+  // ── Create all terrain ──
   function createTerrain() {
     generateElevations();
     for (let i = 0; i < TOTAL; i++) {
       createSegmentMesh(i);
     }
 
-    // Ground plane beneath terrain (dark abyss)
-    const groundGeo = new THREE.BoxGeometry(TOTAL * SEG_W + SEG_W * 6, 2, PLATFORM_DEPTH + 40);
+    // Ground plane beneath
+    const groundGeo = new THREE.BoxGeometry(WORLD_W + CELL * 6, 1, WORLD_H + CELL * 6);
     const groundMat = new THREE.MeshLambertMaterial({ color: COLORS.BG_DARK });
     const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.position.set(MAP_CENTER_X, BASE_Y - 10, 0);
+    ground.position.set(WORLD_CENTER_X, BASE_Y - 4, WORLD_CENTER_Z);
     scene.add(ground);
+
+    // Dividing line between player and AI territory
+    const dividerGeo = new THREE.BoxGeometry(0.3, 2, WORLD_H);
+    const dividerMat = new THREE.MeshBasicMaterial({ color: COLORS.AMBER_DARK });
+    const divider = new THREE.Mesh(dividerGeo, dividerMat);
+    divider.position.set(WORLD_CENTER_X, BASE_Y + 1, WORLD_CENTER_Z);
+    scene.add(divider);
   }
 
-  // ── Create fog of war meshes (AI side) ──
+  // ── Fog of war over AI half ──
   function createFogOfWar() {
-    for (let i = HALF; i < TOTAL; i++) {
+    for (let i = 0; i < TOTAL; i++) {
+      const { x, y } = indexToXY(i);
+      if (x < GW / 2) continue; // only AI side
+
       const pos = segmentToWorldPos(i);
-      const fogGeo = new THREE.BoxGeometry(SEG_W, PLATFORM_HEIGHT + 20, PLATFORM_DEPTH + 2);
+      const fogGeo = new THREE.BoxGeometry(CELL, PLATFORM_HEIGHT + 8, CELL);
       const fogMat = new THREE.MeshBasicMaterial({
         color: 0x050500,
         transparent: true,
-        opacity: 0.85
+        opacity: 0.88
       });
       const fogMesh = new THREE.Mesh(fogGeo, fogMat);
-      fogMesh.position.set(pos.x, pos.y + 6, 0);
+      fogMesh.position.set(pos.x, pos.y + 4, pos.z);
       fogMesh.userData.segmentIndex = i;
       fogMesh.userData.isFog = true;
       scene.add(fogMesh);
@@ -230,170 +191,164 @@
     }
   }
 
-  // ── Toggle fog for a segment ──
   function setFogRevealed(segmentIndex, revealed) {
     const fog = fogMeshes[segmentIndex];
     if (!fog) return;
     fog.visible = !revealed;
   }
 
-  // ── Create crater effect at a segment ──
+  // ── Crater effect ──
   function createCrater(segmentIndex) {
     const mesh = segmentMeshes[segmentIndex];
     if (!mesh) return;
-
     mesh.userData.destroyed = true;
-
-    // Lower the segment
-    const targetY = mesh.userData.originalY + CRATER_DEPTH;
-    mesh.position.y = targetY;
-
-    // Darken the material
+    mesh.position.y = mesh.userData.originalY + CRATER_DEPTH;
     mesh.material.color.setHex(COLORS.CRATER);
     mesh.material.needsUpdate = true;
-
-    // Scale down slightly for crater look
     mesh.scale.set(1, 0.3, 1);
-
-    // Update grid lines position
-    const grid = gridLineMeshes[segmentIndex];
-    if (grid) {
-      grid.visible = false;
-    }
   }
 
-  // ── Lighting setup ──
+  // ── Lighting ──
   function createLights() {
-    // Dim amber ambient
-    ambientLight = new THREE.AmbientLight(0x554400, 0.6);
+    ambientLight = new THREE.AmbientLight(0x554400, 0.7);
     scene.add(ambientLight);
 
-    // Directional from above
-    directionalLight = new THREE.DirectionalLight(0xFFCC66, 0.8);
-    directionalLight.position.set(MAP_CENTER_X, 200, 100);
-    directionalLight.target.position.set(MAP_CENTER_X, 0, 0);
+    directionalLight = new THREE.DirectionalLight(0xFFCC66, 0.9);
+    directionalLight.position.set(WORLD_CENTER_X + 100, 300, WORLD_CENTER_Z - 100);
+    directionalLight.target.position.set(WORLD_CENTER_X, 0, WORLD_CENTER_Z);
     scene.add(directionalLight);
     scene.add(directionalLight.target);
   }
 
-  // ── Camera setup ──
+  // ── Camera — tilted top-down ──
   function createCamera() {
     const aspect = window.innerWidth / window.innerHeight;
-    camera = new THREE.PerspectiveCamera(45, aspect, 1, 3000);
+    camera = new THREE.PerspectiveCamera(50, aspect, 1, 3000);
 
-    // 2.5D side-scrolling: camera to the side and slightly above
-    camera.position.set(MAP_CENTER_X, 120, 350);
-    camera.lookAt(MAP_CENTER_X, 0, 0);
+    // Start centered on player CC
+    cameraTargetX = CONST.CC_PLAYER_X * CELL + CELL / 2;
+    cameraTargetZ = CONST.CC_PLAYER_Y * CELL + CELL / 2;
 
-    cameraTargetX = MAP_CENTER_X;
+    // Position high and tilted
+    updateCameraPosition(0);
   }
 
-  // ── Camera panning ──
-  function setCameraTarget(x) {
-    cameraTargetX = clampCameraX(x);
+  function updateCameraPosition(shakeOffX, shakeOffZ) {
+    shakeOffX = shakeOffX || 0;
+    shakeOffZ = shakeOffZ || 0;
+    const height = 220 * cameraZoom;
+    const backOffset = 120 * cameraZoom;
+    camera.position.set(
+      cameraTargetX + shakeOffX,
+      height,
+      cameraTargetZ + backOffset + shakeOffZ
+    );
+    camera.lookAt(cameraTargetX, 0, cameraTargetZ);
   }
 
-  function clampCameraX(x) {
-    return Math.max(MAP_LEFT + 100, Math.min(MAP_RIGHT - 100, x));
+  function setCameraTarget(x, z) {
+    cameraTargetX = clamp(x, CAM_MIN_X, CAM_MAX_X);
+    if (z !== undefined) {
+      cameraTargetZ = clamp(z, CAM_MIN_Z, CAM_MAX_Z);
+    }
+  }
+
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
   }
 
   function updateCamera(dt) {
-    // Smooth lerp toward target
-    const lerpSpeed = 4.0;
-    const dx = cameraTargetX - camera.position.x;
-    camera.position.x += dx * Math.min(1, lerpSpeed * dt);
-
-    // Apply screen shake
-    let offsetX = 0;
-    let offsetY = 0;
+    // Handle shake
+    let shakeOffX = 0, shakeOffZ = 0;
     if (shakeDuration > 0) {
       shakeElapsed += dt;
       if (shakeElapsed < shakeDuration) {
-        const progress = shakeElapsed / shakeDuration;
-        const decay = 1 - progress;
-        offsetX = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
-        offsetY = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
+        const decay = 1 - (shakeElapsed / shakeDuration);
+        shakeOffX = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
+        shakeOffZ = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
       } else {
         shakeDuration = 0;
         shakeElapsed = 0;
-        shakeIntensity = 0;
       }
     }
-
-    shakeOffsetX = offsetX;
-    shakeOffsetY = offsetY;
-
-    // Apply final camera position with shake
-    camera.position.y = 120 + offsetY;
-    camera.position.z = 350;
-    camera.lookAt(camera.position.x + offsetX, 0, 0);
+    updateCameraPosition(shakeOffX, shakeOffZ);
   }
 
-  // ── Screen shake ──
   function shakeScreen(intensity, duration) {
     shakeIntensity = intensity;
     shakeDuration = duration;
     shakeElapsed = 0;
   }
 
-  // ── Input handling ──
+  // ── Input ──
   function setupInput() {
     const canvas = renderer.domElement;
 
-    // Mouse drag for camera pan
     canvas.addEventListener('mousedown', function (e) {
-      if (e.button === 0 || e.button === 2) {
+      if (e.button === 1 || e.button === 2) {
         cameraDragActive = true;
-        cameraDragStartX = e.clientX;
-        cameraDragCamStartX = cameraTargetX;
+        cameraDragStartMouse.x = e.clientX;
+        cameraDragStartMouse.y = e.clientY;
+        cameraDragStart.x = cameraTargetX;
+        cameraDragStart.z = cameraTargetZ;
       }
     });
 
     window.addEventListener('mousemove', function (e) {
       if (!cameraDragActive) return;
-      const dx = e.clientX - cameraDragStartX;
-      // Pan speed scaled to world units
-      const panScale = 2.0;
-      cameraTargetX = clampCameraX(cameraDragCamStartX - dx * panScale);
+      const dx = e.clientX - cameraDragStartMouse.x;
+      const dy = e.clientY - cameraDragStartMouse.y;
+      const panScale = 1.2 * cameraZoom;
+      cameraTargetX = clamp(cameraDragStart.x - dx * panScale, CAM_MIN_X, CAM_MAX_X);
+      cameraTargetZ = clamp(cameraDragStart.z - dy * panScale, CAM_MIN_Z, CAM_MAX_Z);
     });
 
     window.addEventListener('mouseup', function () {
       cameraDragActive = false;
     });
 
-    // Arrow keys for camera pan
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    // Zoom with mouse wheel
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 1.1 : 0.9;
+      cameraZoom = clamp(cameraZoom * delta, 0.5, 2.5);
+    }, { passive: false });
+
+    // Arrow keys / WASD
     const keysDown = {};
     window.addEventListener('keydown', function (e) {
       keysDown[e.key] = true;
+      keysDown[e.key.toLowerCase()] = true;
     });
     window.addEventListener('keyup', function (e) {
       keysDown[e.key] = false;
+      keysDown[e.key.toLowerCase()] = false;
     });
 
-    // Store reference for update loop
     Renderer._keysDown = keysDown;
 
-    // Window resize
     window.addEventListener('resize', onResize);
-
-    // Prevent context menu on canvas
-    canvas.addEventListener('contextmenu', function (e) {
-      e.preventDefault();
-    });
   }
 
   function updateInputPan(dt) {
     const keys = Renderer._keysDown || {};
-    const panSpeed = 400;
-    if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-      cameraTargetX = clampCameraX(cameraTargetX - panSpeed * dt);
+    const panSpeed = 250 * cameraZoom;
+    if (keys['ArrowLeft'] || keys['a']) {
+      cameraTargetX = clamp(cameraTargetX - panSpeed * dt, CAM_MIN_X, CAM_MAX_X);
     }
-    if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-      cameraTargetX = clampCameraX(cameraTargetX + panSpeed * dt);
+    if (keys['ArrowRight'] || keys['d']) {
+      cameraTargetX = clamp(cameraTargetX + panSpeed * dt, CAM_MIN_X, CAM_MAX_X);
+    }
+    if (keys['ArrowUp'] || keys['w']) {
+      cameraTargetZ = clamp(cameraTargetZ - panSpeed * dt, CAM_MIN_Z, CAM_MAX_Z);
+    }
+    if (keys['ArrowDown'] || keys['s']) {
+      cameraTargetZ = clamp(cameraTargetZ + panSpeed * dt, CAM_MIN_Z, CAM_MAX_Z);
     }
   }
 
-  // ── Resize handler ──
   function onResize() {
     if (!camera || !renderer) return;
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -401,49 +356,35 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  // ── Scene accessors ──
   function getScene() { return scene; }
   function getCamera() { return camera; }
 
-  // ── Add/remove mesh helpers ──
-  function addMeshToScene(mesh) {
-    if (scene && mesh) scene.add(mesh);
-  }
+  function addMeshToScene(mesh) { if (scene && mesh) scene.add(mesh); }
+  function removeMeshFromScene(mesh) { if (scene && mesh) scene.remove(mesh); }
 
-  function removeMeshFromScene(mesh) {
-    if (scene && mesh) scene.remove(mesh);
-  }
-
-  // ── Main update ──
   function update(dt) {
     updateInputPan(dt);
     updateCamera(dt);
     renderer.render(scene, camera);
   }
 
-  // ── Animation loop ──
   let lastTime = 0;
   function animate(time) {
     requestAnimationFrame(animate);
-    const dt = Math.min((time - lastTime) / 1000, 0.05); // cap delta to 50ms
+    const dt = Math.min((time - lastTime) / 1000, 0.05);
     lastTime = time;
     update(dt);
   }
 
-  // ── Initialization ──
   function init() {
-    // Scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(COLORS.BG_DARK);
-    scene.fog = new THREE.Fog(COLORS.BG_DARK, 600, 1400);
+    scene.fog = new THREE.Fog(COLORS.BG_DARK, 300, 900);
 
-    // Clock
     clock = new THREE.Clock();
 
-    // Camera
     createCamera();
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -455,53 +396,41 @@
     renderer.domElement.style.zIndex = '0';
     document.body.appendChild(renderer.domElement);
 
-    // Set body style
     document.body.style.margin = '0';
     document.body.style.padding = '0';
     document.body.style.overflow = 'hidden';
     document.body.style.background = '#0A0A00';
 
-    // Lights
     createLights();
-
-    // Terrain
     createTerrain();
-
-    // Fog of war
     createFogOfWar();
-
-    // CSS overlays (scanlines + vignette)
     createCSSOverlays();
-
-    // Input
     setupInput();
 
-    // Start animation loop
     lastTime = performance.now();
     requestAnimationFrame(animate);
 
-    console.log('[Renderer] Initialized — ' + TOTAL + ' segments, Three.js r' + THREE.REVISION);
+    console.log('[Renderer] Initialized — ' + TOTAL + ' cells (' + GW + 'x' + GH + '), Three.js r' + THREE.REVISION);
   }
 
-  // ── Public API ──
   const Renderer = {
-    init: init,
-    update: update,
-    segmentToWorldPos: segmentToWorldPos,
-    addMeshToScene: addMeshToScene,
-    removeMeshFromScene: removeMeshFromScene,
-    setCameraTarget: setCameraTarget,
-    createCrater: createCrater,
-    setFogRevealed: setFogRevealed,
-    getScene: getScene,
-    getCamera: getCamera,
-    shakeScreen: shakeScreen,
-    segmentMeshes: segmentMeshes,
-    fogMeshes: fogMeshes,
-    segmentElevations: segmentElevations,
+    init,
+    update,
+    segmentToWorldPos,
+    cellToWorldPos,
+    addMeshToScene,
+    removeMeshFromScene,
+    setCameraTarget,
+    createCrater,
+    setFogRevealed,
+    getScene,
+    getCamera,
+    shakeScreen,
+    segmentMeshes,
+    fogMeshes,
+    segmentElevations,
     _keysDown: {}
   };
 
   window.Renderer = Renderer;
-
 })();

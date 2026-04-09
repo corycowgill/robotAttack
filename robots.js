@@ -273,15 +273,15 @@
   // ── Find Nearest Enemy Building ──
 
   function findNearestEnemyBuilding(state, segmentIndex, robotSide) {
-    var enemyStart = robotSide === CONST.SIDE_PLAYER ? CONST.SEGMENTS_PER_SIDE : 0;
-    var enemyEnd = enemyStart + CONST.SEGMENTS_PER_SIDE;
+    var enemySide = robotSide === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
     var nearest = -1;
     var nearestDist = Infinity;
 
-    for (var i = enemyStart; i < enemyEnd; i++) {
+    for (var i = 0; i < state.segments.length; i++) {
       var seg = state.segments[i];
+      if (seg.side !== enemySide) continue;
       if (seg.destroyed || !seg.building || !seg.building.active) continue;
-      var dist = Math.abs(i - segmentIndex);
+      var dist = cellDistance(i, segmentIndex);
       if (dist < nearestDist) {
         nearestDist = dist;
         nearest = i;
@@ -307,12 +307,12 @@
 
     if (robotActions.length === 0) return;
 
-    // Group by target side for interception
+    // Group by target side for interception (2D)
     var playerIncoming = robotActions.filter(function (a) {
-      return a.targetSegment < CONST.SEGMENTS_PER_SIDE;
+      return state.segments[a.targetSegment] && state.segments[a.targetSegment].side === CONST.SIDE_PLAYER;
     });
     var aiIncoming = robotActions.filter(function (a) {
-      return a.targetSegment >= CONST.SEGMENTS_PER_SIDE;
+      return state.segments[a.targetSegment] && state.segments[a.targetSegment].side === CONST.SIDE_AI;
     });
 
     // Step 1: Anti-missile interception (robots travel as delivery missiles)
@@ -344,19 +344,22 @@
       var robot = ra.robot;
       var target = ra.targetSegment;
 
-      // Set robot world position to target segment
-      robot.x = target * CONST.SEGMENT_WIDTH;
+      // Set robot cell position to target
+      var targetXY = indexToXY(target);
+      var hangarXY = indexToXY(ra.hangarSegment);
+      robot.x = targetXY.x * CONST.CELL_SIZE;
       robot.y = 0;
+      robot.z = targetXY.y * CONST.CELL_SIZE;
       robot.state = 'landing';
 
-      // Animate delivery arc
+      // Animate delivery arc (orchestrator recalculates with real world positions)
       if (onAnimate) {
         onAnimate({
           type: 'robot_launch',
           action: ra,
           trajectory: createRobotLandingAnim(
-            { x: ra.hangarSegment * CONST.SEGMENT_WIDTH, y: 0, z: 0 },
-            { x: target * CONST.SEGMENT_WIDTH, y: 0, z: 0 }
+            { x: hangarXY.x * CONST.CELL_SIZE, y: 0, z: hangarXY.y * CONST.CELL_SIZE },
+            { x: targetXY.x * CONST.CELL_SIZE, y: 0, z: targetXY.y * CONST.CELL_SIZE }
           )
         });
       }
@@ -474,7 +477,7 @@
   // ── Reset Hangars at Turn Start ──
 
   function resetHangars(state) {
-    for (var i = 0; i < TOTAL_SEGMENTS; i++) {
+    for (var i = 0; i < state.segments.length; i++) {
       var b = state.segments[i].building;
       if (b && b.type === CONST.BUILDING.ROBOT_HANGAR && b.active) {
         b.deployedThisTurn = false;

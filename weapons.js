@@ -69,20 +69,18 @@
    * (targeting enemy segments that are revealed, or all if no fog).
    */
   function getValidMissileTargets(state, side) {
-    const enemyStart = side === CONST.SIDE_PLAYER ? CONST.SEGMENTS_PER_SIDE : 0;
-    const enemyEnd = enemyStart + CONST.SEGMENTS_PER_SIDE;
+    const enemySide = side === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
     const targets = [];
 
-    for (let i = enemyStart; i < enemyEnd; i++) {
+    for (let i = 0; i < state.segments.length; i++) {
       const seg = state.segments[i];
+      if (seg.side !== enemySide) continue;
       if (seg.destroyed) continue;
 
-      // If the attacking side is player, check revealed; AI sees all
       if (side === CONST.SIDE_PLAYER) {
         if (state.revealedEnemySegments.length > 0) {
           if (state.revealedEnemySegments.indexOf(i) === -1) continue;
         }
-        // If no segments revealed at all, allow targeting any non-destroyed
       }
       targets.push(i);
     }
@@ -134,19 +132,17 @@
    * Returns true if shielded (hit absorbed).
    */
   function checkShieldAbsorb(state, segmentIndex) {
-    // Look at adjacent segments for active shield generators
-    const adjacentOffsets = [-1, 0, 1];
-    for (let d = 0; d < adjacentOffsets.length; d++) {
-      const adjIdx = segmentIndex + adjacentOffsets[d];
-      if (adjIdx < 0 || adjIdx >= TOTAL_SEGMENTS) continue;
-      const adjSeg = state.segments[adjIdx];
+    // Check all 8 neighbors + self for active shield generator
+    const candidates = [segmentIndex].concat(getAdjacentCells(segmentIndex));
+    for (let d = 0; d < candidates.length; d++) {
+      const adjSeg = state.segments[candidates[d]];
+      if (!adjSeg) continue;
       if (
         adjSeg.building &&
         adjSeg.building.type === CONST.BUILDING.SHIELD_GENERATOR &&
         adjSeg.building.active &&
         adjSeg.building.shieldActive
       ) {
-        // Shield absorbs hit — deactivate shield for this turn
         adjSeg.building.shieldActive = false;
         return true;
       }
@@ -182,6 +178,10 @@
       seg.building = null;
 
       // Check for command center destruction → game over
+        // Check if a command center was destroyed
+      if (seg.building === null) {
+        // already nulled — we need to check what was there
+      }
       if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_PLAYER) {
         state.winner = CONST.SIDE_AI;
       } else if (segmentIndex === CONST.COMMAND_CENTER_SEGMENT_AI) {
@@ -208,12 +208,12 @@
 
     if (missileActions.length === 0) return;
 
-    // Group by target side for interception
+    // Group by target side for interception (2D: check cell's side)
     const playerIncoming = missileActions.filter(function (a) {
-      return a.targetSegment < CONST.SEGMENTS_PER_SIDE;
+      return state.segments[a.targetSegment] && state.segments[a.targetSegment].side === CONST.SIDE_PLAYER;
     });
     const aiIncoming = missileActions.filter(function (a) {
-      return a.targetSegment >= CONST.SEGMENTS_PER_SIDE;
+      return state.segments[a.targetSegment] && state.segments[a.targetSegment].side === CONST.SIDE_AI;
     });
 
     // Step 1: Anti-missile interceptions
@@ -283,14 +283,12 @@
         onAnimate({ type: 'explosion', segment: target, damage: CONST.MISSILE_DAMAGE });
       }
 
-      // AOE: adjacent segments get half damage
-      for (var offset = -CONST.MISSILE_AOE_RADIUS; offset <= CONST.MISSILE_AOE_RADIUS; offset++) {
-        if (offset === 0) continue; // skip direct hit, already applied
-        var adjIdx = target + offset;
-        if (adjIdx < 0 || adjIdx >= TOTAL_SEGMENTS) continue;
-
+      // AOE: 2D adjacent cells get half damage
+      var aoeCells = getAdjacentCells(target);
+      for (var aoeI = 0; aoeI < aoeCells.length; aoeI++) {
+        var adjIdx = aoeCells[aoeI];
         var adjSeg = state.segments[adjIdx];
-        if (adjSeg.destroyed || !adjSeg.building) continue;
+        if (!adjSeg || adjSeg.destroyed || !adjSeg.building) continue;
 
         // Check shield on adjacent
         var adjShielded = checkShieldAbsorb(state, adjIdx);
@@ -319,7 +317,7 @@
   // ── Reset Anti-Missile Batteries at turn start ──
 
   function resetAntiMissileBatteries(state) {
-    for (var i = 0; i < TOTAL_SEGMENTS; i++) {
+    for (var i = 0; i < state.segments.length; i++) {
       var b = state.segments[i].building;
       if (b && b.type === CONST.BUILDING.ANTI_MISSILE && b.active) {
         b.interceptsRemaining = CONST.ANTI_MISSILE_SHOTS_PER_TURN;
@@ -330,7 +328,7 @@
   // ── Reset Shield Generators at turn start ──
 
   function resetShieldGenerators(state) {
-    for (var i = 0; i < TOTAL_SEGMENTS; i++) {
+    for (var i = 0; i < state.segments.length; i++) {
       var b = state.segments[i].building;
       if (b && b.type === CONST.BUILDING.SHIELD_GENERATOR && b.active) {
         b.shieldActive = true;

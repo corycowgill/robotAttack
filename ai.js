@@ -292,12 +292,13 @@ window.AI = (function() {
     const radars = getBuildings(state, side, CONST.BUILDING.RADAR_STATION);
     const revealed = new Set(state.revealedEnemySegments || []);
 
-    const enemyStart = side === CONST.SIDE_PLAYER ? CONST.SEGMENTS_PER_SIDE : 0;
-    const enemyEnd = enemyStart + CONST.SEGMENTS_PER_SIDE;
+    const enemySide = side === CONST.SIDE_PLAYER ? CONST.SIDE_AI : CONST.SIDE_PLAYER;
     const unrevealed = [];
 
-    for (let i = enemyStart; i < enemyEnd; i++) {
-      if (!revealed.has(i) && !state.segments[i].destroyed) {
+    for (let i = 0; i < state.segments.length; i++) {
+      const seg = state.segments[i];
+      if (seg.side !== enemySide) continue;
+      if (!revealed.has(i) && !seg.destroyed) {
         unrevealed.push(i);
       }
     }

@@ -103,7 +103,10 @@
   function placeBuilding(segmentIndex, type, side) {
     const pos = Renderer.segmentToWorldPos(segmentIndex);
     const mesh = Buildings.createBuildingMesh(type, side);
-    mesh.position.set(pos.x, pos.y + 2, pos.z);
+    // Buildings were designed for 50-unit segments; scale to fit 12-unit cells
+    const BUILDING_SCALE = 0.22;
+    mesh.scale.set(BUILDING_SCALE, BUILDING_SCALE, BUILDING_SCALE);
+    mesh.position.set(pos.x, pos.y + 1, pos.z);
     Renderer.addMeshToScene(mesh);
     buildingMeshes[segmentIndex] = mesh;
 
@@ -144,8 +147,9 @@
     // Process radar for player
     AI.processRadar(state, CONST.SIDE_PLAYER);
 
-    // Update fog of war visuals
-    for (let i = CONST.SEGMENTS_PER_SIDE; i < TOTAL_SEGMENTS; i++) {
+    // Update fog of war visuals (all AI cells)
+    for (let i = 0; i < state.segments.length; i++) {
+      if (state.segments[i].side !== CONST.SIDE_AI) continue;
       const revealed = state.revealedEnemySegments.indexOf(i) !== -1;
       Renderer.setFogRevealed(i, revealed);
     }
@@ -266,7 +270,7 @@
           animateMissileFlight(trajectory, event.fromSegment, event.targetSegment);
         }
         UI.addLogEntry('Missile fired at segment ' + event.targetSegment,
-          event.fromSegment < CONST.SEGMENTS_PER_SIDE ? 'player' : 'enemy');
+          state.segments[event.fromSegment] && state.segments[event.fromSegment].side === CONST.SIDE_PLAYER ? 'player' : 'enemy');
         SFX.play('missileLaunch');
         break;
       }
@@ -275,8 +279,9 @@
         UI.addLogEntry('Missile intercepted! (target: ' + m.targetSegment + ')', 'system');
         SFX.play('intercept');
         // Spawn small explosion at midpoint
-        const midX = ((m.fromSegment + m.targetSegment) / 2) * CONST.SEGMENT_WIDTH;
-        SFX.spawnExplosion(midX, 80, 0, 10, 0xFFB000);
+        const fromPos = Renderer.segmentToWorldPos(m.fromSegment);
+        const toPos = Renderer.segmentToWorldPos(m.targetSegment);
+        SFX.spawnExplosion((fromPos.x + toPos.x) / 2, 80, (fromPos.z + toPos.z) / 2, 10, 0xFFB000);
         break;
       }
       case 'shield_absorb': {
@@ -355,18 +360,21 @@
   }
 
   function animateMissileFlight(trajectory, fromSeg, targetSeg) {
+    // Rebuild trajectory using real world positions (2D grid)
+    const fromPos = Renderer.segmentToWorldPos(fromSeg);
+    const toPos = Renderer.segmentToWorldPos(targetSeg);
+    trajectory = Weapons.createMissileTrajectory(fromPos, toPos);
+
     // Create missile mesh
-    const missileGeo = new THREE.CylinderGeometry(0.5, 1, 6, 6);
+    const missileGeo = new THREE.CylinderGeometry(0.5, 1, 4, 6);
     const missileMat = new THREE.MeshBasicMaterial({ color: 0xFF6600 });
     const missile = new THREE.Mesh(missileGeo, missileMat);
-    missile.rotation.z = Math.PI / 2;
     Renderer.addMeshToScene(missile);
 
     // Trail glow
-    const trailGeo = new THREE.CylinderGeometry(0.3, 0.8, 4, 4);
+    const trailGeo = new THREE.CylinderGeometry(0.3, 0.8, 3, 4);
     const trailMat = new THREE.MeshBasicMaterial({ color: 0xFFB000, transparent: true, opacity: 0.6 });
     const trail = new THREE.Mesh(trailGeo, trailMat);
-    trail.rotation.z = Math.PI / 2;
     Renderer.addMeshToScene(trail);
 
     let step = 0;
@@ -396,6 +404,11 @@
   }
 
   function animateRobotDelivery(action, trajectory) {
+    // Rebuild trajectory using real world positions
+    const fromPos = Renderer.segmentToWorldPos(action.hangarSegment);
+    const toPos = Renderer.segmentToWorldPos(action.targetSegment);
+    trajectory = Robots.createRobotLandingAnim(fromPos, toPos);
+
     // Delivery capsule mesh
     const capsuleGeo = new THREE.BoxGeometry(4, 8, 4);
     const capsuleMat = new THREE.MeshBasicMaterial({
@@ -539,7 +552,7 @@
     const seg = state.segments[segmentIndex];
 
     // Validate: player side only
-    if (segmentIndex >= CONST.SEGMENTS_PER_SIDE) {
+    if (seg.side !== CONST.SIDE_PLAYER) {
       UI.addLogEntry('Cannot build on enemy territory!', 'system');
       SFX.play('error');
       return;
@@ -606,7 +619,7 @@
       SFX.play('menuClick');
       // Pan camera toward target
       const targetPos = Renderer.segmentToWorldPos(segmentIndex);
-      Renderer.setCameraTarget(targetPos.x);
+      Renderer.setCameraTarget(targetPos.x, targetPos.z);
     }
   }
 
