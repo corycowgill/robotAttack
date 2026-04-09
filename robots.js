@@ -341,6 +341,10 @@
       var ra = robotActions[i];
       if (ra.resolved) continue;
 
+      // Lazily create robot if action came from AI (which doesn't pre-populate it)
+      if (!ra.robot) {
+        ra.robot = createRobot(ra.side, ra.hangarSegment, ra.targetSegment);
+      }
       var robot = ra.robot;
       var target = ra.targetSegment;
 
