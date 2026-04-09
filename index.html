@@ -269,9 +269,23 @@
         if (trajectory && trajectory.length > 0) {
           animateMissileFlight(trajectory, event.fromSegment, event.targetSegment);
         }
+        const isPlayerMissile = state.segments[event.fromSegment] && state.segments[event.fromSegment].side === CONST.SIDE_PLAYER;
         UI.addLogEntry('Missile fired at segment ' + event.targetSegment,
-          state.segments[event.fromSegment] && state.segments[event.fromSegment].side === CONST.SIDE_PLAYER ? 'player' : 'enemy');
+          isPlayerMissile ? 'player' : 'enemy');
         SFX.play('missileLaunch');
+
+        // Player missiles reveal the target area through fog of war
+        if (isPlayerMissile) {
+          revealAreaThroughFog(event.targetSegment);
+          // Pan camera to show the action
+          const tPos = Renderer.segmentToWorldPos(event.targetSegment);
+          Renderer.setCameraTarget(tPos.x, tPos.z);
+        }
+
+        // Launch smoke at the origin
+        const originPos = Renderer.segmentToWorldPos(event.fromSegment);
+        SFX.spawnSmoke(originPos.x, originPos.y + 4, originPos.z, 10);
+        SFX.spawnSparks(originPos.x, originPos.y + 2, originPos.z, 8);
         break;
       }
       case 'intercept': {
@@ -293,10 +307,33 @@
       }
       case 'explosion': {
         const pos = Renderer.segmentToWorldPos(event.segment);
-        SFX.spawnExplosion(pos.x, pos.y + 5, pos.z, 25);
-        SFX.triggerShake(8, 0.4);
+        // Big impact: multiple particle bursts
+        SFX.spawnExplosion(pos.x, pos.y + 4, pos.z, 40);
+        SFX.spawnExplosion(pos.x, pos.y + 2, pos.z, 20, 0xFFB000);
+        SFX.spawnSmoke(pos.x, pos.y + 3, pos.z, 15);
+        SFX.spawnSparks(pos.x, pos.y + 3, pos.z, 20);
+        // Flash ring
+        const ringGeo = new THREE.RingGeometry(1, 3, 16);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xFFFF88, transparent: true, opacity: 1, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(pos.x, pos.y + 2, pos.z);
+        Renderer.addMeshToScene(ring);
+        let ringStep = 0;
+        const ringInt = setInterval(function() {
+          ringStep++;
+          ring.scale.multiplyScalar(1.3);
+          ring.material.opacity *= 0.85;
+          if (ringStep > 15) {
+            clearInterval(ringInt);
+            Renderer.removeMeshFromScene(ring);
+            ring.geometry.dispose();
+            ring.material.dispose();
+          }
+        }, 40);
+        SFX.triggerShake(12, 0.5);
         SFX.play('explosion');
-        Renderer.shakeScreen(6, 0.3);
+        Renderer.shakeScreen(10, 0.4);
         UI.addLogEntry('EXPLOSION at segment ' + event.segment + ' (-' + event.damage + ' HP)', 'damage');
 
         // Update building visual or remove if destroyed
@@ -359,46 +396,144 @@
     }
   }
 
+  // ── Reveal fog of war around a target cell (3x3 area) ──
+  function revealAreaThroughFog(segmentIndex) {
+    const revealed = new Set(state.revealedEnemySegments || []);
+    const toReveal = [segmentIndex].concat(getAdjacentCells(segmentIndex));
+    for (const idx of toReveal) {
+      const seg = state.segments[idx];
+      if (!seg || seg.side !== CONST.SIDE_AI) continue;
+      revealed.add(idx);
+      Renderer.setFogRevealed(idx, true);
+    }
+    state.revealedEnemySegments = Array.from(revealed);
+  }
+
   function animateMissileFlight(trajectory, fromSeg, targetSeg) {
     // Rebuild trajectory using real world positions (2D grid)
     const fromPos = Renderer.segmentToWorldPos(fromSeg);
     const toPos = Renderer.segmentToWorldPos(targetSeg);
-    trajectory = Weapons.createMissileTrajectory(fromPos, toPos);
+    trajectory = Weapons.createMissileTrajectory(fromPos, toPos, 80);
 
-    // Create missile mesh
-    const missileGeo = new THREE.CylinderGeometry(0.5, 1, 4, 6);
-    const missileMat = new THREE.MeshBasicMaterial({ color: 0xFF6600 });
-    const missile = new THREE.Mesh(missileGeo, missileMat);
-    Renderer.addMeshToScene(missile);
+    // ── Missile body: larger, tapered ──
+    const missileGroup = new THREE.Group();
+    const bodyGeo = new THREE.CylinderGeometry(0.6, 1.2, 5, 8);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: 0xFFCC66 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    missileGroup.add(body);
 
-    // Trail glow
-    const trailGeo = new THREE.CylinderGeometry(0.3, 0.8, 3, 4);
-    const trailMat = new THREE.MeshBasicMaterial({ color: 0xFFB000, transparent: true, opacity: 0.6 });
-    const trail = new THREE.Mesh(trailGeo, trailMat);
-    Renderer.addMeshToScene(trail);
+    // Tip (nose cone)
+    const tipGeo = new THREE.CylinderGeometry(0.05, 0.6, 1.2, 6);
+    const tipMat = new THREE.MeshBasicMaterial({ color: 0xFF3300 });
+    const tip = new THREE.Mesh(tipGeo, tipMat);
+    tip.position.y = 3;
+    missileGroup.add(tip);
+
+    // Fins
+    const finGeo = new THREE.BoxGeometry(2.4, 1.2, 0.15);
+    const finMat = new THREE.MeshBasicMaterial({ color: 0xFF6600 });
+    const fin1 = new THREE.Mesh(finGeo, finMat);
+    fin1.position.y = -2.2;
+    missileGroup.add(fin1);
+    const fin2 = new THREE.Mesh(finGeo, finMat);
+    fin2.position.y = -2.2;
+    fin2.rotation.y = Math.PI / 2;
+    missileGroup.add(fin2);
+
+    // Glowing engine exhaust at back
+    const exhaustGeo = new THREE.SphereGeometry(0.9, 6, 6);
+    const exhaustMat = new THREE.MeshBasicMaterial({ color: 0xFFFF88, transparent: true, opacity: 0.9 });
+    const exhaust = new THREE.Mesh(exhaustGeo, exhaustMat);
+    exhaust.position.y = -3;
+    missileGroup.add(exhaust);
+
+    Renderer.addMeshToScene(missileGroup);
+
+    // ── Persistent smoke trail — array of fading meshes ──
+    const trailPoints = [];
+    const MAX_TRAIL = 30;
 
     let step = 0;
     const totalSteps = trajectory.length;
-    const intervalMs = Weapons.getMissileAnimDuration() / totalSteps;
+    const totalDuration = Weapons.getMissileAnimDuration();
+    const intervalMs = totalDuration / totalSteps;
 
     const interval = setInterval(function() {
       if (step >= totalSteps) {
         clearInterval(interval);
-        Renderer.removeMeshFromScene(missile);
-        Renderer.removeMeshFromScene(trail);
-        missile.geometry.dispose();
-        missile.material.dispose();
-        trail.geometry.dispose();
-        trail.material.dispose();
+        Renderer.removeMeshFromScene(missileGroup);
+        missileGroup.traverse(function(obj) {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        });
+        // Fade out remaining trail points
+        let fadeStep = 0;
+        const fadeInterval = setInterval(function() {
+          fadeStep++;
+          for (const tp of trailPoints) {
+            if (tp.mesh.material.opacity > 0) {
+              tp.mesh.material.opacity -= 0.05;
+              tp.mesh.scale.multiplyScalar(1.05);
+            }
+          }
+          if (fadeStep > 20) {
+            clearInterval(fadeInterval);
+            for (const tp of trailPoints) {
+              Renderer.removeMeshFromScene(tp.mesh);
+              tp.mesh.geometry.dispose();
+              tp.mesh.material.dispose();
+            }
+          }
+        }, 40);
         return;
       }
+
       const p = trajectory[step];
-      missile.position.set(p.x, p.y, p.z || 0);
-      // Trail follows slightly behind
-      if (step > 2) {
-        const prevP = trajectory[step - 2];
-        trail.position.set(prevP.x, prevP.y, prevP.z || 0);
+      missileGroup.position.set(p.x, p.y, p.z || 0);
+
+      // Orient missile along flight direction
+      if (step + 1 < totalSteps) {
+        const next = trajectory[step + 1];
+        const dir = new THREE.Vector3(next.x - p.x, next.y - p.y, (next.z || 0) - (p.z || 0));
+        dir.normalize();
+        // Missile's "up" axis is +Y by default; rotate so it points along dir
+        const up = new THREE.Vector3(0, 1, 0);
+        const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+        missileGroup.quaternion.copy(quat);
       }
+
+      // Pulse exhaust
+      const pulse = 0.8 + Math.sin(step * 0.8) * 0.3;
+      exhaust.scale.setScalar(pulse);
+
+      // Spawn smoke trail every 2 steps
+      if (step % 2 === 0) {
+        const smokeGeo = new THREE.SphereGeometry(1.2 + Math.random() * 0.8, 5, 5);
+        const smokeMat = new THREE.MeshBasicMaterial({
+          color: step % 4 === 0 ? 0xFFB000 : 0x554400,
+          transparent: true,
+          opacity: 0.85
+        });
+        const smoke = new THREE.Mesh(smokeGeo, smokeMat);
+        smoke.position.set(p.x, p.y - 1, p.z || 0);
+        Renderer.addMeshToScene(smoke);
+        trailPoints.push({ mesh: smoke });
+
+        // Cap trail length
+        if (trailPoints.length > MAX_TRAIL) {
+          const oldest = trailPoints.shift();
+          Renderer.removeMeshFromScene(oldest.mesh);
+          oldest.mesh.geometry.dispose();
+          oldest.mesh.material.dispose();
+        }
+
+        // Fade all existing trail smoke
+        for (const tp of trailPoints) {
+          tp.mesh.material.opacity *= 0.92;
+          tp.mesh.scale.multiplyScalar(1.04);
+        }
+      }
+
       step++;
     }, intervalMs);
   }
