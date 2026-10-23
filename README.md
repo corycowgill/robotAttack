@@ -14,12 +14,15 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 
 ## How a turn works
 
+Each side starts with a Command Center and one Missile Silo.
+
+
 1. **Plan.**
    - Spend **credits** on structures and repairs, and **energy** on missiles and mech drops.
    - You can only build on your side (the blue zone) within 3 cells of one of your existing structures.
    - Missile and drop orders can be cancelled for a full refund until you end the turn. `Z` undoes your last action.
 2. **Resolve.** Both sides' orders play out at once, in this order:
-   1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense intercept some of them.
+   1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
    2. Missiles hit. Shields absorb damage first; each missile does 35 damage to its target and 12 to adjacent cells.
    3. Gun Pods fire at mechs.
    4. Mechs move (2 cells) or smash an adjacent structure.
@@ -37,12 +40,12 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 
 | Key | Structure | Cost | HP | Effect |
 |---|---|---|---|---|
-| — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense intercept within radius 2 |
+| — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense shot (40% hit) within radius 2 |
 | 1 | Supply Depot | 100 | 40 | +30 credits per turn |
 | 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 9; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 35 damage + 12 splash; maximum 5 |
-| 5 | AA Battery | 110 | 45 | Intercepts 1 incoming missile per turn aimed within radius 4 |
+| 5 | AA Battery | 110 | 45 | 1 shot per turn (70% hit) at a missile aimed within radius 4; if it misses, other batteries in range get a shot |
 | 6 | Shield Generator | 120 | 35 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
@@ -79,6 +82,7 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 | Mouse wheel | Zoom |
 | `H` / `F` | Camera to your HQ / whole map |
 | `M` | Mute |
+| `G` | Cycle graphics quality (auto-detected by default) |
 | `?` | Help |
 
 ## Code layout

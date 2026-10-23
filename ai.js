@@ -184,8 +184,9 @@
   function knownCover(state, targets, cell) {
     let cover = 0;
     for (const t of targets) {
-      if (t.type === 'aa' && R.dist(t.cell, cell) <= B.aa.range) cover += B.aa.shots;
-      if (t.type === 'hq' && R.dist(t.cell, cell) <= B.hq.range) cover += 1;
+      // expected interceptions, not guaranteed ones
+      if (t.type === 'aa' && R.dist(t.cell, cell) <= B.aa.range) cover += B.aa.shots * B.aa.hitChance;
+      if (t.type === 'hq' && R.dist(t.cell, cell) <= B.hq.range) cover += B.hq.hitChance;
     }
     return cover;
   }
@@ -227,7 +228,7 @@
       if (t.type === 'hq' && t.hp < t.maxHp * 0.5) score += 4;
       if (t.type === 'aa' && R.dist(t.cell, R.hqCell(FOE)) <= B.aa.range) score += 1;
       const cover = knownCover(state, targets, t.cell);
-      const need = t.type === 'hq' ? Infinity : cover + Math.max(1, Math.ceil(t.hp / C.MISSILE_DAMAGE));
+      const need = t.type === 'hq' ? Infinity : Math.ceil(cover) + Math.max(1, Math.ceil(t.hp / C.MISSILE_DAMAGE));
       return { t, score: score - cover * 0.8, cover, need };
     }).sort((a, b) => b.score - a.score);
 

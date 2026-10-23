@@ -337,7 +337,7 @@ window.UI = (function () {
         <div><kbd>T</kbd> repair selected &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
-        <div><kbd>Esc</kbd> cancel</div><div><kbd>M</kbd> mute &nbsp; <kbd>?</kbd> this help</div>
+        <div><kbd>Esc</kbd> cancel</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
     </div>`;
