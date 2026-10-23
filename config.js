@@ -30,6 +30,7 @@ const CONST = {
   MISSILE_SPLASH: 12,
   DROP_ENERGY: 12,
   MAX_ROBOTS: 6,
+  DROP_HQ_EXCLUSION: 2,      // no drops within this Chebyshev distance of the enemy HQ
 
   // Robots
   ROBOT_HP: 50,
@@ -69,8 +70,9 @@ const BUILDINGS = {
   hq: {
     name: 'Command Center', short: 'HQ', key: null, cost: 0, hp: 200,
     desc: 'Your headquarters. Lose it and you lose the war. Provides income and 1 point-defense intercept.',
-    stats: () => ['+' + CONST.BASE_CREDITS + ' credits, +' + CONST.BASE_ENERGY + ' energy / turn', 'Point defense: 1 shot, radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit'],
-    range: 2, hitChance: 0.4
+    stats: () => ['+' + CONST.BASE_CREDITS + ' credits, +' + CONST.BASE_ENERGY + ' energy / turn', 'Point defense: 1 shot, radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit', 'Defense gun: 15 dmg to a mech within 2', 'No enemy drops within 2 cells'],
+    range: 2, hitChance: 0.4,
+    gun: { shots: 1, damage: 15, range: 2 }
   },
   depot: {
     name: 'Supply Depot', short: 'DEP', key: '1', cost: 100, hp: 40, credits: 30,
@@ -84,9 +86,9 @@ const BUILDINGS = {
     stats: () => ['+6 energy / turn', '+10 energy capacity']
   },
   radar: {
-    name: 'Radar', short: 'RDR', key: '3', cost: 90, hp: 30, range: 9,
+    name: 'Radar', short: 'RDR', key: '3', cost: 90, hp: 30, range: 12,
     desc: 'Reveals enemy territory and detects incoming missiles in range. Comes online the turn after it is built.',
-    stats: () => ['Scan radius 9', 'Shows incoming missile targets', 'Online next turn']
+    stats: () => ['Scan radius 12', 'Shows incoming missile targets']
   },
   silo: {
     name: 'Missile Silo', short: 'SLO', key: '4', cost: 140, hp: 50, max: 5,
