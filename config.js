@@ -26,8 +26,8 @@ const CONST = {
 
   // Weapons
   MISSILE_ENERGY: 8,
-  MISSILE_DAMAGE: 35,
-  MISSILE_SPLASH: 12,
+  MISSILE_DAMAGE: 45,
+  MISSILE_SPLASH: 15,
   DROP_ENERGY: 12,
   MAX_ROBOTS: 6,
   DROP_HQ_EXCLUSION: 2,      // no drops within this Chebyshev distance of the enemy HQ
