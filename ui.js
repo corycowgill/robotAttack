@@ -187,7 +187,33 @@ window.UI = (function () {
   .menu-foot { margin-top: 22px; display: flex; gap: 12px; justify-content: center; align-items: center; color: var(--c-dim); font-size: 14px; flex-wrap: wrap; }
   .lnk { cursor: pointer; color: #8fdcff; text-decoration: underline; text-underline-offset: 3px; }
   .chk { display: flex; gap: 6px; align-items: center; cursor: pointer; }
-  #gameover .menu-box { width: min(560px, 94vw); padding: 28px; }
+  .sect { margin: 4px 0 10px; font-size: 13px; letter-spacing: .28em; text-transform: uppercase; color: var(--c-dim); display: flex; align-items: center; gap: 12px; }
+  .sect::before, .sect::after { content: ''; flex: 1; height: 1px; background: var(--c-line); }
+  .missions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 22px; }
+  .mission { padding: 10px 10px 12px; cursor: pointer; text-align: left; position: relative; transition: transform .15s, border-color .15s; }
+  .mission:hover { transform: translateY(-3px); border-color: rgba(46,196,255,.7); }
+  .mission .num { font-size: 11px; letter-spacing: .2em; color: var(--c-warn); }
+  .mission h4 { margin: 2px 0 4px; font-size: 16px; line-height: 1.1; }
+  .mission .vs { font-size: 12px; color: var(--c-dim); display: flex; align-items: center; gap: 6px; }
+  .mission .vs svg { width: 28px; height: 28px; flex: none; }
+  .mission.locked { opacity: .38; cursor: not-allowed; }
+  .mission.locked:hover { transform: none; border-color: var(--c-line); }
+  .mission .badge { position: absolute; top: 8px; right: 10px; font-size: 13px; }
+  .mission.done .badge { color: var(--c-credit); }
+  #briefing .menu-box { width: min(860px, 94vw); padding: 26px 28px; text-align: left; }
+  #briefing h2 { margin: 0 0 4px; font-size: 30px; letter-spacing: .14em; text-transform: uppercase; }
+  #briefing .sub { color: var(--c-dim); letter-spacing: .2em; font-size: 12px; text-transform: uppercase; margin-bottom: 18px; }
+  .speakers { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
+  .speaker { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid var(--c-line); }
+  .speaker svg { width: 96px; height: 96px; flex: none; }
+  .speaker .who { font-weight: 700; font-size: 18px; } .speaker .role { font-size: 12px; color: var(--c-dim); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
+  .speaker .say { font-size: 15px; line-height: 1.4; color: #d3dee9; }
+  .speaker.enemy .say { color: #ffb4a6; font-style: italic; }
+  #gameover .menu-box { width: min(660px, 94vw); padding: 28px; }
+  #go-quote { display: none; gap: 12px; align-items: center; text-align: left; margin: 0 auto 16px; max-width: 440px; }
+  #go-quote svg { width: 64px; height: 64px; flex: none; }
+  #go-quote div { font-size: 15px; color: #d3dee9; line-height: 1.35; }
+  @media (max-width: 900px) { .missions { grid-template-columns: repeat(3, 1fr); } .speakers { grid-template-columns: 1fr; } }
   #go-title { font-size: 64px; font-weight: 700; letter-spacing: .2em; }
   #go-title.win { color: #8fdcff; text-shadow: 0 0 30px rgba(46,196,255,.6); } #go-title.lose { color: #ff6a55; text-shadow: 0 0 30px rgba(255,68,34,.6); } #go-title.draw { color: #ffd98a; }
   #go-reason { color: var(--c-dim); margin-bottom: 18px; letter-spacing: .08em; }
@@ -275,8 +301,11 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'menu', class: 'screen' }, `
       <div class="menu-box">
         <div class="title">ROBOT ATTACK<span>STRATEGY 2026</span></div>
-        <div class="tag">Build &middot; Strike &middot; Defend &mdash; choose your opponent</div>
+        <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war in the spirit of Metal Marines</div>
         <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
+        <div class="sect">Campaign</div>
+        <div class="missions" id="m-missions"></div>
+        <div class="sect">Skirmish &mdash; random islands</div>
         <div class="diffs">${diffs}</div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
@@ -289,8 +318,19 @@ window.UI = (function () {
       <div class="menu-box panel">
         <div id="go-title">VICTORY</div>
         <div id="go-reason"></div>
+        <div id="go-quote"></div>
         <div id="go-stats"></div>
-        <button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
+        <button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
+      </div>`));
+
+    root.appendChild(el('div', { id: 'briefing', class: 'screen' }, `
+      <div class="menu-box panel">
+        <h2 id="br-name"></h2><div class="sub" id="br-sub"></div>
+        <div class="speakers">
+          <div class="speaker" id="br-co"></div>
+          <div class="speaker enemy" id="br-foe"></div>
+        </div>
+        <div style="text-align:center"><button class="bigbtn" id="br-go">Launch Mission</button><button class="bigbtn alt" id="br-back">Back</button></div>
       </div>`));
 
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
@@ -305,6 +345,9 @@ window.UI = (function () {
     $('m-music').addEventListener('change', e => H.onMusic && H.onMusic(e.target.checked));
     $('help').addEventListener('click', e => { if (e.target.id === 'help' || e.target.classList.contains('close')) showHelp(false); });
     $('go-again').addEventListener('click', () => H.onRematch());
+    $('go-next').addEventListener('click', () => H.onNextMission());
+    $('br-go').addEventListener('click', () => { $('briefing').classList.remove('show'); H.onLaunchMission(briefingId); });
+    $('br-back').addEventListener('click', () => { $('briefing').classList.remove('show'); showMenu(true); });
     $('go-menu').addEventListener('click', () => H.onMenu());
     $('b-fire').addEventListener('click', () => H.onAction('fire'));
     $('b-drop').addEventListener('click', () => H.onAction('drop'));
@@ -540,7 +583,58 @@ window.UI = (function () {
   }
   function setMusicChecked(on) { $('m-music').checked = on; }
 
+  // Stylised commander bust (SVG), coloured per commander
+  function portrait(c) {
+    const L = c.look, id = 'p' + Math.random().toString(36).slice(2, 7);
+    const gear = {
+      beret: `<path d="M30 30 Q48 10 72 24 Q74 30 66 32 L32 34 Z" fill="#1d3b55" stroke="${L.color}" stroke-width="2"/><circle cx="62" cy="24" r="3" fill="${L.color}"/>`,
+      patch: `<path d="M34 52 L52 47 L52 58 L36 60 Z" fill="#0b0e13"/><path d="M26 44 L74 52" stroke="#0b0e13" stroke-width="2.5"/>`,
+      antenna: `<path d="M66 26 L76 6" stroke="${L.color}" stroke-width="2.5"/><circle cx="76" cy="6" r="3.5" fill="${L.visor}"/>`,
+      crown: `<path d="M30 30 L36 16 L42 28 L50 12 L58 28 L64 16 L70 30 Z" fill="${L.color}" opacity=".85"/>`,
+      none: ''
+    }[L.gear] || '';
+    return `<svg viewBox="0 0 100 100"><defs><radialGradient id="${id}" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="${L.color}" stop-opacity=".35"/><stop offset="1" stop-color="#0b0e13" stop-opacity="0"/></radialGradient></defs>
+      <circle cx="50" cy="50" r="48" fill="#121a24" stroke="${L.color}" stroke-opacity=".6" stroke-width="2"/><circle cx="50" cy="50" r="46" fill="url(#${id})"/>
+      <path d="M14 100 Q16 74 50 70 Q84 74 86 100 Z" fill="#2a3440" stroke="${L.color}" stroke-width="2"/>
+      <path d="M38 70 L50 82 L62 70" fill="none" stroke="${L.color}" stroke-width="2"/>
+      <path d="M28 56 Q26 26 50 24 Q74 26 72 56 Q70 72 50 74 Q30 72 28 56 Z" fill="#3a4654" stroke="#5c6b7a" stroke-width="1.5"/>
+      <path d="M30 46 L70 46 L68 58 Q50 64 32 58 Z" fill="${L.visor}" opacity=".95"/>
+      <path d="M33 50 L67 50" stroke="#fff" stroke-opacity=".7" stroke-width="1.5"/>
+      <rect x="24" y="44" width="6" height="16" rx="2" fill="#55626f"/><rect x="70" y="44" width="6" height="16" rx="2" fill="#55626f"/>
+      ${gear}</svg>`;
+  }
+
+  // missions: [{ id, name, enemy, state: 'locked'|'open'|'done' }]
+  function setCampaign(missions) {
+    const box = $('m-missions');
+    box.innerHTML = '';
+    for (const m of missions) {
+      const c = COMMANDERS[m.enemy];
+      const d = el('div', { class: 'panel mission ' + m.state }, `<span class="badge">${m.state === 'done' ? '✓' : m.state === 'locked' ? '🔒' : ''}</span>
+        <div class="num">MISSION ${m.id}</div><h4>${esc(m.name)}</h4><div class="vs">${portrait(c)}<span>vs ${esc(c.name)}</span></div>`);
+      if (m.state !== 'locked') d.addEventListener('click', () => H.onMission(m.id));
+      box.appendChild(d);
+    }
+  }
+
+  let briefingId = 0;
+  function showBriefing(m) {
+    briefingId = m.id;
+    const co = COMMANDERS.hale, foe = COMMANDERS[m.enemy];
+    $('br-name').textContent = 'Mission ' + m.id + ': ' + m.name;
+    $('br-sub').textContent = 'Opponent: ' + foe.name + ' · ' + CONST.DIFFICULTY[m.difficulty].name + ' tactics';
+    $('br-co').innerHTML = portrait(co) + `<div><div class="who" style="color:${co.look.color}">${esc(co.name)}</div><div class="role">${esc(co.title)}</div><div class="say">${esc(m.brief)}</div></div>`;
+    $('br-foe').innerHTML = portrait(foe) + `<div><div class="who" style="color:${foe.look.color}">${esc(foe.name)}</div><div class="role">${esc(foe.title)}</div><div class="say">“${esc(m.taunt)}”</div></div>`;
+    $('menu').classList.remove('show');
+    $('briefing').classList.add('show');
+  }
+
   function showGameOver(g) {
+    $('go-next').style.display = g.next ? '' : 'none';
+    $('go-again').textContent = g.again || 'Rematch';
+    const q = $('go-quote');
+    if (g.quote) { q.style.display = 'flex'; q.innerHTML = portrait(g.quote.who) + '<div><b>' + esc(g.quote.who.name) + ':</b> ' + esc(g.quote.text) + '</div>'; }
+    else q.style.display = 'none';
     const t = $('go-title');
     t.textContent = g.title;
     t.className = g.kind;
@@ -558,7 +652,7 @@ window.UI = (function () {
   function setVolume(v) { $('vol').value = v; }
 
   return {
-    init, icon, esc, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, portrait, setCampaign, showBriefing, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
