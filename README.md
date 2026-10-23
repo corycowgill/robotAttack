@@ -1,53 +1,112 @@
-# Robot Strategy Attack 2026
+# Robot Attack 2026
 
-Turn-based base-building strategy game rendered in Three.js with a 2.5D battlefield view.
+A turn-based base-building artillery strategy game in the browser, rendered with Three.js (r128) and scored with procedural Web Audio.
 
-## How to Play
+Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
 
-1. Open `game.html` in a modern browser
-2. Choose difficulty: **Patrol** (easier, random AI) or **Commander** (harder, strategic AI)
-3. Each turn:
-   - **Build structures** on your segments (left side) by selecting a building type and clicking a segment
-   - **Fire missiles** from Missile Silos at enemy segments
-   - **Deploy robots** from Robot Hangars to attack enemy buildings
-   - Click **End Turn** when done
-4. Watch the combat phase resolve automatically (~8 seconds)
-5. **Win** by destroying the enemy Command Center
+## Running
 
-## Buildings
+The game is static files with no build step.
+- **Local:** open `index.html` in a modern browser, or serve the folder (`python3 -m http.server`) and browse to it.
+- **Hosting:** put the folder on any static host.
 
-| Building | Cost | Effect |
-|----------|------|--------|
-| Power Plant | 2 | +3 energy/turn |
-| Radar Station | 2 | Reveals 3 enemy segments/turn |
-| Missile Silo | 3 | Fire 1 ballistic missile/turn |
-| Anti-Missile Battery | 3 | Intercepts 2 incoming missiles/turn |
-| Robot Hangar | 4 | Deploy 1 combat mech/turn |
-| Shield Generator | 3 | Absorbs next hit on adjacent segments |
-| Command Center | Built-in | 20 HP, destruction = defeat |
+Three.js and the fonts load from CDNs, so the game needs an internet connection.
+
+## How a turn works
+
+1. **Plan.**
+   - Spend **credits** on structures and repairs, and **energy** on missiles and mech drops.
+   - You can only build on your side (the blue zone) within 3 cells of one of your existing structures.
+   - Missile and drop orders can be cancelled for a full refund until you end the turn. `Z` undoes your last action.
+2. **Resolve.** Both sides' orders play out at once, in this order:
+   1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense intercept some of them.
+   2. Missiles hit. Shields absorb damage first; each missile does 35 damage to its target and 12 to adjacent cells.
+   3. Gun Pods fire at mechs.
+   4. Mechs move (2 cells) or smash an adjacent structure.
+   5. Drop pods land. New mechs wait one turn before they act.
+   6. New missiles launch. They are in the air until next turn.
+3. **React.**
+   - Enemy missiles are in flight for a full turn.
+   - **Red reticles** mark incoming missiles your Radar (or the area around your HQ) has detected. Build AA or shields, or repair, before they land.
+
+**Winning:** destroy the enemy Command Center. If both HQs fall in the same turn it's a draw. After 30 turns, the side whose HQ has more HP left (as a percentage) wins.
+
+**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts. Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible.
+
+## Structures
+
+| Key | Structure | Cost | HP | Effect |
+|---|---|---|---|---|
+| — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense intercept within radius 2 |
+| 1 | Supply Depot | 100 | 40 | +30 credits per turn |
+| 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
+| 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 5 |
+| 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 35 damage + 12 splash; maximum 5 |
+| 5 | AA Battery | 110 | 45 | Intercepts 1 incoming missile per turn aimed within radius 4 |
+| 6 | Shield Generator | 120 | 35 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
+| 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
+| 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
+
+- **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
+- **Sell:** refunds 50% of the cost, scaled by remaining HP.
+- **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
+
+## Opponents
+
+- **Patrol:**
+  - 80% income.
+  - Fixed build order and loose targeting.
+- **Commander:**
+  - Adapts its builds: AA when you shell it, Gun Pods when your mechs land.
+  - Fires all its missiles at once to overwhelm your AA, picks off unprotected economy buildings, and repairs its HQ.
+- **Warlord:**
+  - Commander tactics plus full map vision and +25% income.
+  - Repairs structures that your missiles are about to hit.
 
 ## Controls
 
-- **Click segment** to place selected building
-- **Arrow keys / A/D** or **mouse drag** to pan camera
-- **Build menu** at bottom of screen
-- **Fire Missile / Deploy Robot** buttons enter targeting mode
+| Input | Action |
+|---|---|
+| `1`–`8` | Select a structure to build (Shift+click places several) |
+| Left click | Place / target / select |
+| Right click, `Esc` | Cancel |
+| `Q` / `E` | Fire missile / drop mech |
+| `T` / `X` | Repair / sell the selected structure |
+| `Z` | Undo |
+| `Space` | End turn; during combat, skip the playback |
+| `Tab` | Playback speed 1x / 2x / 3x |
+| WASD / arrows, right-drag | Pan |
+| Mouse wheel | Zoom |
+| `H` / `F` | Camera to your HQ / whole map |
+| `M` | Mute |
+| `?` | Help |
 
-## Tech Stack
+## Code layout
 
-- Three.js r128 (CDN)
-- Web Audio API (procedural 8-bit sound)
-- Vanilla JS (no frameworks)
-- Single HTML entry point with modular JS files
+All scripts are plain `<script>` modules loaded by `index.html`, in this order:
 
-## Files
+| File | Role |
+|---|---|
+| `config.js` | Constants and the structure table (costs, HP, descriptions); the single source of truth |
+| `rules.js` | Pure game logic: state, validation, build/repair/sell, orders, vision, and the deterministic `resolveTurn()`, which returns an event list. No DOM, and it runs under Node. |
+| `ai.js` | Opponent logic. It uses the same `Rules` functions, and therefore the same restrictions, as the player. |
+| `audio.js` | Procedural Web Audio: sound-effect recipes, ambient and combat music, volume/mute (`window.GameAudio`) |
+| `models.js` | Procedural Three.js models for structures, mechs, missiles, drop pods and ghosts |
+| `fx.js` | Pooled GPU particles, flash lights, shockwaves, scorch decals, smoke and fire emitters |
+| `renderer.js` | Scene, lighting, terrain, overlays (grid, build zone, fog shader), camera rig, picking, mesh registry |
+| `ui.js` | DOM HUD, build bar, orders, selection panel, tooltips, report, menus, help |
+| `main.js` | State machine, input, view synchronisation, and the combat playback timeline (`dt`-driven, skippable) |
 
-- `game.html` — Entry point and orchestrator
-- `gameState.js` — State schema, constants, factories
-- `renderer.js` — Three.js scene, terrain, camera, CRT effects
-- `buildings.js` — 7 building types with 3D geometry
-- `weapons.js` — Missile system, interception, damage
-- `robots.js` — Mech deployment, combat, animation
-- `ai.js` — Patrol and Commander AI modes
-- `ui.js` — HUD, menus, build interface
-- `sfx.js` — Audio and particle effects
+### Simulating games headlessly
+
+`rules.js` and `ai.js` load under Node, so AI-vs-AI games can be simulated for balance testing:
+
+```js
+const { CONST, BUILDINGS } = require('./config.js');
+Object.assign(global, { CONST, BUILDINGS });
+global.Rules = require('./rules.js');
+const AI = require('./ai.js');
+const s = Rules.newGame('commander', 42);
+while (!s.winner) { AI.planTurn(s, 'player'); AI.planTurn(s, 'ai'); Rules.resolveTurn(s); }
+console.log(s.winner, s.turn);
+```
