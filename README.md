@@ -101,6 +101,25 @@ All scripts are plain `<script>` modules loaded by `index.html`, in this order:
 | `ui.js` | DOM HUD, build bar, orders, selection panel, tooltips, report, menus, help |
 | `main.js` | State machine, input, view synchronisation, and the combat playback timeline (`dt`-driven, skippable) |
 
+### Generated audio
+
+`audio.js` plays pre-rendered clips listed in `assets/audio/manifest.json` and falls back to its procedural WebAudio recipes for anything missing. Opening `index.html` directly from disk (`file://`) always uses the procedural sounds, because browsers block `fetch` there.
+
+`tools/gen_audio.py` renders the clips with text-to-audio models. It holds a prompt sheet for every gameplay sound plus three music loops, then trims, levels and loop-crossfades the output, encodes MP3s and writes the manifest.
+
+```bash
+pip install torch diffusers transformers accelerate soundfile lameenc scipy torchsde sentencepiece
+export HF_TOKEN=...                                 # for the gated Stable Audio Open weights
+python tools/gen_audio.py --list                    # show prompts
+python tools/gen_audio.py --backend stable          # all SFX + music (Stable Audio Open 1.0)
+python tools/gen_audio.py --only explosion,flak     # regenerate a few
+python tools/gen_audio.py --backend audioldm2 --music-backend musicgen   # ungated, non-commercial licences
+```
+
+Check each model's licence before shipping generated audio:
+- Stable Audio Open uses the Stability AI Community License.
+- AudioLDM2 and MusicGen weights are non-commercial.
+
 ### Simulating games headlessly
 
 `rules.js` and `ai.js` load under Node, so AI-vs-AI games can be simulated for balance testing:

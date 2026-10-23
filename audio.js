@@ -385,6 +385,82 @@
     defeat: ['ui', 3.0, 0.3, 0]
   };
 
+  // ---------- sample layer ----------
+  // Optional pre-rendered clips listed in assets/audio/manifest.json
+  // (generated offline by tools/gen_audio.py). Any sound or music mode
+  // without a clip keeps using the procedural recipes above.
+  var SAMPLE_DIR = 'assets/audio/';
+  var samples = {}, sampleGain = {}, musicBufs = {}, track = null;
+
+  function decode(url) {
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error(url); return r.arrayBuffer(); })
+      .then(function (ab) {
+        return new Promise(function (res, rej) {
+          var p = ctx.decodeAudioData(ab, res, rej);
+          if (p && p.then) p.then(res, rej);
+        });
+      });
+  }
+
+  function loadSamples() {
+    if (typeof fetch !== 'function' || location.protocol === 'file:') return;
+    fetch(SAMPLE_DIR + 'manifest.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (man) {
+        if (!man) return;
+        sampleGain = man.gain || {};
+        Object.keys(man.sfx || {}).forEach(function (name) {
+          (man.sfx[name] || []).forEach(function (file) {
+            decode(SAMPLE_DIR + file).then(function (buf) {
+              (samples[name] = samples[name] || []).push(buf);
+            }).catch(function () { /* keep procedural */ });
+          });
+        });
+        Object.keys(man.music || {}).forEach(function (m) {
+          decode(SAMPLE_DIR + man.music[m]).then(function (buf) {
+            musicBufs[m] = buf;
+            applyMusic();
+          }).catch(function () { /* keep procedural */ });
+        });
+      })
+      .catch(function () { /* no manifest: procedural only */ });
+  }
+
+  function playSample(out, buf, t, pitch, gain) {
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = pitch;
+    var g = G(gain == null ? 1 : gain);
+    chain(src, g, out);
+    src.start(t);
+    return buf.duration / pitch;
+  }
+
+  function musicFor(m) {
+    if (musicBufs[m]) return musicBufs[m];
+    if (m === 'menu') return musicBufs.planning || null;
+    return null;
+  }
+
+  // Crossfade to a looping music clip (or to nothing)
+  function setTrack(m) {
+    var buf = m ? musicFor(m) : null;
+    if (track && track.buf === buf) return;
+    if (track) {
+      var old = track;
+      fadeTo(old.out.gain, 0.0001, 1.5);
+      setTimeout(function () { try { old.src.stop(); old.out.disconnect(); } catch (e) { /* ignore */ } }, 2500);
+      track = null;
+    }
+    if (!buf) return;
+    var out = G(0.0001); out.connect(musicBus);
+    var src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    src.connect(out); src.start();
+    fadeTo(out.gain, sampleGain['music_' + m] || 1, 1.5);
+    track = { buf: buf, src: src, out: out };
+  }
+
   function play(name, opts) {
     try {
       if (!ok() || muted || !R.hasOwnProperty(name) || !META.hasOwnProperty(name)) return;
@@ -397,9 +473,16 @@
       var big = name === 'explosion' && opts.big;
       var out = makeOut(opts, m[0] === 'ui' ? uiBus : sfxBus, big ? 0.45 : m[2]);
       var pitch = m[3] ? 1 + (Math.random() * 0.1 - 0.05) : 1;
-      R[name](out, now() + 0.005, pitch, opts);
+      var key = big && samples.explosionBig ? 'explosionBig' : name;
+      var bufs = samples[key], dur;
+      if (bufs && bufs.length) {
+        var gain = (sampleGain[key] || 1) * (big && key === name ? 1.3 : 1);
+        dur = playSample(out, bufs[Math.floor(Math.random() * bufs.length)], now() + 0.005, pitch, gain) + 0.3;
+      } else {
+        R[name](out, now() + 0.005, pitch, opts);
+        dur = (big ? 3.0 : m[1]) + 0.3;
+      }
       activeVoices++;
-      var dur = (big ? 3.0 : m[1]) + 0.3;
       setTimeout(function () {
         activeVoices = Math.max(0, activeVoices - 1);
         try { out.disconnect(); } catch (e) { /* ignore */ }
@@ -556,8 +639,10 @@
     if (!ok()) return;
     try {
       var m = musicEnabled ? mode : 'off';
-      if (m === 'menu' || m === 'planning' || m === 'combat') startBed(); else stopBed();
-      if (m === 'combat') startCombat(); else stopCombat();
+      var clip = m !== 'off' && musicFor(m);
+      setTrack(clip ? m : null);
+      if (!clip && (m === 'menu' || m === 'planning' || m === 'combat')) startBed(); else stopBed();
+      if (!clip && m === 'combat') startCombat(); else stopCombat();
       updateTension(tension && m !== 'off');
     } catch (e) { /* ignore */ }
   }
@@ -573,6 +658,7 @@
         ctx = c;
         try { buildGraph(); } catch (e) { ctx = null; try { c.close(); } catch (e2) { /* ignore */ } return; }
         applyMusic();
+        loadSamples();
       }
       if (ctx && ctx.state === 'suspended' && ctx.resume) {
         var pr = ctx.resume();
