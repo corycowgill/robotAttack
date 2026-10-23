@@ -475,7 +475,7 @@ window.Renderer = (function () {
   }
 
   function missileArcHeight(a, b) {
-    return Math.min(130, 45 + a.distanceTo(b) * 0.28);
+    return Math.min(85, 30 + a.distanceTo(b) * 0.18);
   }
 
   // ── Buildings ─────────────────────────────────────────────
