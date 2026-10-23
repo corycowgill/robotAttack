@@ -34,7 +34,10 @@
     UI.init({
       onStart: startGame,
       onContinue: continueGame,
-      onRematch: () => startGame(difficulty, tutorial),
+      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial),
+      onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1]); },
+      onLaunchMission: id => startMission(id),
+      onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n); } },
       onMenu: toMenu,
       onBuildSelect: selectBuild,
       onAction: action,
@@ -77,9 +80,24 @@
     } catch (e) { return null; }
   }
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
+  // ── Campaign progress (number of missions completed) ──
+  function campaignDone() {
+    try { return Math.max(0, parseInt(localStorage.getItem('ra_campaign'), 10) || 0); } catch (e) { return 0; }
+  }
+  function refreshCampaign() {
+    const done = campaignDone();
+    UI.setCampaign(CAMPAIGN.map(m => ({ id: m.id, name: m.name, enemy: m.enemy, state: m.id <= done ? 'done' : m.id === done + 1 ? 'open' : 'locked' })));
+  }
+  function startMission(id) {
+    const m = CAMPAIGN[id - 1];
+    if (!m) return;
+    startGame(m.difficulty, id === 1, null, m);   // the briefing checklist runs on the first mission
+  }
+
   function refreshContinue() {
     const s = loadSave();
-    UI.setContinue(s ? 'Turn ' + s.state.turn + ' vs ' + CONST.DIFFICULTY[s.state.difficulty].name : null);
+    UI.setContinue(s ? (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name) : null);
+    refreshCampaign();
   }
 
   function continueGame() {
@@ -88,7 +106,7 @@
     startGame(s.state.difficulty, s.tutorial, s);
   }
 
-  function startGame(diff, tut, saved) {
+  function startGame(diff, tut, saved, mission) {
     SND.unlock();
     SND.play('uiClick');
     difficulty = diff;
@@ -100,13 +118,18 @@
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = saved ? saved.state : R.newGame(diff);
+    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits } : {});
+    if (mission) state.mission = mission.id;
     Renderer.setMap(state.land);
     window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
-    if (saved) UI.log('Resumed operation — turn ' + state.turn + ' vs ' + CONST.DIFFICULTY[diff].name, 'sys');
-    else {
+    const m = state.mission ? CAMPAIGN[state.mission - 1] : null;
+    if (saved) UI.log('Resumed operation — turn ' + state.turn + ' vs ' + (m ? COMMANDERS[m.enemy].name : CONST.DIFFICULTY[diff].name), 'sys');
+    else if (m) {
+      UI.log('Mission ' + m.id + ': ' + m.name, 'sys');
+      UI.log(COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', 'enemy');
+    } else {
       UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
       UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
     }
@@ -1030,6 +1053,10 @@
   function gameOver() {
     phase = 'gameover';
     clearSave();
+    const mission = state.mission ? CAMPAIGN[state.mission - 1] : null;
+    if (mission && state.winner === P && campaignDone() < mission.id) {
+      try { localStorage.setItem('ra_campaign', String(mission.id)); } catch (e) { /* ignore */ }
+    }
     UI.setDock(false);
     SND.setMode('off');
     SND.setTension(false);
@@ -1044,7 +1071,10 @@
       UI.showGameOver({
         title: w === P ? 'VICTORY' : w === A ? 'DEFEAT' : 'DRAW',
         kind: w === P ? 'win' : w === A ? 'lose' : 'draw',
-        reason: state.endReason + ' — turn ' + state.turn + ' · ' + CONST.DIFFICULTY[state.difficulty].name,
+        reason: state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : CONST.DIFFICULTY[state.difficulty].name),
+        next: !!(mission && w === P && CAMPAIGN[mission.id]),
+        again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : 'Rematch',
+        quote: mission ? (w === P ? { who: COMMANDERS.hale, text: mission.win } : { who: COMMANDERS[mission.enemy], text: w === A ? 'As expected. Go home, Commander.' : 'Stalemate... this time.' }) : null,
         rows: [
           ['Damage dealt', ps.damageDealt, as.damageDealt],
           ['Structures built', ps.built, as.built],

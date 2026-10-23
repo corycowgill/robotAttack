@@ -57,6 +57,20 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
 
+## Campaign
+
+Five missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
+
+| # | Mission | Opponent | Twist |
+|---|---|---|---|
+| 1 | Operation Sandbar | Cmdr. Rusk (Patrol) | Tutorial checklist; a big, open island |
+| 2 | Coral Gate | Capt. Vey (Patrol) | Enemy starts behind two AA Batteries and a Gun Pod |
+| 3 | Iron Strait | Marshal Kord (Commander) | Adaptive AI with an early Radar |
+| 4 | Fortress Isle | Capt. Vey (Commander) | Shielded fortress HQ; you get extra starting credits |
+| 5 | Black Tide | Overseer NYX (Warlord) | Full-vision AI with decoys |
+
+**Skirmish** plays a random island map against any of the three opponents.
+
 ## Opponents
 
 - **Patrol:**
