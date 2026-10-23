@@ -129,8 +129,10 @@
   // Frame the map in the screen area not covered by side panels
   function frameView(instant) {
     const rectOf = id => { const el = document.getElementById(id); if (!el || el.offsetParent === null) return null; return el.getBoundingClientRect(); };
-    const obj = rectOf('objectives'), ord = rectOf('orders');
-    Renderer.setOcclusion(obj ? obj.right : 0, ord ? window.innerWidth - ord.left : 0);
+    // Keep the map clear of the orders/log panel, HUD and build dock. The briefing panel is
+    // short and closable and only overlaps the player's rear corner, so it doesn't count.
+    const ord = rectOf('orders'), hud = rectOf('hud');
+    Renderer.setOcclusion(0, ord ? window.innerWidth - ord.left : 0, hud ? hud.bottom : 80, 120);
     Renderer.frameAll(instant);
   }
 
