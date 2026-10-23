@@ -33,6 +33,7 @@ window.UI = (function () {
     mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     credits: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18"/>',
     energy: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>'
@@ -204,9 +205,13 @@ window.UI = (function () {
   #help th { color: var(--c-dim); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
   #help .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 20px; font-size: 14px; }
 
-  @media (max-width: 1100px) {
-    .card { width: 74px; height: 80px; } .card .nm { font-size: 11px; } .abtn { min-width: 86px; height: 80px; }
-    #orders { width: 220px; } #objectives { width: 240px; }
+  @media (max-width: 1500px) {
+    .card { width: 80px; height: 84px; } .card .nm { font-size: 12px; } .card .ico { width: 26px; height: 26px; }
+    .abtn { min-width: 96px; height: 84px; } .abtn.end { min-width: 108px; }
+  }
+  @media (max-width: 1240px) {
+    .card { width: 70px; height: 78px; } .card .nm { font-size: 11px; } .abtn { min-width: 84px; height: 78px; }
+    #orders { width: 220px; } #objectives { width: 230px; }
   }
   @media (max-height: 700px) { #orders { display: none; } }
   `;
@@ -339,7 +344,7 @@ window.UI = (function () {
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
       <div class="keys">
-        <div><kbd>1</kbd>–<kbd>8</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
+        <div><kbd>1</kbd>–<kbd>9</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
         <div><kbd>Q</kbd> fire missile</div><div><kbd>E</kbd> drop mech</div>
         <div><kbd>T</kbd> repair selected &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>

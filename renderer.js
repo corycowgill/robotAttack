@@ -57,8 +57,8 @@ window.Renderer = (function () {
   // ── Scene setup ───────────────────────────────────────────
   function init() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0e13);
-    scene.fog = new THREE.FogExp2(0x0b0e13, 0.0011);
+    scene.background = new THREE.Color(0x111b24);
+    scene.fog = new THREE.FogExp2(0x111b24, 0.0012);
 
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 2, 3000);
 
@@ -74,11 +74,11 @@ window.Renderer = (function () {
     document.body.appendChild(renderer.domElement);
 
     createLights();
-    createTerrain();
-    createGrid();
     createZoneOverlay();
     createFog();
-    createDecor();
+    createWater();
+    setMap(Rules.generateIslands(424242, CONST.LAND_TARGET));   // backdrop for the menu
+    createLabels();
     createHover();
 
     Fx.init(scene);
@@ -106,88 +106,198 @@ window.Renderer = (function () {
     scene.add(rim);
   }
 
+  // ── Islands: terrain, sea, grid and scenery rebuilt per map ─
+  let terrainMesh = null, gridMesh = null, decorGroup = null, landField = null, water = null, landTex = null;
+
+  // land mask blurred into a smooth field (1 = inland, 0 = open sea)
+  function buildLandField(land) {
+    let f = new Float32Array(GW * GH);
+    for (let i = 0; i < f.length; i++) f[i] = land[i] ? 1 : 0;
+    for (let pass = 0; pass < 2; pass++) {
+      const g = new Float32Array(f.length);
+      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+        let t = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          t += (xx < 0 || yy < 0 || xx >= GW || yy >= GH) ? 0 : f[yy * GW + xx];
+          n++;
+        }
+        g[y * GW + x] = land[y * GW + x] ? Math.max(0.62, t / n) : Math.min(0.45, t / n);
+      }
+      f = g;
+    }
+    return f;
+  }
+  function fieldAt(x, z) {
+    const fx = x / CELL - 0.5, fz = z / CELL - 0.5;
+    const x0 = Math.floor(fx), z0 = Math.floor(fz), tx = fx - x0, tz = fz - z0;
+    const g = (i, j) => (i < 0 || j < 0 || i >= GW || j >= GH) ? 0 : landField[j * GW + i];
+    return (g(x0, z0) * (1 - tx) + g(x0 + 1, z0) * tx) * (1 - tz) + (g(x0, z0 + 1) * (1 - tx) + g(x0 + 1, z0 + 1) * tx) * tz;
+  }
+  const SEA_Y = -1.1;
   function terrainHeight(x, z) {
-    // flat playable area, hills rising outside it
-    const dx = Math.max(0, -x, x - MAP_W), dz = Math.max(0, -z, z - MAP_H);
-    const out = Math.hypot(dx, dz);
+    const l = fieldAt(x, z);
+    const t = Math.min(1, Math.max(0, (l - 0.3) / 0.3));
+    const s = t * t * (3 - 2 * t);
     const n = fbm(x * 0.02, z * 0.02);
-    const inner = (n - 0.5) * 0.5;
-    if (out <= 0) return inner;
-    const k = Math.min(1, out / 90);
-    return inner + k * k * (18 + n * 34) + fbm(x * 0.06, z * 0.06) * 4 * k;
+    const out = Math.hypot(Math.max(0, -x, x - MAP_W), Math.max(0, -z, z - MAP_H));
+    const seabed = -9 - Math.min(14, out * 0.06) + (n - 0.5) * 3;
+    return seabed + (0.15 + (n - 0.5) * 0.5 - seabed) * s;
   }
 
-  function createTerrain() {
+  function createWater() {
+    const t = cellTexture(THREE.LinearFilter);
+    landTex = t;
+    const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      time: { value: 0 }, land: { value: t.tex },
+      mapSize: { value: new THREE.Vector2(MAP_W, MAP_H) },
+      deep: { value: new THREE.Color(0x0a2f45) }, shallow: { value: new THREE.Color(0x2f8a96) }
+    }]);
+    uniforms.land.value = t.tex;
+    const mat = new THREE.ShaderMaterial({
+      uniforms, fog: true, transparent: true, depthWrite: false,
+      vertexShader: `
+        varying vec2 vW; varying vec3 vView;
+        #include <fog_pars_vertex>
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vW = wp.xz; vView = cameraPosition - wp.xyz;
+          vec4 mvPosition = viewMatrix * wp;
+          gl_Position = projectionMatrix * mvPosition;
+          #include <fog_vertex>
+        }`,
+      fragmentShader: `
+        uniform float time; uniform sampler2D land; uniform vec2 mapSize; uniform vec3 deep; uniform vec3 shallow;
+        varying vec2 vW; varying vec3 vView;
+        #include <fog_pars_fragment>
+        float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+          return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
+        void main() {
+          vec2 uv = vW / mapSize;
+          float l = 0.0;
+          if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) l = texture2D(land, vec2(uv.x, 1.0 - uv.y)).a;
+          float w1 = n(vW * 0.08 + vec2(time * 0.35, time * 0.2));
+          float w2 = n(vW * 0.21 - vec2(time * 0.5, -time * 0.3));
+          float waves = w1 * 0.6 + w2 * 0.4;
+          vec3 col = mix(deep, shallow, clamp(l * 1.6 + waves * 0.15, 0.0, 1.0));
+          // shoreline foam bands
+          float shore = smoothstep(0.18, 0.42, l) * (1.0 - smoothstep(0.42, 0.5, l));
+          float foam = shore * smoothstep(0.45, 0.8, n(vW * 0.35 + vec2(time * 0.6, 0.0)) + 0.35 * sin(l * 40.0 - time * 2.5));
+          // sun glint
+          vec3 V = normalize(vView);
+          float glint = pow(max(0.0, waves - 0.55) * 2.2, 3.0) * (1.0 - V.y * 0.6);
+          col += vec3(1.0, 0.92, 0.75) * glint * 0.35 + vec3(0.9, 0.95, 1.0) * foam * 0.75;
+          gl_FragColor = vec4(col, 0.86 + foam * 0.14);
+          #include <fog_fragment>
+        }`
+    });
+    water = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), mat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(MAP_W / 2, SEA_Y, MAP_H / 2);
+    water.renderOrder = 1;
+    scene.add(water);
+  }
+
+  function setMap(land) {
+    landField = buildLandField(land);
+    // sea shader shoreline texture (alpha = smoothed land)
+    for (let c = 0; c < GW * GH; c++) {
+      const i = texIndex(c);
+      landTex.data[i] = landTex.data[i + 1] = landTex.data[i + 2] = 255;
+      landTex.data[i + 3] = Math.round(landField[c] * 255);
+    }
+    landTex.tex.needsUpdate = true;
+
+    // terrain
+    if (terrainMesh) { scene.remove(terrainMesh); terrainMesh.geometry.dispose(); }
     const w = MAP_W + MARGIN * 2, h = MAP_H + MARGIN * 2;
-    const geo = new THREE.PlaneGeometry(w, h, Math.round(w / 4), Math.round(h / 4));
+    const geo = new THREE.PlaneGeometry(w, h, Math.round(w / 3), Math.round(h / 3));
     geo.rotateX(-Math.PI / 2);
     geo.translate(MAP_W / 2, 0, MAP_H / 2);
     const pos = geo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const cSand = new THREE.Color(0x7a6a50), cSand2 = new THREE.Color(0x5e5240);
+    const cGround = new THREE.Color(0x7a6a50), cGround2 = new THREE.Color(0x5e5240);
     const cPlayer = new THREE.Color(0x56606a), cAI = new THREE.Color(0x6e5246);
-    const cChar = new THREE.Color(0x2c2722), cRock = new THREE.Color(0x4a4036);
+    const cBeach = new THREE.Color(0xc9b483), cBed = new THREE.Color(0x1f3b3c);
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       const y = terrainHeight(x, z);
       pos.setY(i, y);
       const n = fbm(x * 0.035 + 7, z * 0.035 + 3);
-      const inMap = x >= 0 && x <= MAP_W && z >= 0 && z <= MAP_H;
-      const col = x / CELL;
-      c.copy(cSand).lerp(cSand2, n);
-      if (inMap) {
-        if (col <= CONST.PLAYER_MAX_X + 1) c.lerp(cPlayer, 0.35);
-        else if (col >= CONST.AI_MIN_X) c.lerp(cAI, 0.3);
-        else c.lerp(cChar, 0.55 + n * 0.35);
-      } else {
-        c.lerp(cRock, Math.min(1, y / 30));
-      }
-      // speckle
-      const sp = hash(Math.floor(x * 0.7), Math.floor(z * 0.7));
-      c.multiplyScalar(0.9 + sp * 0.18);
+      c.copy(cGround).lerp(cGround2, n);
+      c.lerp(x / CELL <= CONST.PLAYER_MAX_X + 1 ? cPlayer : cAI, 0.32);
+      const l = fieldAt(x, z);
+      const beach = Math.max(0, 1 - Math.abs(l - 0.52) / 0.14);
+      c.lerp(cBeach, Math.min(1, beach * 1.2));
+      if (y < SEA_Y) c.lerp(cBed, Math.min(1, (SEA_Y - y) / 3));
+      c.multiplyScalar(0.9 + hash(Math.floor(x * 0.7), Math.floor(z * 0.7)) * 0.18);
       c.convertSRGBToLinear();
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-  }
+    terrainMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+    terrainMesh.receiveShadow = true;
+    scene.add(terrainMesh);
 
-  function createGrid() {
+    // grid: cell lines on land only, island coastlines in team colours
+    if (gridMesh) { scene.remove(gridMesh); gridMesh.material.map.dispose(); gridMesh.material.dispose(); gridMesh.geometry.dispose(); }
     const px = 32;
     const cv = document.createElement('canvas');
     cv.width = GW * px; cv.height = GH * px;
     const g = cv.getContext('2d');
-    g.clearRect(0, 0, cv.width, cv.height);
-    g.strokeStyle = 'rgba(255,255,255,0.55)';
-    g.lineWidth = 1.5;
-    for (let x = 0; x <= GW; x++) {
-      if (x > CONST.PLAYER_MAX_X + 1 && x < CONST.AI_MIN_X) continue;
-      g.beginPath(); g.moveTo(x * px, 0); g.lineTo(x * px, cv.height); g.stroke();
+    const isL = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH && land[y * GW + x];
+    g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1.5;
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      if (!isL(x, y)) continue;
+      g.strokeRect(x * px + 0.5, y * px + 0.5, px - 1, px - 1);
     }
-    for (let y = 0; y <= GH; y++) {
-      g.beginPath(); g.moveTo(0, y * px); g.lineTo((CONST.PLAYER_MAX_X + 1) * px, y * px); g.stroke();
-      g.beginPath(); g.moveTo(CONST.AI_MIN_X * px, y * px); g.lineTo(cv.width, y * px); g.stroke();
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      if (!isL(x, y)) continue;
+      g.strokeStyle = x <= CONST.PLAYER_MAX_X ? 'rgba(46,196,255,1)' : 'rgba(255,68,34,1)';
+      g.lineWidth = 4;
+      const X = x * px, Y = y * px;
+      if (!isL(x, y - 1)) { g.beginPath(); g.moveTo(X, Y + 2); g.lineTo(X + px, Y + 2); g.stroke(); }
+      if (!isL(x, y + 1)) { g.beginPath(); g.moveTo(X, Y + px - 2); g.lineTo(X + px, Y + px - 2); g.stroke(); }
+      if (!isL(x - 1, y)) { g.beginPath(); g.moveTo(X + 2, Y); g.lineTo(X + 2, Y + px); g.stroke(); }
+      if (!isL(x + 1, y)) { g.beginPath(); g.moveTo(X + px - 2, Y); g.lineTo(X + px - 2, Y + px); g.stroke(); }
     }
-    // territory borders
-    g.lineWidth = 5;
-    g.strokeStyle = 'rgba(46,196,255,1)';
-    g.strokeRect(2, 2, (CONST.PLAYER_MAX_X + 1) * px - 4, cv.height - 4);
-    g.strokeStyle = 'rgba(255,68,34,1)';
-    g.strokeRect(CONST.AI_MIN_X * px + 2, 2, (GW - CONST.AI_MIN_X) * px - 4, cv.height - 4);
     const tex = new THREE.CanvasTexture(cv);
     tex.anisotropy = 4;
-    gridMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.09, depthWrite: false, blending: THREE.AdditiveBlending });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), gridMat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(MAP_W / 2, 0.35, MAP_H / 2);
-    mesh.renderOrder = 3;
-    scene.add(mesh);
-    createLabels();
+    gridMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: gridMat ? gridMat.opacity : 0.09, depthWrite: false, blending: THREE.AdditiveBlending });
+    gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), gridMat);
+    gridMesh.rotation.x = -Math.PI / 2;
+    gridMesh.position.set(MAP_W / 2, 0.35, MAP_H / 2);
+    gridMesh.renderOrder = 3;
+    scene.add(gridMesh);
+
+    // scenery: rocks on beaches and in the shallows, a few sea stacks offshore
+    if (decorGroup) { scene.remove(decorGroup); }
+    decorGroup = new THREE.Group();
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.95, flatShading: true });
+    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+    let seed = 7;
+    for (let k = 0; k < GW * GH; k++) seed = (seed * 31 + (land[k] ? 1 : 0)) % 2147483647;
+    const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    let placed = 0;
+    for (let tries = 0; tries < 4000 && placed < 120; tries++) {
+      const x = -40 + r() * (MAP_W + 80), z = -40 + r() * (MAP_H + 80);
+      const l = fieldAt(x, z);
+      const inChannel = x > (CONST.PLAYER_MAX_X + 1) * CELL && x < CONST.AI_MIN_X * CELL && z > 0 && z < MAP_H;
+      const offshore = l < 0.02 && !inChannel && r() < 0.012;
+      if (!(l > 0.25 && l < 0.5) && !offshore) continue;
+      const m = new THREE.Mesh(rockGeo, rockMat);
+      const s = offshore ? 4 + r() * 6 : 1.2 + r() * 3;
+      m.scale.set(s, s * (offshore ? 1.2 : 0.6 + r() * 0.5), s * (0.7 + r() * 0.6));
+      m.rotation.set(r() * 3, r() * 3, r() * 3);
+      m.position.set(x, Math.max(terrainHeight(x, z), SEA_Y - 1.5) + s * (offshore ? 0.1 : 0.25), z);
+      m.castShadow = true; m.receiveShadow = true;
+      decorGroup.add(m);
+      placed++;
+    }
+    scene.add(decorGroup);
   }
 
   // Row letters / column numbers around the map, matching the log's cell names (e.g. "H5")
@@ -328,57 +438,6 @@ window.Renderer = (function () {
     mesh.position.set(MAP_W / 2, 0.6, MAP_H / 2);
     mesh.renderOrder = 6;
     scene.add(mesh);
-  }
-
-  function createDecor() {
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x2e2924, roughness: 0.95, flatShading: true });
-    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-    let seed = 1;
-    const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    // rocks around the map edges
-    for (let i = 0; i < 90; i++) {
-      const side = Math.floor(r() * 4);
-      let x, z;
-      if (side === 0) { x = r() * MAP_W; z = -r() * 70 - 6; }
-      else if (side === 1) { x = r() * MAP_W; z = MAP_H + r() * 70 + 6; }
-      else if (side === 2) { x = -r() * 70 - 6; z = r() * MAP_H; }
-      else { x = MAP_W + r() * 70 + 6; z = r() * MAP_H; }
-      const m = new THREE.Mesh(rockGeo, rockMat);
-      const s = 2 + r() * 6;
-      m.scale.set(s, s * (0.5 + r() * 0.6), s * (0.7 + r() * 0.6));
-      m.rotation.set(r() * 3, r() * 3, r() * 3);
-      m.position.set(x, terrainHeight(x, z) + s * 0.2, z);
-      m.castShadow = true; m.receiveShadow = true;
-      scene.add(m);
-    }
-    // tank traps and wrecks in no-man's land
-    const steel = new THREE.MeshStandardMaterial({ color: 0x3a3532, roughness: 0.7, metalness: 0.5 });
-    const beam = new THREE.BoxGeometry(0.8, 0.8, 7);
-    for (let i = 0; i < 26; i++) {
-      const x = (CONST.PLAYER_MAX_X + 1) * CELL + 4 + r() * ((CONST.AI_MIN_X - CONST.PLAYER_MAX_X - 1) * CELL - 8);
-      const z = 6 + r() * (MAP_H - 12);
-      const g = new THREE.Group();
-      for (let k = 0; k < 3; k++) {
-        const b = new THREE.Mesh(beam, steel);
-        b.rotation.set(k === 0 ? 0.8 : 0, k === 1 ? 0.8 : 0, k === 2 ? 0.8 : 0);
-        if (k === 0) b.rotation.y = Math.PI / 2;
-        b.castShadow = true;
-        g.add(b);
-      }
-      g.position.set(x, 2, z);
-      g.rotation.y = r() * 3;
-      scene.add(g);
-    }
-    for (let i = 0; i < 14; i++) {
-      const x = (CONST.PLAYER_MAX_X + 1) * CELL + r() * 4 * CELL;
-      const z = r() * MAP_H;
-      const m = new THREE.Mesh(rockGeo, rockMat);
-      const s = 1.5 + r() * 3;
-      m.scale.set(s, s * 0.6, s);
-      m.position.set(x, 0.3, z);
-      m.castShadow = true;
-      scene.add(m);
-    }
   }
 
   function createHover() {
@@ -669,8 +728,10 @@ window.Renderer = (function () {
 
   function addBuilding(b, rise) {
     removeBuilding(b.id, true);
-    const g = Models.building(b.type, b.side);
-    bakeStatic(g, b.type + '_' + b.side);
+    // decoys wear their disguise; only the owner's badge gives them away
+    const modelType = b.type === 'decoy' ? b.disguise : b.type;
+    const g = Models.building(modelType, b.side);
+    bakeStatic(g, modelType + '_' + b.side);
     const p = cellCenter(b.cell);
     g.position.copy(p);
     // face the enemy
@@ -681,11 +742,11 @@ window.Renderer = (function () {
     const bar = makeHpBar(b.type === 'hq' ? 12 : 8);
     bar.position.set(p.x, height + 3, p.z);
     scene.add(bar);
-    const badge = makeBadge(b.type, b.side);
+    const badge = makeBadge(b.type === 'decoy' && b.side === CONST.SIDE_PLAYER ? 'decoy' : modelType, b.side);
     badge.position.set(p.x, height + 9, p.z);
     scene.add(badge);
     const rec = { id: b.id, b: { type: b.type, side: b.side, cell: b.cell }, group: g, bar, badge, hp: b.hp, maxHp: b.maxHp, rise: rise ? 0 : 1, collapse: -1, hatch: 0, hatchT: 0, smoke: null, dome: null, forceBar: false };
-    if (b.type === 'shield') {
+    if (modelType === 'shield') {
       rec.dome = makeShieldDome();
       rec.dome.position.copy(p);
       scene.add(rec.dome);
@@ -1081,6 +1142,7 @@ window.Renderer = (function () {
     autoQuality(dt);
     updateCamera(dt, keyboardEnabled);
     fogMat.uniforms.time.value = time;
+    if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {
       if (m.spin) m.obj.rotation.z += m.spin * dt;
@@ -1158,7 +1220,7 @@ window.Renderer = (function () {
   }
 
   return {
-    init, render, reset, cycleQuality, setOcclusion, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, setMap, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,

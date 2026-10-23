@@ -93,7 +93,84 @@
     };
   }
 
-  function newGame(difficulty, seed) {
+  // ── Island maps ──────────────────────────────────────────
+  // Each side gets one irregular island around its HQ; the channel between
+  // them (and anything not on an island) is open sea.
+  function makeRng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      let t = (s = (s + 0x6D2B79F5) >>> 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function generateIslands(seed, landTarget) {
+    const rnd = makeRng(seed);
+    const LW = 12, LH = 8, lattice = [];
+    for (let i = 0; i < LW * LH; i++) lattice.push(rnd());
+    const noise = (x, y) => {
+      const fx = x / W * (LW - 1), fy = y / H * (LH - 1);
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+      const g = (i, j) => lattice[Math.min(LH - 1, j) * LW + Math.min(LW - 1, i)];
+      const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      return (g(x0, y0) * (1 - sx) + g(x0 + 1, y0) * sx) * (1 - sy) + (g(x0, y0 + 1) * (1 - sx) + g(x0 + 1, y0 + 1) * sx) * sy;
+    };
+    const land = new Array(N).fill(0);
+    for (const side of [P, A]) {
+      const hq = xy(hqCell(side));
+      const cx = hq.x + (side === P ? 4.5 : -4.5), cy = H / 2 - 0.5 + (rnd() - 0.5) * 2;
+      const cols = [];
+      for (let i = 0; i < N; i++) if (ownerOfCell(i) === side) cols.push(i);
+      const shape = off => {
+        const m = new Set();
+        for (const i of cols) {
+          const p = xy(i);
+          const dx = (p.x - cx) / 7.5, dy = (p.y - cy) / 8.5;
+          const v = 1 - Math.hypot(dx, dy) + (noise(p.x, p.y) - 0.5) * 0.9 + off;
+          if (v > 0 || cheb(i, hqCell(side)) <= 2) m.add(i);
+        }
+        // keep the part connected to the HQ (4-connected), then fill enclosed lakes
+        const keep = new Set([hqCell(side)]), q = [hqCell(side)];
+        while (q.length) {
+          const c = q.shift(), p = xy(c);
+          for (const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            if (!inBounds(p.x + ddx, p.y + ddy)) continue;
+            const n = idx(p.x + ddx, p.y + ddy);
+            if (m.has(n) && !keep.has(n)) { keep.add(n); q.push(n); }
+          }
+        }
+        return keep;
+      };
+      // binary-search the threshold so both islands have about the same area
+      let lo = -0.6, hi = 0.8, best = shape(0);
+      for (let k = 0; k < 14; k++) {
+        const mid = (lo + hi) / 2, s = shape(mid);
+        best = s;
+        if (s.size < landTarget) lo = mid; else hi = mid;
+      }
+      best.forEach(i => { land[i] = 1; });
+    }
+    return land;
+  }
+
+  function isLand(state, cell) { return !!(state.land && state.land[cell]); }
+
+  // nearest free land cell of a side (for scripted starting structures)
+  function nearestFreeLand(state, side, cell) {
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < N; i++) {
+      if (ownerOfCell(i) !== side || !state.land[i] || state.cells[i].building) continue;
+      const d = dist(i, cell);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  // opts: { mapSeed, landTarget, start: { player: [{type,dx,dy}], ai: [...] }, credits: { player, ai } }
+  function newGame(difficulty, seed, opts) {
+    opts = opts || {};
     const state = {
       turn: 1,
       difficulty: C.DIFFICULTY[difficulty] ? difficulty : 'commander',
@@ -106,14 +183,20 @@
       missiles: [],           // in flight, launched last turn
       sides: { player: newSide(P), ai: newSide(A) }
     };
+    state.mapSeed = (opts.mapSeed >>> 0) || ((state.rng * 7919 + 17) >>> 0);
+    state.land = generateIslands(state.mapSeed, opts.landTarget || C.LAND_TARGET);
     for (let i = 0; i < N; i++) state.cells.push({ building: null, crater: 0, scorch: 0 });
     for (const side of [P, A]) {
       placeBuilding(state, side, 'hq', hqCell(side));
       // starting structures, mirrored for the AI
-      for (const sb of C.START_BUILDINGS) {
+      const extra = (opts.start && opts.start[side]) || [];
+      for (const sb of C.START_BUILDINGS.concat(extra)) {
         const h = xy(hqCell(side));
-        placeBuilding(state, side, sb.type, idx(h.x + (side === P ? sb.dx : -sb.dx), h.y + sb.dy)).builtTurn = 0;
+        const want = idx(Math.max(0, Math.min(W - 1, h.x + (side === P ? sb.dx : -sb.dx))), Math.max(0, Math.min(H - 1, h.y + sb.dy)));
+        const cell = state.land[want] && !state.cells[want].building ? want : nearestFreeLand(state, side, want);
+        if (cell >= 0) placeBuilding(state, side, sb.type, cell).builtTurn = 0;
       }
+      if (opts.credits && opts.credits[side] !== undefined) state.sides[side].credits = opts.credits[side];
     }
     refreshTurnState(state);
     updateIntel(state, P);
@@ -132,6 +215,7 @@
     };
     if (type === 'aa') b.shots = def.shots;
     if (type === 'hq') b.shots = 1;
+    if (type === 'decoy') b.disguise = def.disguises[Math.floor(rand(state) * def.disguises.length)];
     state.cells[cell].building = b;
     return b;
   }
@@ -171,6 +255,13 @@
     return C.ENERGY_CAP_BASE + buildingsOf(state, side, 'power').length * B.power.cap;
   }
 
+  // What an enemy observer sees: decoys pose as their disguise, HP scaled to match
+  function apparent(b) {
+    if (!b.disguise) return { type: b.type, hp: b.hp, maxHp: b.maxHp };
+    const maxHp = B[b.disguise].hp;
+    return { type: b.disguise, hp: Math.max(1, Math.round(b.hp / b.maxHp * maxHp)), maxHp };
+  }
+
   // ── Vision ───────────────────────────────────────────────
   // Radars come online the turn after construction (no build-peek-undo)
   function onlineRadars(state, side) {
@@ -203,7 +294,7 @@
     const vis = visibleEnemyCells(state, side);
     vis.forEach(c => {
       const b = buildingAt(state, c);
-      if (b) seen[c] = { type: b.type, hp: b.hp, maxHp: b.maxHp, turn: state.turn };
+      if (b) { const a = apparent(b); seen[c] = { type: a.type, hp: a.hp, maxHp: a.maxHp, turn: state.turn }; }
       else delete seen[c];
     });
     return vis;
@@ -226,8 +317,9 @@
     if (!def || type === 'hq') return 'Unknown structure';
     if (cell < 0 || cell >= N) return 'Out of bounds';
     const owner = ownerOfCell(cell);
-    if (owner === null) return "No-man's land";
+    if (owner === null) return 'Open sea';
     if (owner !== side) return 'Enemy territory';
+    if (!isLand(state, cell)) return 'Water — build on your island';
     const c = state.cells[cell];
     if (c.building) return 'Cell occupied';
     if (c.crater > 0) return 'Crater (' + c.crater + ' turn' + (c.crater > 1 ? 's' : '') + ')';
@@ -241,7 +333,7 @@
 
   // Cheap check ignoring credits/max — for the build-zone overlay
   function inBuildZone(state, side, cell) {
-    if (ownerOfCell(cell) !== side) return false;
+    if (ownerOfCell(cell) !== side || !isLand(state, cell)) return false;
     const c = state.cells[cell];
     if (c.building || c.crater > 0 || robotAt(state, cell)) return false;
     return buildingsOf(state, side).some(b => cheb(b.cell, cell) <= C.BUILD_RADIUS);
@@ -330,6 +422,7 @@
 
   function dropReason(state, side, to) {
     if (ownerOfCell(to) !== enemyOf(side)) return 'Drop zone must be in enemy territory';
+    if (!isLand(state, to)) return 'Drop zone must be on land';
     if (cheb(to, hqCell(enemyOf(side))) <= C.DROP_HQ_EXCLUSION) return 'Too close to the enemy HQ (air defense zone)';
     if (!freeLaunchers(state, side, 'hangar').length) {
       return buildingsOf(state, side, 'hangar').length ? 'All hangars already tasked' : 'Build a Robot Hangar first';
@@ -464,6 +557,7 @@
 
   // ── Robot pathfinding (8-way BFS avoiding buildings and robots) ──
   function passable(state, cell, self) {
+    if (!isLand(state, cell)) return false;
     if (state.cells[cell].building) return false;
     for (const r of state.robots) if (r !== self && r.hp > 0 && r.cell === cell) return false;
     return true;
@@ -727,7 +821,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, dropReason, queueDrop, cancelOrder, undo,
