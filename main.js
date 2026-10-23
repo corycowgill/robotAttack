@@ -184,12 +184,13 @@
     return { hp: real ? real.hp : 0, max: BUILDINGS.hq.hp, known: true };
   }
 
-  function refreshHUD() {
+  function refreshHUD() { UI.setHUD(hudData()); }
+  function hudData() {
     const s = state.sides[P];
     const inc = R.income(state, P);
     const hq = R.buildingsOf(state, P, 'hq')[0];
     const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over' }[phase] || '';
-    UI.setHUD({
+    return ({
       credits: s.credits, creditInc: inc.credits,
       energy: s.energy, energyCap: R.energyCap(state, P), energyInc: inc.energy,
       turn: state.turn, maxTurns: CONST.MAX_TURNS, phase: phaseName,
@@ -406,7 +407,7 @@
       Fx.buildDust(Renderer.cellCenter(c));
       floatAt(c, '-' + BUILDINGS[buildType].cost + 'c', 'info');
       UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
-      if (buildType === 'radar') syncWorld(false);
+      if (buildType === 'radar') UI.toast('Radar comes online next turn', 'warn');
       if (!keepMode) { mode = 'select'; buildType = null; selectedCell = c; }
     } else if (mode === 'fire') {
       const r = R.queueMissile(state, P, c);
@@ -592,23 +593,23 @@
     const idAt = {};
     for (let c = 0; c < R.N; c++) { const b = state.cells[c].building; if (b) idAt[c] = b.id; }
     const turn = state.turn;
-    for (const side of [P, A]) { const hq = R.buildingsOf(state, side, 'hq')[0]; hqShown[side] = hq ? hq.hp : 0; }
+    combatHud = hudData();   // HUD stays on this turn's values during playback
+    UI.setHUD(combatHud);
     const events = R.resolveTurn(state);
     SND.setMode('combat');
     UI.setCombatHint(true, speed);
-    refreshHUD();
     Renderer.frameAll(false);
-    Timeline.start(buildPlayback(events, idAt), () => finishTurn(events, turn));
+    Timeline.start(buildPlayback(events, idAt, turn), () => finishTurn(events, turn));
   }
 
-  function buildPlayback(events, idAt) {
+  function buildPlayback(events, idAt, turn) {
     const items = []; // {t, fn}
     const at = (t, fn) => items.push({ t, fn });
     const byBeat = b => events.filter(e => e.beat === b);
     const impacts = {};
     for (const e of byBeat(R.BEAT.IMPACT)) impacts[e.id] = e;
 
-    at(0, () => UI.banner('COMBAT', 'Turn ' + state.turn + ' resolution', true));
+    at(0, () => UI.banner('COMBAT', 'Turn ' + turn + ' resolution', true));
     let t = 0.6;
 
     // Descents + intercepts + impacts
@@ -682,20 +683,19 @@
     const vis = playerSees(e.from);
     UI.log((own ? 'Missile launched at ' + describeCell(e.to) : 'Enemy missile launch detected') + ' — impact next turn', own ? 'player' : 'enemy');
     if (!vis) {
-      // Enemy launch from the fog: show the missile rising out of the fog line
+      // Enemy launch from the fog: heard, not seen (its arc would reveal silo and target)
       SND.play('missileLaunch', { pan: 0.6, gain: 0.5 });
+      return;
     } else {
       SND.play('missileLaunch', { pan: panAtPos(a) });
       Fx.dustRing(a, 0.6);
     }
     const m = Models.missile(e.side);
-    m.visible = vis;
     Renderer.add(m);
     const p = new THREE.Vector3(), prev = new THREE.Vector3().copy(a);
     Timeline.tween(1.4, k => {
       const t = 0.5 * (k * k);
       arcPoint(a, b, h, t, p);
-      if (!m.visible && p.y > 30) m.visible = true;
       m.position.copy(p);
       orient(m, p.clone().sub(prev));
       if (m.visible) Fx.trail(p, 'missile', own ? 0x66ccff : 0xff6a00);
@@ -805,16 +805,11 @@
     return h.dmg;
   }
 
-  const hqShown = {};
+  let combatHud = null;
   function refreshHQFromHit(h) {
-    hqShown[h.side] = h.hpAfter;
-    const s = state.sides[P];
-    UI.setHUD({
-      credits: s.credits, creditInc: R.income(state, P).credits, energy: s.energy, energyCap: R.energyCap(state, P), energyInc: R.income(state, P).energy,
-      turn: state.turn, maxTurns: CONST.MAX_TURNS, phase: 'Combat',
-      hq: { hp: hqShown[P] !== undefined ? hqShown[P] : BUILDINGS.hq.hp, max: BUILDINGS.hq.hp },
-      enemyHq: { hp: hqShown[A] !== undefined ? hqShown[A] : BUILDINGS.hq.hp, max: BUILDINGS.hq.hp, known: true }
-    });
+    if (!combatHud) return;
+    (h.side === P ? combatHud.hq : combatHud.enemyHq).hp = h.hpAfter;
+    UI.setHUD(combatHud);
   }
 
   function animateGunfire(e, idAt) {
@@ -857,7 +852,7 @@
       const yaw = Math.atan2(b.x - a.x, b.z - a.z);
       rec.group.rotation.y = yaw;
       const cell = i < e.path.length ? (t < 0.5 ? (i === 0 ? e.from : e.path[i - 1]) : e.path[i]) : e.path[e.path.length - 1];
-      rec.group.visible = playerSees(cell);
+      rec.group.visible = e.side === P || playerSees(cell);
       const step = Math.floor(f * 2);
       if (step !== lastStep) { lastStep = step; if (rec.group.visible) SND.play('robotStep', { pan: panAtPos(rec.group.position), gain: 0.5 }); }
     }, () => {
@@ -896,12 +891,12 @@
     Renderer.add(pod);
     const p = new THREE.Vector3();
     SND.play('podLaunch', { pan: panAtPos(a), gain: own || playerSees(e.from) ? 1 : 0.5 });
-    const landVisible = playerSees(e.to);
+    const landVisible = own || playerSees(e.to);
     Timeline.tween(1.6, k => {
       const t = 1 - Math.pow(1 - k, 2.2);
       arcPoint(a, b, h, t, p);
       pod.position.copy(p);
-      pod.visible = p.y > 25 || playerSees(k < 0.5 ? e.from : e.to);
+      pod.visible = own || p.y > 25 || playerSees(k < 0.5 ? e.from : e.to);
       if (pod.userData.flame) pod.userData.flame.scale.setScalar(k > 0.75 ? 1.6 : 0.8);
       if (pod.visible) Fx.trail(p, 'pod', own ? 0x66ccff : 0xff6a00);
     }, () => {
@@ -922,7 +917,7 @@
 
   function finishTurn(events, turn) {
     UI.setCombatHint(false);
-    for (const k in hqShown) delete hqShown[k];
+    combatHud = null;
     syncWorld(true);
     if (state.winner) return gameOver();
     const report = buildReport(events, turn);

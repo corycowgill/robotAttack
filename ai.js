@@ -168,7 +168,7 @@
     if (hq && hq.hp < hq.maxHp * 0.6 && s.credits > 150) R.repair(state, ME, hq.cell);
     // Warlord: patch up buildings under detected incoming fire
     if (diff.fullVision) {
-      for (const m of R.detectedIncoming(state, ME)) {
+      for (const m of state.missiles.filter(m => m.side !== ME)) {
         const b = R.buildingAt(state, m.to);
         if (b && b.hp <= C.MISSILE_DAMAGE + 5 && s.credits > 120) R.repair(state, ME, b.cell);
       }

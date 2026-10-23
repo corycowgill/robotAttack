@@ -83,9 +83,9 @@ const BUILDINGS = {
     stats: () => ['+6 energy / turn', '+10 energy capacity']
   },
   radar: {
-    name: 'Radar', short: 'RDR', key: '3', cost: 90, hp: 30, range: 5,
-    desc: 'Reveals enemy territory and detects incoming missiles in range.',
-    stats: () => ['Scan radius 5', 'Shows incoming missile targets']
+    name: 'Radar', short: 'RDR', key: '3', cost: 90, hp: 30, range: 9,
+    desc: 'Reveals enemy territory and detects incoming missiles in range. Comes online the turn after it is built.',
+    stats: () => ['Scan radius 9', 'Shows incoming missile targets', 'Online next turn']
   },
   silo: {
     name: 'Missile Silo', short: 'SLO', key: '4', cost: 140, hp: 50, max: 5,
