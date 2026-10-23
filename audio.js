@@ -715,6 +715,8 @@
     toggleMute: toggleMute,
     isMuted: function () { return muted; },
     setMusicEnabled: setMusicEnabled,
-    isMusicEnabled: function () { return musicEnabled; }
+    isMusicEnabled: function () { return musicEnabled; },
+    // which generated clips are loaded (for diagnostics)
+    loadedSamples: function () { return { sfx: Object.keys(samples), music: Object.keys(musicBufs) }; }
   };
 })();
