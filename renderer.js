@@ -85,6 +85,7 @@ window.Renderer = (function () {
     setupCameraInput();
     window.addEventListener('resize', onResize);
     frameAll(true);
+    loadQuality();
   }
 
   function createLights() {
@@ -906,8 +907,52 @@ window.Renderer = (function () {
   }
 
   // ── Frame ─────────────────────────────────────────────────
+  // ── Graphics quality (auto-detected, overridable with G) ──
+  const QUALITY = [
+    { name: 'Low', ratio: 1, shadows: false, shadowSize: 512 },
+    { name: 'Medium', ratio: 1, shadows: true, shadowSize: 1024 },
+    { name: 'High', ratio: 2, shadows: true, shadowSize: 2048 }
+  ];
+  let quality = 2, qualityLocked = false;
+  const perf = { t: 0, frames: 0, warm: 1.5 };
+  function loadQuality() {
+    try {
+      const q = localStorage.getItem('ra_quality');
+      if (q !== null && QUALITY[+q]) { quality = +q; qualityLocked = true; }
+    } catch (e) { /* storage unavailable */ }
+    applyQuality();
+  }
+  function applyQuality() {
+    const q = QUALITY[quality];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.ratio));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    sun.castShadow = q.shadows;
+    if (sun.shadow.mapSize.x !== q.shadowSize) {
+      sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
+      if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    }
+  }
+  function cycleQuality() {
+    quality = (quality + QUALITY.length - 1) % QUALITY.length;
+    qualityLocked = true;
+    try { localStorage.setItem('ra_quality', quality); } catch (e) { /* ignore */ }
+    applyQuality();
+    return QUALITY[quality].name;
+  }
+  // Step quality down while the average frame time stays above ~30 fps
+  function autoQuality(dt) {
+    if (qualityLocked || quality === 0) return;
+    if (perf.warm > 0) { perf.warm -= dt; return; }
+    perf.t += dt; perf.frames++;
+    if (perf.t < 2) return;
+    const avg = perf.t / perf.frames;
+    perf.t = 0; perf.frames = 0;
+    if (avg > 1 / 30) { quality--; applyQuality(); perf.warm = 1; }
+  }
+
   function render(dt, keyboardEnabled) {
     time += dt;
+    autoQuality(dt);
     updateCamera(dt, keyboardEnabled);
     fogMat.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
@@ -984,7 +1029,7 @@ window.Renderer = (function () {
   }
 
   return {
-    init, render, reset, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,

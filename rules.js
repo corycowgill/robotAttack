@@ -107,8 +107,14 @@
       sides: { player: newSide(P), ai: newSide(A) }
     };
     for (let i = 0; i < N; i++) state.cells.push({ building: null, crater: 0, scorch: 0 });
-    placeBuilding(state, P, 'hq', hqCell(P));
-    placeBuilding(state, A, 'hq', hqCell(A));
+    for (const side of [P, A]) {
+      placeBuilding(state, side, 'hq', hqCell(side));
+      // starting structures, mirrored for the AI
+      for (const sb of C.START_BUILDINGS) {
+        const h = xy(hqCell(side));
+        placeBuilding(state, side, sb.type, idx(h.x + (side === P ? sb.dx : -sb.dx), h.y + sb.dy)).builtTurn = 0;
+      }
+    }
     refreshTurnState(state);
     updateIntel(state, P);
     updateIntel(state, A);
@@ -516,12 +522,23 @@
           const d = dist(bat.cell, m.to);
           if (load < bScore || (load === bScore && d < bd)) { bScore = load; bd = d; best = bat; }
         }
-        if (best) {
+        // Engage: each shot may miss; a miss lets the next battery in range try
+        const shots = [];
+        const tried = new Set();
+        while (best) {
           best.shots--;
-          m.interceptedBy = best.cell;
-          sideOf(def).stats.intercepts++;
+          tried.add(best);
+          const hit = rand(state) < B[best.type].hitChance;
+          shots.push({ by: best.cell, hit });
+          if (hit) { m.interceptedBy = best.cell; sideOf(def).stats.intercepts++; break; }
+          best = null; bd = Infinity;
+          for (const bat of batteries) {
+            if (bat.shots <= 0 || tried.has(bat) || !covers(bat, m)) continue;
+            const d = dist(bat.cell, m.to);
+            if (d < bd) { bd = d; best = bat; }
+          }
         }
-        ev(BEAT.DESCEND, { type: 'descend', id: m.id, side: m.side, from: m.from, to: m.to, interceptedBy: best ? best.cell : -1 });
+        ev(BEAT.DESCEND, { type: 'descend', id: m.id, side: m.side, from: m.from, to: m.to, shots, interceptedBy: m.interceptedBy !== undefined ? m.interceptedBy : -1 });
       }
     }
 

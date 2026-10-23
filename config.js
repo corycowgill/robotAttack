@@ -14,6 +14,7 @@ const CONST = {
   HQ_AI: { x: 29, y: 8 },
 
   BUILD_RADIUS: 3,          // Chebyshev distance from an existing own building
+  START_BUILDINGS: [{ type: 'silo', dx: 2, dy: 0 }],   // relative to HQ, mirrored for the AI
   MAX_TURNS: 30,
 
   // Economy
@@ -68,8 +69,8 @@ const BUILDINGS = {
   hq: {
     name: 'Command Center', short: 'HQ', key: null, cost: 0, hp: 200,
     desc: 'Your headquarters. Lose it and you lose the war. Provides income and 1 point-defense intercept.',
-    stats: () => ['+' + CONST.BASE_CREDITS + ' credits, +' + CONST.BASE_ENERGY + ' energy / turn', 'Point defense: 1 intercept, radius 2'],
-    range: 2
+    stats: () => ['+' + CONST.BASE_CREDITS + ' credits, +' + CONST.BASE_ENERGY + ' energy / turn', 'Point defense: 1 shot, radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit'],
+    range: 2, hitChance: 0.4
   },
   depot: {
     name: 'Supply Depot', short: 'DEP', key: '1', cost: 100, hp: 40, credits: 30,
@@ -94,9 +95,9 @@ const BUILDINGS = {
     counter: 'Countered by AA Batteries and Shields'
   },
   aa: {
-    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1,
-    desc: 'Automatically shoots down 1 incoming missile per turn aimed within its range.',
-    stats: () => ['1 intercept / turn', 'Covers radius 4']
+    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1, hitChance: 0.7,
+    desc: 'Fires at 1 incoming missile per turn aimed within its range (70% hit). Batteries back each other up on a miss.',
+    stats: () => ['1 shot / turn, 70% hit', 'Covers radius 4']
   },
   shield: {
     name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 35, range: 1, pool: 50, regen: 20,

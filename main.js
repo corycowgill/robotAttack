@@ -328,8 +328,7 @@
   const OBJECTIVES = [
     { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> next to your HQ for credits', done: s => has(s, 'depot') },
     { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => has(s, 'power') },
-    { text: 'Build a <b>Missile Silo</b> <kbd>4</kbd>', done: s => has(s, 'silo') || s.sides[P].stats.missilesFired > 0 },
-    { text: 'Press <kbd>Q</kbd> and click the red <b>enemy HQ</b> to target it', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
+    { text: 'You start with a <b>Missile Silo</b>. Press <kbd>Q</kbd> and click the red <b>enemy HQ</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
     { text: 'Press <kbd>Space</kbd> to end the turn and watch the battle', done: s => s.turn > 1 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> — reveals targets and incoming missiles', done: s => has(s, 'radar') },
     { text: 'Protect your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
@@ -529,6 +528,7 @@
     }
     if (e.key === '?' || e.code === 'Slash') { UI.showHelp(true); return; }
     if (e.code === 'KeyM') { action('mute'); return; }
+    if (e.code === 'KeyG') { UI.toast('Graphics quality: ' + Renderer.cycleQuality(), 'good'); return; }
     if (!state) return;
     if (e.code === 'Tab') {
       e.preventDefault();
@@ -714,50 +714,68 @@
     Renderer.add(m);
     if (!own) SND.play('incoming', { pan: panAt(e.to), gain: 0.8 });
     const intercepted = e.interceptedBy >= 0;
-    const tMeet = 0.62;
+    const shots = e.shots || [];
+    // each AA shot meets the missile a little further along its descent
+    const meetK = i => 0.42 + 0.17 * i;
+    const endK = intercepted ? meetK(shots.length - 1) : 1;
+    const arcT = kk => 0.5 + 0.5 * (kk * kk * 0.6 + kk * 0.4);
     const p = new THREE.Vector3(), prev = new THREE.Vector3();
     arcPoint(a, b, h, 0.5, prev);
-    let launched = false;
-    const batId = intercepted ? idAt[e.interceptedBy] : null;
-    Timeline.tween(dur * (intercepted ? tMeet : 1), k => {
-      const kk = intercepted ? k * tMeet : k;
-      const t = 0.5 + 0.5 * (kk * kk * 0.6 + kk * 0.4);
-      arcPoint(a, b, h, t, p);
+    const fired = shots.map(() => false);
+    Timeline.tween(dur * endK, k => {
+      const kk = k * endK;
+      arcPoint(a, b, h, arcT(kk), p);
       m.position.copy(p);
       orient(m, p.clone().sub(prev));
       Fx.trail(p, 'missile', own ? 0x66ccff : 0xff6a00);
       prev.copy(p);
-      if (intercepted && !launched && kk >= tMeet - 0.3) {
-        launched = true;
-        // interceptor flies to the meeting point
-        const meet = arcPoint(a, b, h, 0.5 + 0.5 * (tMeet * tMeet * 0.6 + tMeet * 0.4), new THREE.Vector3());
-        if (batId) Renderer.aimTurret(batId, e.to);
-        const start = batId ? Renderer.muzzleWorld(batId) : Renderer.cellCenter(e.interceptedBy).setY(6);
-        const it = Models.interceptor();
-        it.scale.setScalar(2.2);
-        Renderer.add(it);
-        SND.play('flak', { pan: panAtPos(start) });
-        const ip = new THREE.Vector3(), iprev = start.clone();
-        Timeline.tween(dur * 0.3 * 1.0, q => {
-          ip.lerpVectors(start, meet, q * q);
-          ip.y += Math.sin(q * Math.PI) * 6;
-          it.position.copy(ip);
-          orient(it, ip.clone().sub(iprev));
-          Fx.trail(ip, 'interceptor');
-          iprev.copy(ip);
-        }, () => { Renderer.remove(it); Models.dispose(it); });
-      }
+      shots.forEach((shot, i) => {
+        if (fired[i] || kk < meetK(i) - 0.25) return;
+        fired[i] = true;
+        fireInterceptor(shot, arcPoint(a, b, h, arcT(meetK(i)), new THREE.Vector3()), dur * 0.25, idAt, e);
+      });
     }, () => {
       Renderer.remove(m); Models.dispose(m);
       if (intercepted) {
         Fx.smallBlast(p, 0xffdd88);
         SND.play('intercept', { pan: panAtPos(p) });
-        const v = p.clone(); const sp = Renderer.project(v);
+        const sp = Renderer.project(p.clone());
         if (sp.visible) UI.floatText(sp.x, sp.y - 10, 'INTERCEPTED', 'blue');
-        UI.log((e.side === P ? 'Your missile was intercepted' : 'Intercepted enemy missile') + ' over ' + cellName(e.to), e.side === P ? 'bad' : 'good');
+        UI.log((own ? 'Your missile was intercepted' : 'Intercepted enemy missile') + ' over ' + cellName(e.to), own ? 'bad' : 'good');
         Renderer.addTrauma(0.12, p);
       } else if (impact) {
+        if (shots.length) UI.log((own ? 'Your missile evaded AA fire over ' : 'AA missed the enemy missile over ') + cellName(e.to), own ? 'good' : 'bad');
         applyImpact(impact, idAt);
+      }
+    });
+  }
+
+  // Interceptor from a battery to a meeting point; a miss bursts beside the missile
+  function fireInterceptor(shot, meet, flight, idAt, e) {
+    const batId = idAt[shot.by];
+    if (batId) Renderer.aimTurret(batId, e.to);
+    const start = batId ? Renderer.muzzleWorld(batId) : Renderer.cellCenter(shot.by).setY(6);
+    const goal = meet.clone();
+    if (!shot.hit) goal.add(new THREE.Vector3((Math.random() - 0.5) * 14, 5 + Math.random() * 5, (Math.random() - 0.5) * 14));
+    const it = Models.interceptor();
+    it.scale.setScalar(2.2);
+    Renderer.add(it);
+    SND.play('flak', { pan: panAtPos(start) });
+    const ip = new THREE.Vector3(), iprev = start.clone();
+    Timeline.tween(flight, q => {
+      ip.lerpVectors(start, goal, q * q);
+      ip.y += Math.sin(q * Math.PI) * 6;
+      it.position.copy(ip);
+      orient(it, ip.clone().sub(iprev));
+      Fx.trail(ip, 'interceptor');
+      iprev.copy(ip);
+    }, () => {
+      Renderer.remove(it); Models.dispose(it);
+      if (!shot.hit) {
+        Fx.smallBlast(ip, 0xaaaaaa);
+        SND.play('flak', { pan: panAtPos(ip), gain: 0.6 });
+        const sp = Renderer.project(ip.clone());
+        if (sp.visible) UI.floatText(sp.x, sp.y - 10, 'MISS', 'info');
       }
     });
   }
