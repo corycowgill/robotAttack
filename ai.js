@@ -110,14 +110,15 @@
 
   function nextSmartBuild(state, mem) {
     const n = t => count(state, t);
+    // Mechs on our side come first, even during the opening
+    const threats = enemyRobotsOnMySide(state);
+    if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
     const opening = ['depot', 'power', 'silo', 'aa', 'silo', 'depot', 'radar'];
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
       if (n(t) < have[t]) return t;
     }
-    const threats = enemyRobotsOnMySide(state);
-    if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
     if ((mem.missileDamageTaken > 0 || knownEnemy(state, 'silo') >= 2) && aaCoveringHQ(state) < 2 && n('aa') < 4) return 'aa';
     if (knownEnemy(state, 'hangar') && n('gunpod') < 1) return 'gunpod';
     // Keep energy income in line with what the launchers can spend
@@ -139,6 +140,7 @@
 
   const PATROL_ORDER = ['depot', 'power', 'silo', 'aa', 'gunpod', 'radar', 'depot', 'hangar', 'silo', 'power', 'aa'];
   function nextPatrolBuild(state) {
+    if (enemyRobotsOnMySide(state).length && count(state, 'gunpod') < 2) return 'gunpod';
     const have = {};
     for (const t of PATROL_ORDER) {
       have[t] = (have[t] || 0) + 1;
@@ -268,9 +270,15 @@
       } else if (targets.length && R.rand(state) < 0.5) {
         goal = targets[Math.floor(R.rand(state) * targets.length)].cell;
       }
-      // Land on a free cell next to the goal
-      const options = R.neighbors(goal, 1).filter(c => R.ownerOfCell(c) === FOE && !R.buildingAt(state, c) && !R.robotAt(state, c));
-      const to = options.length ? options[Math.floor(R.rand(state) * options.length)] : goal;
+      // Land on the closest legal free cell to the goal (HQs have a no-drop zone)
+      const hqFoe = R.hqCell(FOE);
+      const options = R.cellsInRadius(goal, 4).filter(c => R.ownerOfCell(c) === FOE && !R.buildingAt(state, c) &&
+        !R.robotAt(state, c) && R.cheb(c, hqFoe) > C.DROP_HQ_EXCLUSION);
+      if (!options.length) return;
+      let bestD = Infinity;
+      for (const c of options) bestD = Math.min(bestD, R.dist(c, goal));
+      const near = options.filter(c => R.dist(c, goal) <= bestD + 0.01);
+      const to = near[Math.floor(R.rand(state) * near.length)];
       if (!R.queueDrop(state, ME, to).ok) return;
     }
   }

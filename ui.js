@@ -32,6 +32,7 @@ window.UI = (function () {
     sound: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
     mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     credits: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18"/>',
     energy: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>'
@@ -53,7 +54,7 @@ window.UI = (function () {
 
   /* HUD */
   #hud { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 0; padding: 0; overflow: hidden; }
-  #hud .cell { padding: 8px 16px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--c-line); min-width: 110px; }
+  #hud .cell { white-space: nowrap; padding: 8px 16px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--c-line); min-width: 110px; }
   #hud .cell:last-child { border-right: none; }
   #hud .lbl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--c-dim); display: flex; align-items: center; gap: 6px; }
   #hud .val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -116,7 +117,7 @@ window.UI = (function () {
   #log .player { color: #8fdcff; } #log .enemy { color: #ff9a85; } #log .good { color: var(--c-credit); } #log .bad { color: var(--c-bad); } #log .sys { color: var(--c-warn); }
   #log .turn { color: var(--c-dim); letter-spacing: .12em; text-transform: uppercase; font-size: 11px; margin-top: 6px; border-top: 1px solid var(--c-line); padding-top: 4px; }
 
-  #selected { position: absolute; left: 12px; bottom: 120px; width: 280px; padding: 12px 14px; display: none; }
+  #selected { position: absolute; left: 12px; bottom: 128px; width: 280px; padding: 12px 14px; display: none; }
   #selected.show { display: block; }
   #selected h3 { margin: 0 0 2px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
   #selected .side { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
@@ -158,7 +159,7 @@ window.UI = (function () {
   #combathint.show { display: flex; }
 
   /* Report */
-  #report { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
+  #report { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
   #report.show { display: block; animation: tin .25s ease-out; }
   #report h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
   #report .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -236,11 +237,12 @@ window.UI = (function () {
       <div class="panel" style="display:flex;align-items:center;padding:0 10px;gap:6px" title="Master volume"><input id="vol" type="range" min="0" max="1" step="0.05"></div>
       <div class="panel iconbtn" id="b-mute" title="Mute (M)">${icon('sound')}</div>
       <div class="panel iconbtn" id="b-help" title="How to play (?)">${icon('help')}</div>
+      <div class="panel iconbtn" id="b-menu" title="Save &amp; return to menu" style="display:none">${icon('menu')}</div>
     `));
 
     root.appendChild(el('div', { id: 'objectives', class: 'panel pi', style: 'display:none' }));
     root.appendChild(el('div', { id: 'orders', class: 'panel pi', style: 'display:none' }, `
-      <div class="ph"><span>Orders this turn</span><span class="lnk" id="b-undo" title="Undo last action (Z)" style="display:flex;align-items:center;gap:4px;text-decoration:none">${icon('undo')}<kbd>Z</kbd></span></div>
+      <div class="ph"><span>Orders this turn</span><button class="sbtn" id="b-undo" title="Undo last action (Z)" style="flex:none;padding:3px 8px;font-size:12px">${icon('undo')} Undo <kbd>Z</kbd></button></div>
       <div id="orderlist"></div>
       <div class="ph"><span>Battle log</span></div>
       <div id="log"></div>
@@ -269,6 +271,7 @@ window.UI = (function () {
       <div class="menu-box">
         <div class="title">ROBOT ATTACK<span>STRATEGY 2026</span></div>
         <div class="tag">Build &middot; Strike &middot; Defend &mdash; choose your opponent</div>
+        <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
         <div class="diffs">${diffs}</div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
@@ -293,6 +296,7 @@ window.UI = (function () {
       d.addEventListener('mouseenter', () => H.onHover && H.onHover());
     });
     $('m-help').addEventListener('click', () => showHelp(true));
+    $('m-continue').addEventListener('click', () => H.onContinue());
     $('m-music').addEventListener('change', e => H.onMusic && H.onMusic(e.target.checked));
     $('help').addEventListener('click', e => { if (e.target.id === 'help' || e.target.classList.contains('close')) showHelp(false); });
     $('go-again').addEventListener('click', () => H.onRematch());
@@ -303,6 +307,7 @@ window.UI = (function () {
     $('b-undo').addEventListener('click', () => H.onAction('undo'));
     $('b-mute').addEventListener('click', () => H.onAction('mute'));
     $('b-help').addEventListener('click', () => showHelp(!isHelpOpen()));
+    $('b-menu').addEventListener('click', () => H.onAction('menu'));
     $('vol').addEventListener('input', e => H.onVolume(+e.target.value));
     root.addEventListener('mouseover', e => {
       const t = e.target.closest && e.target.closest('.card,.abtn,.sbtn,.diff,.bigbtn,.iconbtn');
@@ -326,6 +331,8 @@ window.UI = (function () {
         <li><b>End turn.</b> Both sides' orders resolve at the same time: missiles launched <i>last</i> turn come down, AA intercepts, gun pods fire, mechs fight, drop pods land, and new missiles launch.</li>
         <li><b>React.</b> Missiles are in the air for a full turn. Red reticles show enemy missiles your Radar (or HQ) has detected — build AA, shields or repair before they land.</li>
       </ol>
+      <h4>Defenses</h4>
+      <p>Every Command Center has a point-defense gun that hits 40% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit 70%; if one misses, another battery in range gets a shot. One missile at a time rarely gets through — <b>fire several in the same turn</b> to overwhelm the defenses.</p>
       <h4>Counters</h4>
       <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
       <h4>Structures</h4>
@@ -345,7 +352,7 @@ window.UI = (function () {
 
   // ── Updates ───────────────────────────────────────────────
   function showGameUI(on) {
-    for (const id of ['hud', 'orders']) $(id).style.display = on ? '' : 'none';
+    for (const id of ['hud', 'orders', 'b-menu']) $(id).style.display = on ? '' : 'none';
     if (!on) { $('dock').classList.add('hidden'); $('selected').classList.remove('show'); $('objectives').style.display = 'none'; hideReport(); }
   }
 
@@ -456,12 +463,10 @@ window.UI = (function () {
     const box = $('objectives');
     if (!list) { box.style.display = 'none'; return; }
     box.style.display = '';
-    let cur = false;
-    box.innerHTML = `<h4>Briefing <span id="obj-x" title="Hide">&times;</span></h4>` + list.map(o => {
-      const isCur = !o.done && !cur;
-      if (isCur) cur = true;
-      return `<div class="obj ${o.done ? 'done' : ''} ${isCur ? 'cur' : ''}"><b>${o.done ? '✓' : isCur ? '▸' : '·'}</b><span>${o.text}</span></div>`;
-    }).join('');
+    const done = list.filter(o => o.done).length;
+    const open = list.filter(o => !o.done).slice(0, 3);
+    box.innerHTML = `<h4>Briefing ${done}/${list.length} <span id="obj-x" title="Hide">&times;</span></h4>` +
+      open.map((o, i) => `<div class="obj ${i === 0 ? 'cur' : ''}"><b>${i === 0 ? '▸' : '·'}</b><span>${o.text}</span></div>`).join('');
     $('obj-x').addEventListener('click', () => H.onAction('hideObjectives'));
   }
 
@@ -510,8 +515,8 @@ window.UI = (function () {
     const p = $('report');
     const col = (title, color, s) => `<div><h5 style="color:${color}">${title}</h5>
       <div class="row"><span>Damage dealt</span><b>${s.dealt}</b></div>
-      <div class="row"><span>Missiles hit / launched</span><b>${s.hits} / ${s.landing}</b></div>
-      <div class="row"><span>Intercepts</span><b>${s.intercepts}</b></div>
+      <div class="row"><span>Missiles through / arriving</span><b>${s.hits} / ${s.landing}</b></div>
+      <div class="row"><span>Enemy missiles shot down</span><b>${s.intercepts}</b></div>
       <div class="row"><span>Mechs lost</span><b>${s.robotsLost}</b></div>
       <div class="lost">${s.lostNames.length ? 'Lost: ' + esc(s.lostNames.join(', ')) : 'No structures lost'}</div></div>`;
     p.innerHTML = `<h2>Turn ${r.turn} report</h2><div class="cols">${col('You', 'var(--c-player)', r.player)}${col('Enemy', 'var(--c-ai)', r.ai)}</div>
@@ -523,6 +528,10 @@ window.UI = (function () {
   function showMenu(on) {
     $('menu').classList.toggle('show', on);
     if (on) $('gameover').classList.remove('show');
+  }
+  function setContinue(label) {
+    $('m-cont-wrap').style.display = label ? '' : 'none';
+    $('m-cont-sub').textContent = label ? '— ' + label : '';
   }
   function setMusicChecked(on) { $('m-music').checked = on; }
 
@@ -545,7 +554,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setMusicChecked,
+    toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
 })();

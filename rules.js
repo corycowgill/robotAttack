@@ -292,8 +292,10 @@
     const value = sellValue(b);
     state.cells[cell].building = null;
     state.sides[side].credits += value;
-    // Selling invalidates undo entries for that building
-    state.sides[side].undo = state.sides[side].undo.filter(u => u.id !== b.id);
+    // Selling replaces earlier undo entries for that building with a sell entry
+    const s = state.sides[side];
+    s.undo = s.undo.filter(u => u.id !== b.id);
+    s.undo.push({ kind: 'sell', id: b.id, cell, value, building: b });
     return { ok: true, value, building: b };
   }
 
@@ -328,6 +330,7 @@
 
   function dropReason(state, side, to) {
     if (ownerOfCell(to) !== enemyOf(side)) return 'Drop zone must be in enemy territory';
+    if (cheb(to, hqCell(enemyOf(side))) <= C.DROP_HQ_EXCLUSION) return 'Too close to the enemy HQ (air defense zone)';
     if (!freeLaunchers(state, side, 'hangar').length) {
       return buildingsOf(state, side, 'hangar').length ? 'All hangars already tasked' : 'Build a Robot Hangar first';
     }
@@ -366,6 +369,14 @@
     if (u.kind === 'order') {
       const r = cancelOrder(state, side, u.id);
       return { ok: r.ok, kind: 'order', order: r.order };
+    }
+    if (u.kind === 'sell') {
+      const c = state.cells[u.cell];
+      if (c.building || robotAt(state, u.cell)) return { ok: false, reason: 'Cell no longer free' };
+      if (s.credits < u.value) return { ok: false, reason: 'Credits already spent' };
+      c.building = u.building;
+      s.credits -= u.value;
+      return { ok: true, kind: 'sell', building: u.building };
     }
     const b = buildingAt(state, u.cell);
     if (!b || b.id !== u.id) return { ok: false, reason: 'Cannot undo' };
@@ -563,22 +574,27 @@
 
     // 3. GUN PODS fire at enemy robots
     for (const side of [P, A]) {
-      for (const g of buildingsOf(state, side, 'gunpod')) {
+      // Gun Pods, plus the Command Center's own close-defense gun
+      for (const g of buildingsOf(state, side).filter(b => b.type === 'gunpod' || b.type === 'hq')) {
+        const gun = g.type === 'hq' ? B.hq.gun : B.gunpod;
         const shots = [];
-        for (let s = 0; s < B.gunpod.shots; s++) {
+        for (let s = 0; s < gun.shots; s++) {
           let tgt = null;
           for (const r of state.robots) {
             if (r.side === side || r.hp <= 0) continue;
-            if (dist(g.cell, r.cell) > B.gunpod.range + 0.01) continue;
+            if (dist(g.cell, r.cell) > gun.range + 0.01) continue;
             if (!tgt || r.hp < tgt.hp || (r.hp === tgt.hp && r.id < tgt.id)) tgt = r;
           }
           if (!tgt) break;
-          tgt.hp = Math.max(0, tgt.hp - B.gunpod.damage);
+          tgt.hp = Math.max(0, tgt.hp - gun.damage);
           const killed = tgt.hp <= 0;
           if (killed) { sideOf(side).stats.robotsKilled++; sideOf(tgt.side).stats.robotsLost++; }
-          shots.push({ robotId: tgt.id, cell: tgt.cell, dmg: B.gunpod.damage, hpAfter: tgt.hp, killed });
+          shots.push({ robotId: tgt.id, robotSide: tgt.side, cell: tgt.cell, dmg: gun.damage, hpAfter: tgt.hp, killed });
+          // muzzle flashes give the shooter's position away
+          const intel = sideOf(tgt.side).intel;
+          intel.nextReveal = (intel.nextReveal || []).concat([g.cell]);
         }
-        if (shots.length) ev(BEAT.GUNFIRE, { type: 'gunfire', side, from: g.cell, shots });
+        if (shots.length) ev(BEAT.GUNFIRE, { type: 'gunfire', side, from: g.cell, gunType: g.type, shots });
       }
     }
 

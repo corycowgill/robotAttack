@@ -33,6 +33,7 @@
     Renderer.init();
     UI.init({
       onStart: startGame,
+      onContinue: continueGame,
       onRematch: () => startGame(difficulty, tutorial),
       onMenu: toMenu,
       onBuildSelect: selectBuild,
@@ -46,6 +47,7 @@
     UI.setVolume(SND.getVolume());
     UI.setMuted(SND.isMuted());
     UI.setMusicChecked(SND.isMusicEnabled());
+    refreshContinue();
     UI.showMenu(true);
     SND.setMode('menu');
 
@@ -63,25 +65,51 @@
   }
 
   // ── Game lifecycle ────────────────────────────────────────
-  function startGame(diff, tut) {
+  // ── Save / continue (one autosave slot, written each planning phase) ──
+  const SAVE_KEY = 'ra_save_v1';
+  function saveGame() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ state, tutorial, objectivesHidden })); } catch (e) { /* storage full or blocked */ }
+  }
+  function loadSave() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      return s && s.state && s.state.cells && s.state.cells.length === R.N && !s.state.winner ? s : null;
+    } catch (e) { return null; }
+  }
+  function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
+  function refreshContinue() {
+    const s = loadSave();
+    UI.setContinue(s ? 'Turn ' + s.state.turn + ' vs ' + CONST.DIFFICULTY[s.state.difficulty].name : null);
+  }
+
+  function continueGame() {
+    const s = loadSave();
+    if (!s) return refreshContinue();
+    startGame(s.state.difficulty, s.tutorial, s);
+  }
+
+  function startGame(diff, tut, saved) {
     SND.unlock();
     SND.play('uiClick');
     difficulty = diff;
     tutorial = tut !== false;
-    objectivesHidden = !tutorial;
+    objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     Renderer.reset();
     UI.clearLog();
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = R.newGame(diff);
+    state = saved ? saved.state : R.newGame(diff);
     window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
-    UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
-    UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
-    beginPlanning(true);
+    if (saved) UI.log('Resumed operation — turn ' + state.turn + ' vs ' + CONST.DIFFICULTY[diff].name, 'sys');
+    else {
+      UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
+      UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
+    }
+    beginPlanning(!saved);
   }
 
   function toMenu() {
@@ -92,9 +120,18 @@
     UI.setCombatHint(false);
     Renderer.reset();
     state = null;
+    refreshContinue();
     UI.showMenu(true);
     SND.setMode('menu');
     SND.setTension(false);
+  }
+
+  // Frame the map in the screen area not covered by side panels
+  function frameView(instant) {
+    const rectOf = id => { const el = document.getElementById(id); if (!el || el.offsetParent === null) return null; return el.getBoundingClientRect(); };
+    const obj = rectOf('objectives'), ord = rectOf('orders');
+    Renderer.setOcclusion(obj ? obj.right : 0, ord ? window.innerWidth - ord.left : 0);
+    Renderer.frameAll(instant);
   }
 
   function beginPlanning(first) {
@@ -113,7 +150,9 @@
       UI.toast(inc.length + ' incoming missile' + (inc.length > 1 ? 's' : '') + ' detected!', 'bad');
     }
     UI.log('Turn ' + state.turn, 'turn');
+    saveGame();
     refreshAll();
+    if (first) frameView(false);
   }
 
   // ── View synchronisation ──────────────────────────────────
@@ -330,6 +369,7 @@
     { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => has(s, 'power') },
     { text: 'You start with a <b>Missile Silo</b>. Press <kbd>Q</kbd> and click the red <b>enemy HQ</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
     { text: 'Press <kbd>Space</kbd> to end the turn and watch the battle', done: s => s.turn > 1 },
+    { text: 'HQs and AA shoot missiles down (40% / 70%). Fire <b>several at once</b> to break through — build more silos', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> — reveals targets and incoming missiles', done: s => has(s, 'radar') },
     { text: 'Protect your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
     { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
@@ -396,6 +436,7 @@
     const c = Renderer.pickCell(e.clientX, e.clientY);
     if (c < 0) { cancelMode(); return; }
     clickCell(c, e.shiftKey);
+    cellTooltip();
   }
 
   function clickCell(c, keepMode) {
@@ -458,6 +499,12 @@
     if (name === 'hideObjectives') { objectivesHidden = true; refreshObjectives(); return; }
     if (name === 'dismissReport') { UI.hideReport(); return; }
     if (!state) return;
+    if (name === 'menu') {
+      if (phase === 'resolving') return UI.toast('Wait for combat to finish', 'warn');
+      if (phase === 'planning') saveGame();
+      toMenu();
+      return;
+    }
     if (phase === 'resolving' && name === 'end') { Timeline.skip(); return; }
     if (phase !== 'planning') return;
     switch (name) {
@@ -505,6 +552,7 @@
         SND.play('uiClick');
         if (r.kind === 'build') { Renderer.removeBuilding(r.building.id, true); if (r.building.type === 'radar') syncWorld(false); }
         if (r.kind === 'repair') Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
+        if (r.kind === 'sell') { Renderer.addBuilding(r.building, true); if (r.building.type === 'radar') syncWorld(false); }
         UI.toast('Undone', 'good');
         break;
       }
@@ -537,7 +585,7 @@
       return;
     }
     if (e.code === 'KeyH') { Renderer.focusCell(R.hqCell(P), 250, true); return; }
-    if (e.code === 'KeyF') { Renderer.frameAll(false); return; }
+    if (e.code === 'KeyF') { frameView(false); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); action('end'); return; }
     if (phase !== 'planning') return;
     const digit = /^Digit([1-8])$/.exec(e.code) || /^Numpad([1-8])$/.exec(e.code);
@@ -600,7 +648,7 @@
     const events = R.resolveTurn(state);
     SND.setMode('combat');
     UI.setCombatHint(true, speed);
-    Renderer.frameAll(false);
+    frameView(false);
     Timeline.start(buildPlayback(events, idAt, turn), () => finishTurn(events, turn));
   }
 
@@ -683,7 +731,9 @@
     const { a, b, h } = missilePath(e);
     if (sid) { Renderer.openHatch(sid); a.copy(Renderer.muzzleWorld(sid)); }
     const vis = playerSees(e.from);
-    UI.log((own ? 'Missile launched at ' + describeCell(e.to) : 'Enemy missile launch detected') + ' — impact next turn', own ? 'player' : 'enemy');
+    UI.log(own ? 'Missile launched at ' + describeCell(e.to) + ' — impact next turn'
+      : vis ? 'Enemy missile launched from ' + cellName(e.from) + ' — impact next turn'
+        : 'Enemy launch heard — origin and target unknown', own ? 'player' : 'enemy');
     if (!vis) {
       // Enemy launch from the fog: heard, not seen (its arc would reveal silo and target)
       SND.play('missileLaunch', { pan: 0.6, gain: 0.5 });
@@ -850,11 +900,14 @@
         Renderer.hitRobot(s.robotId);
         Renderer.setRobotHp(s.robotId, s.hpAfter);
         if (rec && rec.group.visible) floatAt(s.cell, '-' + s.dmg, 'dmg', 14);
+        const gun = e.gunType === 'hq' ? 'Command Center gun' : 'gun pod';
         if (s.killed) {
           Fx.explosion(target.setY(2), 0.7);
           SND.play('robotDie', { pan: panAtPos(target) });
           Renderer.removeRobot(s.robotId);
-          UI.log(e.side === P ? 'Gun pod destroyed an enemy mech' : 'Your mech was destroyed by a gun pod', e.side === P ? 'good' : 'bad');
+          UI.log(e.side === P ? 'Your ' + gun + ' destroyed an enemy mech' : 'Your mech was destroyed by an enemy ' + gun + ' at ' + cellName(e.from), e.side === P ? 'good' : 'bad');
+        } else if (e.side !== P) {
+          UI.log('Your mech hit by an enemy ' + gun + ' at ' + cellName(e.from) + ' (-' + s.dmg + ', ' + s.hpAfter + ' HP left)', 'bad');
         }
       });
     });
@@ -898,8 +951,9 @@
       Fx.smallBlast(p, 0xffaa33);
       SND.play('robotPunch', { pan: panAtPos(p) });
       Renderer.addTrauma(e.hit.type === 'hq' ? 0.3 : 0.15, p);
+      const what = (e.side === P ? 'Your mech smashes enemy ' : 'Enemy mech smashes your ') + BUILDINGS[e.hit.type].name;
+      UI.log(what + (e.hit.dmg > 0 ? ' (-' + e.hit.dmg + (e.hit.absorbed ? ', ' + e.hit.absorbed + ' absorbed by shield' : '') + ')' : ' — absorbed by shield'), e.side === P ? 'good' : 'bad');
       applyHit(e.hit, idAt);
-      if (e.hit.dmg > 0 || e.hit.absorbed > 0) UI.log((e.side === P ? 'Your mech smashes ' : 'Enemy mech smashes ') + (e.side === P ? 'enemy ' : 'your ') + BUILDINGS[e.hit.type].name + ' (-' + e.hit.dmg + ')', e.side === P ? 'good' : 'bad');
     });
   }
 
@@ -945,7 +999,7 @@
     syncWorld(true);
     if (state.winner) return gameOver();
     const report = buildReport(events, turn);
-    if (events.length > 1) { UI.showReport(report); reportTimer = 6; }
+    if (events.some(e => /descend|gunfire|robotHit|drop/.test(e.type))) { UI.showReport(report); reportTimer = 6; }
     beginPlanning(false);
   }
 
@@ -968,6 +1022,7 @@
 
   function gameOver() {
     phase = 'gameover';
+    clearSave();
     UI.setDock(false);
     SND.setMode('off');
     SND.setTension(false);
@@ -988,10 +1043,10 @@
           ['Structures built', ps.built, as.built],
           ['Structures destroyed', ps.destroyed, as.destroyed],
           ['Missiles fired', ps.missilesFired, as.missilesFired],
-          ['Missile hit rate', acc(ps), acc(as)],
-          ['Missiles intercepted', ps.intercepts, as.intercepts],
+          ['Missiles past defenses', acc(ps), acc(as)],
+          ['Enemy missiles shot down', ps.intercepts, as.intercepts],
           ['Mechs deployed', ps.robotsDeployed, as.robotsDeployed],
-          ['Mechs destroyed', ps.robotsKilled, as.robotsKilled]
+          ['Enemy mechs destroyed', ps.robotsKilled, as.robotsKilled]
         ]
       });
     }, 2600);
@@ -1040,10 +1095,11 @@
   // ── Frame loop ────────────────────────────────────────────
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - lastFrame) / 1000);
+    const raw = Math.min(0.25, (now - lastFrame) / 1000);   // real time, so slow machines don't slow playback
+    const dt = Math.min(0.05, raw);
     lastFrame = now;
-    if (phase === 'resolving') Timeline.update(dt * speed);
-    if (reportTimer > 0) { reportTimer -= dt; if (reportTimer <= 0) UI.hideReport(); }
+    if (phase === 'resolving') Timeline.update(raw * speed);
+    if (reportTimer > 0) { reportTimer -= raw; if (reportTimer <= 0) UI.hideReport(); }
     // highlight hovered order's target
     Renderer.render(dt, !UI.isHelpOpen() && phase !== 'menu');
   }

@@ -187,6 +187,61 @@ window.Renderer = (function () {
     mesh.position.set(MAP_W / 2, 0.35, MAP_H / 2);
     mesh.renderOrder = 3;
     scene.add(mesh);
+    createLabels();
+  }
+
+  // Row letters / column numbers around the map, matching the log's cell names (e.g. "H5")
+  function createLabels() {
+    const px = 48, W = (GW + 2) * px, Hh = (GH + 2) * px;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = Hh;
+    const g = cv.getContext('2d');
+    g.font = 'bold 22px "Share Tech Mono", monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(230,240,255,0.95)';
+    for (let x = 0; x < GW; x++) {
+      const cx = (x + 1.5) * px;
+      g.fillText(String(x + 1), cx, px * 0.55);
+      g.fillText(String(x + 1), cx, Hh - px * 0.55);
+    }
+    for (let y = 0; y < GH; y++) {
+      const cy = (y + 1.5) * px, L = String.fromCharCode(65 + y);
+      g.fillText(L, px * 0.55, cy);
+      g.fillText(L, W - px * 0.55, cy);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 4;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W + CELL * 2, MAP_H + CELL * 2), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(MAP_W / 2, 0.5, MAP_H / 2);
+    mesh.renderOrder = 3;
+    scene.add(mesh);
+  }
+
+  // Team-coloured ground marking under each structure (readable from far away)
+  const footMats = {};
+  let footGeo = null;
+  function footprint(side) {
+    if (!footMats[side]) {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 128;
+      const g = cv.getContext('2d');
+      const col = side === CONST.SIDE_PLAYER ? '46,196,255' : '255,68,34';
+      const grd = g.createRadialGradient(64, 64, 20, 64, 64, 64);
+      grd.addColorStop(0, 'rgba(' + col + ',0.0)');
+      grd.addColorStop(0.75, 'rgba(' + col + ',0.25)');
+      grd.addColorStop(1, 'rgba(' + col + ',0.0)');
+      g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = 'rgba(' + col + ',0.95)'; g.lineWidth = 5;
+      g.strokeRect(8, 8, 112, 112);
+      footMats[side] = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      footGeo = footGeo || new THREE.PlaneGeometry(CELL * 0.98, CELL * 0.98).rotateX(-Math.PI / 2);
+    }
+    const m = new THREE.Mesh(footGeo, footMats[side]);
+    m.position.y = 0.12;
+    m.renderOrder = 5;
+    return m;
   }
 
   function cellTexture(filter) {
@@ -591,6 +646,7 @@ window.Renderer = (function () {
     // face the enemy
     g.rotation.y = b.side === CONST.SIDE_PLAYER ? Math.PI / 2 : -Math.PI / 2;
     scene.add(g);
+    g.add(footprint(b.side));
     const height = g.userData.height || 8;
     const bar = makeHpBar(b.type === 'hq' ? 12 : 8);
     bar.position.set(p.x, height + 3, p.z);
@@ -837,12 +893,19 @@ window.Renderer = (function () {
     const p = cellCenter(cell);
     focus(p.x, p.z + 8, dist, force);
   }
+  // Fit the labelled map between the screen-space areas covered by side panels
+  let occl = { left: 0, right: 0 };
+  function setOcclusion(left, right) { occl = { left: left || 0, right: right || 0 }; }
   function frameAll(instant) {
-    // fit the map width into ~70% of the screen, leaving room for side panels
-    const aspect = window.innerWidth / window.innerHeight;
+    const W = window.innerWidth;
+    const free = Math.max(W * 0.45, W - occl.left - occl.right - 24);
+    const aspect = W / window.innerHeight;
     const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect;
-    const d = Math.max(300, Math.min(680, (MAP_W + 30) / (0.7 * 2 * tanH) * 0.92));
-    cam.gx = MAP_W / 2; cam.gz = MAP_H / 2 + 18; cam.gdist = d;
+    const visW = (MAP_W + CELL * 2.5) * W / free;          // world width the screen must show
+    const d = Math.max(280, Math.min(760, visW / (2 * tanH) * 0.92));
+    const worldPerPx = (2 * tanH * d) / W;
+    cam.gx = MAP_W / 2 - (occl.left - occl.right) / 2 * worldPerPx;
+    cam.gz = MAP_H / 2 + 18; cam.gdist = d;
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {
@@ -1029,7 +1092,7 @@ window.Renderer = (function () {
   }
 
   return {
-    init, render, reset, cycleQuality, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
