@@ -244,6 +244,36 @@ window.Renderer = (function () {
     return m;
   }
 
+  // Strategic-zoom icon badges (same glyphs as the build bar), faded in when zoomed out
+  const badgeMats = {};
+  function badgeMaterial(type, side) {
+    const key = type + '_' + side;
+    if (badgeMats[key]) return badgeMats[key];
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 96;
+    const g = cv.getContext('2d');
+    const col = side === CONST.SIDE_PLAYER ? '#2ec4ff' : '#ff4422';
+    g.fillStyle = 'rgba(8,12,18,0.82)';
+    g.beginPath(); g.arc(48, 48, 40, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 6; g.strokeStyle = col; g.stroke();
+    const tex = new THREE.CanvasTexture(cv);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 });
+    badgeMats[key] = mat;
+    if (window.UI && UI.icon) {
+      const svg = UI.icon(type).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" ').replace(/currentColor/g, '#ffffff');
+      const img = new Image();
+      img.onload = () => { g.drawImage(img, 22, 22, 52, 52); tex.needsUpdate = true; };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+    return mat;
+  }
+  function makeBadge(type, side) {
+    const s = new THREE.Sprite(badgeMaterial(type, side));
+    s.scale.set(type === 'hq' ? 15 : 12, type === 'hq' ? 15 : 12, 1);
+    s.renderOrder = 28;
+    return s;
+  }
+
   function cellTexture(filter) {
     const data = new Uint8Array(GW * GH * 4);
     const tex = new THREE.DataTexture(data, GW, GH, THREE.RGBAFormat);
@@ -651,7 +681,10 @@ window.Renderer = (function () {
     const bar = makeHpBar(b.type === 'hq' ? 12 : 8);
     bar.position.set(p.x, height + 3, p.z);
     scene.add(bar);
-    const rec = { id: b.id, b: { type: b.type, side: b.side, cell: b.cell }, group: g, bar, hp: b.hp, maxHp: b.maxHp, rise: rise ? 0 : 1, collapse: -1, hatch: 0, hatchT: 0, smoke: null, dome: null, forceBar: false };
+    const badge = makeBadge(b.type, b.side);
+    badge.position.set(p.x, height + 9, p.z);
+    scene.add(badge);
+    const rec = { id: b.id, b: { type: b.type, side: b.side, cell: b.cell }, group: g, bar, badge, hp: b.hp, maxHp: b.maxHp, rise: rise ? 0 : 1, collapse: -1, hatch: 0, hatchT: 0, smoke: null, dome: null, forceBar: false };
     if (b.type === 'shield') {
       rec.dome = makeShieldDome();
       rec.dome.position.copy(p);
@@ -698,6 +731,7 @@ window.Renderer = (function () {
     } else {
       rec.collapse = 0;
       rec.bar.visible = false;
+      rec.badge.visible = false;
       if (rec.dome) rec.dome.visible = false;
     }
   }
@@ -707,6 +741,7 @@ window.Renderer = (function () {
   function disposeBuilding(rec) {
     scene.remove(rec.group);
     scene.remove(rec.bar);
+    scene.remove(rec.badge);
     disposeTree(rec.bar);
     if (rec.dome) { scene.remove(rec.dome); disposeTree(rec.dome); }
     Models.dispose(rec.group);
@@ -811,6 +846,7 @@ window.Renderer = (function () {
   function addRobot(r) {
     removeRobot(r.id);
     const g = Models.robot(r.side);
+    g.scale.setScalar(1.3);
     const p = cellCenter(r.cell);
     g.position.copy(p);
     g.rotation.y = r.side === CONST.SIDE_PLAYER ? Math.PI / 2 : -Math.PI / 2;
@@ -1052,6 +1088,8 @@ window.Renderer = (function () {
       if (m.dash) m.obj.material.dashOffset = -time * 8;
     }
     const q = camera.quaternion;
+    const badgeAlpha = Math.max(0, Math.min(1, (cam.dist - 260) / 120));
+    for (const k in badgeMats) badgeMats[k].opacity = badgeAlpha;
     for (const id in buildings) {
       const rec = buildings[id];
       const g = rec.group;
@@ -1077,6 +1115,7 @@ window.Renderer = (function () {
       g.userData.open = rec.hatch;
       if (g.visible) Models.animate(g, time, dt);
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
+      rec.badge.visible = g.visible && rec.collapse < 0;
       if (rec.dome) {
         rec.domeFlash = Math.max(0, rec.domeFlash - dt * 2.5);
         const u = rec.dome.material.uniforms;
@@ -1098,7 +1137,7 @@ window.Renderer = (function () {
           else { if (m.userData.baseEmissive !== undefined) m.emissive.copy(m.userData.baseEmissive.isColor ? m.userData.baseEmissive : new THREE.Color(m.userData.baseEmissive)); m.emissiveIntensity = m.userData.baseIntensity !== undefined ? m.userData.baseIntensity : 1; }
         }
       }
-      rec.bar.position.set(rec.group.position.x, rec.group.position.y + 12, rec.group.position.z);
+      rec.bar.position.set(rec.group.position.x, rec.group.position.y + 15, rec.group.position.z);
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
     }
     Fx.update(dt);
