@@ -66,7 +66,7 @@
 
   // ── Game lifecycle ────────────────────────────────────────
   // ── Save / continue (one autosave slot, written each planning phase) ──
-  const SAVE_KEY = 'ra_save_v1';
+  const SAVE_KEY = 'ra_save_v2';   // v2: island maps
   function saveGame() {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({ state, tutorial, objectivesHidden })); } catch (e) { /* storage full or blocked */ }
   }
@@ -101,6 +101,7 @@
     UI.showMenu(false);
     UI.showGameUI(true);
     state = saved ? saved.state : R.newGame(diff);
+    Renderer.setMap(state.land);
     window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
@@ -268,7 +269,7 @@
   }
   function describeCell(c) {
     const b = R.buildingAt(state, c);
-    if (b && playerSees(c)) return (b.side === A ? 'enemy ' : '') + BUILDINGS[b.type].name + ' ' + cellName(c);
+    if (b && playerSees(c)) return (b.side === A ? 'enemy ' + BUILDINGS[R.apparent(b).type].name : BUILDINGS[b.type].name) + ' ' + cellName(c);
     const g = state.sides[P].intel.seen[c];
     if (g) return BUILDINGS[g.type].name + '? ' + cellName(c);
     return 'grid ' + cellName(c);
@@ -284,9 +285,11 @@
     if (c < 0) return null;
     const b = R.buildingAt(state, c);
     if (b && playerSees(c)) {
-      const def = BUILDINGS[b.type];
       const own = b.side === P;
-      const info = { type: b.type, name: def.name, own, hp: b.hp, maxHp: b.maxHp, desc: def.desc, stats: def.stats(), ghost: false };
+      const a = own ? b : R.apparent(b);
+      const def = BUILDINGS[a.type];
+      const info = { type: a.type, name: def.name, own, hp: a.hp, maxHp: a.maxHp, desc: def.desc, stats: def.stats(), ghost: false };
+      if (own && b.type === 'decoy') info.extra = 'Disguised as ' + BUILDINGS[b.disguise].name;
       if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + BUILDINGS.shield.pool;
       if (b.type === 'aa' || b.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + b.shots;
       if (own) {
@@ -590,7 +593,7 @@
     if (e.code === 'KeyF') { frameView(false); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); action('end'); return; }
     if (phase !== 'planning') return;
-    const digit = /^Digit([1-8])$/.exec(e.code) || /^Numpad([1-8])$/.exec(e.code);
+    const digit = /^Digit([1-9])$/.exec(e.code) || /^Numpad([1-9])$/.exec(e.code);
     if (digit) { selectBuild(BUILD_ORDER[+digit[1] - 1]); return; }
     switch (e.code) {
       case 'KeyQ': action('fire'); break;
@@ -639,7 +642,7 @@
 
     AI.planTurn(state, A);
     syncWorld(true); // show AI construction (if visible) before combat
-    for (const b of R.buildingsOf(state, A)) if (b.builtTurn === state.turn && b.type !== 'hq' && playerSees(b.cell)) UI.log('Enemy built ' + BUILDINGS[b.type].name + ' at ' + cellName(b.cell), 'enemy');
+    for (const b of R.buildingsOf(state, A)) if (b.builtTurn === state.turn && b.type !== 'hq' && playerSees(b.cell)) UI.log('Enemy built ' + BUILDINGS[R.apparent(b).type].name + ' at ' + cellName(b.cell), 'enemy');
 
     // Snapshot ids by cell before resolution mutates the board
     const idAt = {};
@@ -836,13 +839,14 @@
     const pos = Renderer.cellCenter(ev.cell);
     const own = ev.side === P;
     const hqHit = ev.hits.some(h => h.type === 'hq' && h.dmg > 0);
-    Fx.explosion(pos, hqHit ? 1.3 : 1);
-    SND.play('explosion', { pan: panAt(ev.cell), big: hqHit });
-    Renderer.addTrauma(hqHit ? 0.6 : 0.38, pos);
+    const wet = !R.isLand(state, ev.cell);
+    if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('explosion', { pan: panAt(ev.cell), gain: 0.5 }); }
+    else { Fx.explosion(pos, hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit }); }
+    Renderer.addTrauma(wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
     let total = 0;
     for (const h of ev.hits) total += applyHit(h, idAt);
     const name = describeCell(ev.cell);
-    if (!ev.hits.length) UI.log((own ? 'Missile hit empty ground at ' : 'Enemy missile hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
+    if (!ev.hits.length) UI.log((own ? 'Your missile ' : 'Enemy missile ') + (wet ? 'splashed into the sea at ' : 'hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
     else UI.log((own ? 'Missile impact on ' : 'Enemy missile hit ') + name + ': ' + total + ' damage', own ? 'good' : 'bad');
     // the impact reveals the area — lift fog right away for the attacker
     if (own) {
@@ -874,7 +878,8 @@
       SND.play('destroyed', { pan: panAt(h.cell), big: h.type === 'hq' });
       Renderer.addTrauma(h.type === 'hq' ? 1 : 0.5, pos);
       floatAt(h.cell, 'DESTROYED', 'dmg big', 20);
-      UI.log((h.side === P ? 'LOST: your ' : 'DESTROYED: enemy ') + BUILDINGS[h.type].name + ' at ' + cellName(h.cell), h.side === P ? 'bad' : 'good');
+      if (h.type === 'decoy') UI.log(h.side === P ? 'Your decoy at ' + cellName(h.cell) + ' soaked up the attack' : 'That was a DECOY at ' + cellName(h.cell) + '!', h.side === P ? 'good' : 'bad');
+      else UI.log((h.side === P ? 'LOST: your ' : 'DESTROYED: enemy ') + BUILDINGS[h.type].name + ' at ' + cellName(h.cell), h.side === P ? 'bad' : 'good');
     }
     if (h.type === 'hq') refreshHQFromHit(h);
     return h.dmg;

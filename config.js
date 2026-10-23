@@ -16,6 +16,7 @@ const CONST = {
   BUILD_RADIUS: 3,          // Chebyshev distance from an existing own building
   START_BUILDINGS: [{ type: 'silo', dx: 2, dy: 0 }],   // relative to HQ, mirrored for the AI
   MAX_TURNS: 30,
+  LAND_TARGET: 120,          // cells per island (each side's zone is 14x16 = 224 cells)
 
   // Economy
   START_CREDITS: 350,
@@ -116,9 +117,15 @@ const BUILDINGS = {
     name: 'Gun Pod', short: 'GUN', key: '8', cost: 90, hp: 50, range: 3, shots: 2, damage: 12,
     desc: 'Auto-turret that shreds enemy mechs in range.',
     stats: () => ['2 shots x 12 damage / turn', 'Range 3 (mechs only)']
+  },
+  decoy: {
+    name: 'Decoy', short: 'DCY', key: '9', cost: 30, hp: 20,
+    desc: 'Inflatable fake. The enemy sees it as a real high-value structure — it draws missiles and mechs away from your base.',
+    stats: () => ['Disguised as a random silo, hangar, power plant, depot or AA', 'Exposed only when destroyed'],
+    disguises: ['silo', 'hangar', 'power', 'depot', 'aa']
   }
 };
 
-const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod'];
+const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy'];
 
 if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER };

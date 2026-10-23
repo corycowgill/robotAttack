@@ -73,6 +73,11 @@
       case 'radar':
         score -= depth(cell) * 0.25; // toward the front
         break;
+      case 'decoy':
+        // out front and away from real structures, so the fire it draws is wasted
+        score -= depth(cell) * 0.2;
+        for (const b of own) if (R.cheb(b.cell, cell) <= 1) score -= 1.5;
+        break;
       case 'depot': case 'power':
         score += depth(cell) * 0.15 + aaCover * 1.2; // toward the back, under cover
         break;
@@ -126,6 +131,7 @@
     const inc = R.income(state, ME).energy;
     if (inc < need * 0.8 && state.sides[ME].energy < need * 1.5) return 'power';
     if (n('depot') < 2 + Math.floor(state.turn / 6)) return 'depot';
+    if (state.turn >= 3 && n('decoy') < 1 + Math.floor(state.turn / 8)) return 'decoy';
     if (n('silo') < 3) return 'silo';
     if (n('hangar') < 1) return 'hangar';
     if (state.turn >= 6 && n('shield') < 1) return 'shield';
@@ -149,7 +155,7 @@
         return R.rand(state) < 0.2 ? PATROL_ORDER[Math.min(PATROL_ORDER.length - 1, PATROL_ORDER.indexOf(t) + 1)] : t;
       }
     }
-    const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield'];
+    const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield', 'decoy'];
     return pool[Math.floor(R.rand(state) * pool.length)];
   }
 
@@ -199,7 +205,7 @@
       const x = FOE === C.SIDE_PLAYER ? Math.floor(R.rand(state) * span) : C.AI_MIN_X + Math.floor(R.rand(state) * span);
       const y = Math.floor(R.rand(state) * C.GRID_H);
       const c = R.idx(x, y);
-      if (!state.sides[ME].intel.seen[c]) return c;
+      if (R.isLand(state, c) && !state.sides[ME].intel.seen[c]) return c;
     }
     return R.hqCell(FOE);
   }

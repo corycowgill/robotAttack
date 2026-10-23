@@ -1,5 +1,7 @@
 # Robot Attack 2026
 
+*Inspired by Namco's Metal Marines (SNES).*
+
 A turn-based base-building artillery strategy game in the browser, rendered with Three.js (r128) and scored with procedural Web Audio.
 
 Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
@@ -14,7 +16,7 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 
 ## How a turn works
 
-Each side starts with a Command Center and one Missile Silo.
+Each side starts on its own island with a Command Center and one Missile Silo. Island shapes are generated fresh every game (the two islands always have the same area); the strait between them is open sea.
 
 
 1. **Plan.**
@@ -50,6 +52,7 @@ Each side starts with a Command Center and one Missile Silo.
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 
+| 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
@@ -70,7 +73,7 @@ Each side starts with a Command Center and one Missile Silo.
 
 | Input | Action |
 |---|---|
-| `1`–`8` | Select a structure to build (Shift+click places several) |
+| `1`–`9` | Select a structure to build (Shift+click places several) |
 | Left click | Place / target / select |
 | Right click, `Esc` | Cancel |
 | `Q` / `E` | Fire missile / drop mech |

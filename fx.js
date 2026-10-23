@@ -279,6 +279,21 @@ window.Fx = (function () {
     }
   }
 
+  // Missile hitting open water
+  function splash(pos) {
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2, sp = rnd(4, 16);
+      spawn('smoke', { x: pos.x, y: pos.y, z: pos.z, vx: Math.cos(a) * sp, vy: rnd(25, 60), vz: Math.sin(a) * sp, grav: 55, drag: 0.6,
+        size: rnd(2, 4), size1: rnd(5, 9), life: rnd(0.9, 1.6), color: 0xe8f4ff, color1: 0x9cc4d8, alpha: 0.85 });
+    }
+    for (let i = 0; i < 18; i++) {
+      const v = sphere(rnd(6, 12));
+      spawn('smoke', { x: pos.x, y: pos.y + 2, z: pos.z, vx: v.x, vy: Math.abs(v.y) + 4, vz: v.z, drag: 1.5, size: 6, size1: 18, life: rnd(1.4, 2.2), color: 0xdbe9f2, color1: 0x8aa8b8, alpha: 0.45 });
+    }
+    ring(pos, 0xcfefff, 18, 0.9);
+    flashLight(pos, 0xcfefff, 2, 0.3);
+  }
+
   function buildDust(pos) { dustRing(pos, 0.7); }
 
   function heal(pos) {
@@ -397,5 +412,5 @@ window.Fx = (function () {
     for (const l of lights) { l.t = l.dur = 0; l.light.intensity = 0; }
   }
 
-  return { init, update, reset, spawn, explosion, smallBlast, shieldHit, dustRing, buildDust, muzzle, tracer, trail, heal, scorch, ring, flashLight, setEmitter, clearEmitters };
+  return { init, update, reset, spawn, explosion, splash, smallBlast, shieldHit, dustRing, buildDust, muzzle, tracer, trail, heal, scorch, ring, flashLight, setEmitter, clearEmitters };
 })();
