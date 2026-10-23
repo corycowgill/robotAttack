@@ -267,11 +267,12 @@ window.Fx = (function () {
   // Exhaust/trail puff for moving projectiles
   function trail(pos, kind, color) {
     if (kind === 'missile') {
-      spawn('glow', { x: pos.x, y: pos.y, z: pos.z, vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(-2, 2), size: 4, size1: 1, life: 0.25, color: 0xfff2b0, color1: color || 0xff6a00 });
-      spawn('smoke', { x: pos.x, y: pos.y, z: pos.z, vx: rnd(-1.5, 1.5), vy: rnd(0, 2), vz: rnd(-1.5, 1.5), drag: 0.6, size: 2, size1: 9, life: rnd(1.4, 2.2), color: 0x8a8580, color1: 0x4a4744, alpha: 0.45 });
+      spawn('glow', { x: pos.x, y: pos.y, z: pos.z, vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(-2, 2), size: 9, size1: 2, life: 0.3, color: 0xfff2b0, color1: color || 0xff6a00 });
+      spawn('glow', { x: pos.x, y: pos.y, z: pos.z, size: 5, size1: 1, life: 0.12, color: 0xffffff, color1: 0xffe0a0 });
+      spawn('smoke', { x: pos.x, y: pos.y, z: pos.z, vx: rnd(-1.5, 1.5), vy: rnd(0, 2), vz: rnd(-1.5, 1.5), drag: 0.6, size: 4, size1: 15, life: rnd(1.6, 2.4), color: 0x9a958f, color1: 0x4a4744, alpha: 0.5 });
     } else if (kind === 'interceptor') {
-      spawn('glow', { x: pos.x, y: pos.y, z: pos.z, size: 2.2, size1: 0.5, life: 0.2, color: 0xffffff, color1: 0x88ccff });
-      spawn('smoke', { x: pos.x, y: pos.y, z: pos.z, size: 1.2, size1: 4, life: 0.9, color: 0xbfc4c8, color1: 0x6a6e72, alpha: 0.35 });
+      spawn('glow', { x: pos.x, y: pos.y, z: pos.z, size: 5, size1: 1, life: 0.25, color: 0xffffff, color1: 0x88ccff });
+      spawn('smoke', { x: pos.x, y: pos.y, z: pos.z, size: 2.5, size1: 8, life: 1.1, color: 0xd0d4d8, color1: 0x6a6e72, alpha: 0.45 });
     } else if (kind === 'pod') {
       spawn('glow', { x: pos.x, y: pos.y, z: pos.z, vx: rnd(-3, 3), vy: rnd(8, 14), vz: rnd(-3, 3), size: 5, size1: 1, life: 0.3, color: 0xfff2b0, color1: color || 0xff6a00 });
       spawn('smoke', { x: pos.x, y: pos.y + 2, z: pos.z, vx: rnd(-2, 2), vy: rnd(2, 5), vz: rnd(-2, 2), drag: 0.6, size: 3, size1: 10, life: rnd(1, 1.6), color: 0x77726c, color1: 0x3a3836, alpha: 0.4 });

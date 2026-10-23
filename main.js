@@ -693,6 +693,7 @@
       Fx.dustRing(a, 0.6);
     }
     const m = Models.missile(e.side);
+    m.scale.setScalar(2.4);
     Renderer.add(m);
     const p = new THREE.Vector3(), prev = new THREE.Vector3().copy(a);
     Timeline.tween(1.4, k => {
@@ -709,6 +710,7 @@
     const own = e.side === P;
     const { a, b, h } = missilePath(e);
     const m = Models.missile(e.side);
+    m.scale.setScalar(2.4);
     Renderer.add(m);
     if (!own) SND.play('incoming', { pan: panAt(e.to), gain: 0.8 });
     const intercepted = e.interceptedBy >= 0;
@@ -732,6 +734,7 @@
         if (batId) Renderer.aimTurret(batId, e.to);
         const start = batId ? Renderer.muzzleWorld(batId) : Renderer.cellCenter(e.interceptedBy).setY(6);
         const it = Models.interceptor();
+        it.scale.setScalar(2.2);
         Renderer.add(it);
         SND.play('flak', { pan: panAtPos(start) });
         const ip = new THREE.Vector3(), iprev = start.clone();
@@ -888,8 +891,9 @@
     if (hid) Renderer.openHatch(hid);
     const a = Renderer.cellCenter(e.from); a.y = 4;
     const b = Renderer.cellCenter(e.to);
-    const h = Math.min(110, 50 + a.distanceTo(b) * 0.25);
+    const h = Math.min(80, 35 + a.distanceTo(b) * 0.18);
     const pod = Models.pod(e.side);
+    pod.scale.setScalar(1.5);
     Renderer.add(pod);
     const p = new THREE.Vector3();
     SND.play('podLaunch', { pan: panAtPos(a), gain: own || playerSees(e.from) ? 1 : 0.5 });
