@@ -837,9 +837,11 @@ window.Renderer = (function () {
     focus(p.x, p.z + 8, dist, force);
   }
   function frameAll(instant) {
+    // fit the map width into ~70% of the screen, leaving room for side panels
     const aspect = window.innerWidth / window.innerHeight;
-    const d = Math.max(340, Math.min(560, 640 / Math.min(aspect, 1.9)));
-    cam.gx = MAP_W / 2 - 14; cam.gz = MAP_H / 2 + 22; cam.gdist = d;
+    const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect;
+    const d = Math.max(300, Math.min(680, (MAP_W + 30) / (0.7 * 2 * tanH) * 0.92));
+    cam.gx = MAP_W / 2; cam.gz = MAP_H / 2 + 18; cam.gdist = d;
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {

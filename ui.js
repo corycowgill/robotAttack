@@ -102,7 +102,7 @@ window.UI = (function () {
   .abtn .badge { position: absolute; top: 6px; right: 8px; font-size: 12px; color: var(--c-dim); }
 
   /* Side panels */
-  #orders { position: absolute; right: 12px; top: 74px; width: 270px; max-height: calc(100vh - 220px); display: flex; flex-direction: column; overflow: hidden; }
+  #orders { position: absolute; right: 12px; top: 74px; width: 250px; max-height: calc(100vh - 220px); display: flex; flex-direction: column; overflow: hidden; }
   .ph { padding: 8px 12px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-dim); border-bottom: 1px solid var(--c-line); display: flex; justify-content: space-between; align-items: center; }
   #orderlist { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
   .order { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.04); font-size: 14px; }
@@ -139,7 +139,7 @@ window.UI = (function () {
   .obj.cur { color: #fff; }
 
   /* Toast, tooltip, banner, floating text */
-  #toasts { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #toasts { position: absolute; left: 50%; top: 84px; z-index: 2; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .toast { padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: 700; background: var(--c-bg2); border: 1px solid var(--c-line); animation: tin .2s ease-out, tout .4s ease-in 1.8s forwards; }
   .toast.bad { border-color: rgba(255,74,61,.6); color: #ffb1a8; } .toast.good { border-color: rgba(102,255,153,.5); color: #b6ffd0; } .toast.warn { border-color: rgba(255,176,0,.6); color: #ffd98a; }
   @keyframes tin { from { opacity: 0; transform: translateY(-8px); } } @keyframes tout { to { opacity: 0; transform: translateY(-8px); } }
@@ -158,7 +158,7 @@ window.UI = (function () {
   #combathint.show { display: flex; }
 
   /* Report */
-  #report { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 420px; padding: 18px 20px; display: none; }
+  #report { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
   #report.show { display: block; animation: tin .25s ease-out; }
   #report h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
   #report .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -260,7 +260,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
-    root.appendChild(el('div', { id: 'report', class: 'panel pi' }));
+    root.appendChild(el('div', { id: 'report', class: 'panel' }));
 
     // Menu
     const diffs = Object.keys(CONST.DIFFICULTY).map((k, i) => `
@@ -304,7 +304,6 @@ window.UI = (function () {
     $('b-mute').addEventListener('click', () => H.onAction('mute'));
     $('b-help').addEventListener('click', () => showHelp(!isHelpOpen()));
     $('vol').addEventListener('input', e => H.onVolume(+e.target.value));
-    $('report').addEventListener('click', () => H.onAction('dismissReport'));
     root.addEventListener('mouseover', e => {
       const t = e.target.closest && e.target.closest('.card,.abtn,.sbtn,.diff,.bigbtn,.iconbtn');
       if (t && t !== lastHoverEl && H.onHover) H.onHover();
@@ -516,7 +515,7 @@ window.UI = (function () {
       <div class="row"><span>Mechs lost</span><b>${s.robotsLost}</b></div>
       <div class="lost">${s.lostNames.length ? 'Lost: ' + esc(s.lostNames.join(', ')) : 'No structures lost'}</div></div>`;
     p.innerHTML = `<h2>Turn ${r.turn} report</h2><div class="cols">${col('You', 'var(--c-player)', r.player)}${col('Enemy', 'var(--c-ai)', r.ai)}</div>
-      <div class="foot"><span>Next turn: <b style="color:var(--c-credit)">+${r.income.credits}c</b> <b style="color:var(--c-energy)">+${r.income.energy}e</b></span><span>click to continue</span></div>`;
+      <div class="foot"><span>Next turn: <b style="color:var(--c-credit)">+${r.income.credits}c</b> <b style="color:var(--c-energy)">+${r.income.energy}e</b></span><span>&nbsp;</span></div>`;
     p.classList.add('show');
   }
   function hideReport() { $('report').classList.remove('show'); }
