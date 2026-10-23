@@ -115,6 +115,7 @@
 
   function nextSmartBuild(state, mem) {
     const n = t => count(state, t);
+    const basic = t => R.buildingsOf(state, ME, t).some(b => b.level < 2);
     // Mechs on our side come first, even during the opening
     const threats = enemyRobotsOnMySide(state);
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
@@ -125,6 +126,7 @@
       if (n(t) < have[t]) return t;
     }
     if ((mem.missileDamageTaken > 0 || knownEnemy(state, 'silo') >= 2) && aaCoveringHQ(state) < 2 && n('aa') < 4) return 'aa';
+    if (mem.missileDamageTaken > 0 && n('aa') >= 2 && basic('aa')) return 'up:aa';
     if (knownEnemy(state, 'hangar') && n('gunpod') < 1) return 'gunpod';
     // Keep energy income in line with what the launchers can spend
     const need = n('silo') * C.MISSILE_ENERGY + n('hangar') * C.DROP_ENERGY;
@@ -133,6 +135,8 @@
     if (n('depot') < 2 + Math.floor(state.turn / 6)) return 'depot';
     if (state.turn >= 3 && n('decoy') < 1 + Math.floor(state.turn / 8)) return 'decoy';
     if (n('silo') < 3) return 'silo';
+    if (basic('silo') && state.turn >= 5) return 'up:silo';
+    if (n('depot') >= 3 && basic('depot')) return 'up:depot';
     if (n('hangar') < 1) return 'hangar';
     if (state.turn >= 6 && n('shield') < 1) return 'shield';
     if (n('silo') < 5 && n('silo') <= n('hangar') * 2 + 1) return 'silo';
@@ -163,8 +167,35 @@
     for (let guard = 0; guard < 6; guard++) {
       const type = smart ? nextSmartBuild(state, mem) : nextPatrolBuild(state);
       if (!type) return;
+      if (type.startsWith('up:')) {
+        const t = type.slice(3), hq = R.hqCell(ME);
+        const b = R.buildingsOf(state, ME, t).filter(x => x.level < 2).sort((a, c) => R.dist(a.cell, hq) - R.dist(c.cell, hq))[0];
+        if (!b || state.sides[ME].credits < R.upgradeCost(t)) return; // save up for it
+        if (!R.upgrade(state, ME, b.cell).ok) return;
+        continue;
+      }
       if (state.sides[ME].credits < B[type].cost) return; // save up for it
       if (!tryBuild(state, type)) return;
+    }
+  }
+
+  // ── Upgrades: spend surplus credits ───────────────────────
+  const UPGRADE_PRIORITY = ['silo', 'aa', 'depot', 'gunpod', 'hangar', 'power', 'shield', 'radar'];
+  function planUpgrades(state, smart) {
+    const s = state.sides[ME];
+    const reserve = smart ? 120 : 250;
+    for (let guard = 0; guard < 3; guard++) {
+      if (!smart && R.rand(state) < 0.5) return;
+      const cands = R.buildingsOf(state, ME).filter(b => !R.upgradeInfo(state, ME, b.cell).reason)
+        .filter(b => s.credits - R.upgradeCost(b.type) >= reserve);
+      if (!cands.length) return;
+      const hq = R.hqCell(ME);
+      cands.sort((a, b) => {
+        const pa = UPGRADE_PRIORITY.indexOf(a.type), pb = UPGRADE_PRIORITY.indexOf(b.type);
+        return pa - pb || R.dist(a.cell, hq) - R.dist(b.cell, hq);
+      });
+      const pick = smart ? cands[0] : cands[Math.floor(R.rand(state) * cands.length)];
+      if (!R.upgrade(state, ME, pick.cell).ok) return;
     }
   }
 
@@ -193,7 +224,7 @@
     let cover = 0;
     for (const t of targets) {
       // expected interceptions, not guaranteed ones
-      if (t.type === 'aa' && R.dist(t.cell, cell) <= B.aa.range) cover += B.aa.shots * B.aa.hitChance;
+      if (t.type === 'aa' && R.dist(t.cell, cell) <= (t.level > 1 ? 5 : B.aa.range)) cover += B.aa.shots * (t.level > 1 ? 0.85 : B.aa.hitChance);
       if (t.type === 'hq' && R.dist(t.cell, cell) <= B.hq.range) cover += B.hq.hitChance;
     }
     return cover;
@@ -314,6 +345,7 @@
     }
 
     planBuilds(state, mem, smart);
+    planUpgrades(state, smart);
   }
 
   const AI = { planTurn };

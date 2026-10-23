@@ -57,6 +57,21 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
 
+## Upgrades
+
+Select one of your structures and press `U` to upgrade it once. An upgrade costs 75% of the structure's price, adds 50% HP and can be undone in the same turn. Upgraded structures are drawn slightly larger, with a gold frame.
+
+| Structure | Upgrade | Effect |
+|---|---|---|
+| Missile Silo | Heavy Warheads | 60 damage + 20 splash |
+| AA Battery | Fire Control | 85% hit chance, radius 5 |
+| Supply Depot | Logistics Hub | +50 credits/turn |
+| Power Plant | Fusion Core | +11 energy/turn, +20 capacity |
+| Gun Pod | Rotary Cannons | 3 shots/turn |
+| Shield Generator | Hardened Field | Absorbs 90, regenerates 35 |
+| Robot Hangar | Heavy Mechs | Mechs get 75 HP and hit for 30 |
+| Radar | Phased Array | Scan radius 15 |
+
 ## Campaign
 
 Five missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
@@ -91,7 +106,7 @@ Five missions, each on a fixed island map against a named enemy commander. Each 
 | Left click | Place / target / select |
 | Right click, `Esc` | Cancel |
 | `Q` / `E` | Fire missile / drop mech |
-| `T` / `X` | Repair / sell the selected structure |
+| `T` / `U` / `X` | Repair / upgrade / sell the selected structure |
 | `Z` | Undo |
 | `Space` | End turn; during combat, skip the playback |
 | `Tab` | Playback speed 1x / 2x / 3x |

@@ -104,7 +104,7 @@ window.UI = (function () {
   .abtn .badge { position: absolute; top: 6px; right: 8px; font-size: 12px; color: var(--c-dim); }
 
   /* Side panels */
-  #orders { position: absolute; right: 12px; top: 74px; width: 250px; max-height: calc(100vh - 220px); display: flex; flex-direction: column; overflow: hidden; }
+  #orders { position: absolute; right: 12px; top: 74px; width: 250px; max-height: max(200px, calc(100vh - 480px)); display: flex; flex-direction: column; overflow: hidden; }
   .ph { padding: 8px 12px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-dim); border-bottom: 1px solid var(--c-line); display: flex; justify-content: space-between; align-items: center; }
   #orderlist { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
   .order { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.04); font-size: 14px; }
@@ -118,7 +118,7 @@ window.UI = (function () {
   #log .player { color: #8fdcff; } #log .enemy { color: #ff9a85; } #log .good { color: var(--c-credit); } #log .bad { color: var(--c-bad); } #log .sys { color: var(--c-warn); }
   #log .turn { color: var(--c-dim); letter-spacing: .12em; text-transform: uppercase; font-size: 11px; margin-top: 6px; border-top: 1px solid var(--c-line); padding-top: 4px; }
 
-  #selected { position: absolute; left: 12px; bottom: 128px; width: 280px; padding: 12px 14px; display: none; }
+  #selected { position: absolute; right: 12px; bottom: 128px; width: 250px; padding: 12px 14px; display: none; max-height: calc(100vh - 452px); overflow-y: auto; }
   #selected.show { display: block; }
   #selected h3 { margin: 0 0 2px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
   #selected .side { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
@@ -131,6 +131,7 @@ window.UI = (function () {
   .sbtn:hover { border-color: rgba(46,196,255,.6); }
   .sbtn.off { opacity: .4; pointer-events: none; }
   .sbtn .ico { width: 16px; height: 16px; }
+  .sbtn.up { border-color: rgba(255,200,60,.5); color: #ffe39a; }
 
   #objectives { position: absolute; left: 12px; top: 74px; width: 250px; padding: 8px 10px; }
   #objectives h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-warn); display: flex; justify-content: space-between; }
@@ -239,6 +240,7 @@ window.UI = (function () {
     .card { width: 70px; height: 78px; } .card .nm { font-size: 11px; } .abtn { min-width: 84px; height: 78px; }
     #orders { width: 220px; } #objectives { width: 230px; }
   }
+  @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: calc(100vh - 360px); } }
   @media (max-height: 700px) { #orders { display: none; } }
   `;
 
@@ -381,6 +383,8 @@ window.UI = (function () {
       </ol>
       <h4>Defenses</h4>
       <p>Every Command Center has a point-defense gun that hits 40% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit 70%; if one misses, another battery in range gets a shot. One missile at a time rarely gets through — <b>fire several in the same turn</b> to overwhelm the defenses.</p>
+      <h4>Upgrades</h4>
+      <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
       <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
       <h4>Structures</h4>
@@ -389,7 +393,7 @@ window.UI = (function () {
       <div class="keys">
         <div><kbd>1</kbd>–<kbd>9</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
         <div><kbd>Q</kbd> fire missile</div><div><kbd>E</kbd> drop mech</div>
-        <div><kbd>T</kbd> repair selected &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
+        <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
         <div><kbd>Esc</kbd> cancel</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
@@ -492,17 +496,25 @@ window.UI = (function () {
       btns = `<div class="btns">
         <button class="sbtn ${info.repair.reason ? 'off' : ''}" id="s-rep" title="${esc(info.repair.reason || '')}">${icon('repair')} Repair ${info.repair.reason ? '' : '+' + info.repair.amount + ' (' + info.repair.cost + 'c)'} <kbd>T</kbd></button>
         <button class="sbtn" id="s-sell">${icon('sell')} Sell +${info.sellValue} <kbd>X</kbd></button></div>`;
-    } else if (info.own) {
+    }
+    const up = info.own && info.upgrade && UPGRADES[info.type] && info.upgrade.reason !== 'Already upgraded' ? info.upgrade : null;
+    if (up) {
+      const u = UPGRADES[info.type];
+      btns += `<div class="btns"><button class="sbtn up ${up.reason ? 'off' : ''}" id="s-up" title="${esc(u.desc + (up.reason ? ' — ' + up.reason : ''))}">★ ${esc(u.name)} (${up.cost}c) <kbd>U</kbd></button></div>
+        <div style="font-size:12px;color:var(--c-dim);margin-top:4px">Upgrade: ${esc(u.desc)}, +50% HP</div>`;
+    }
+    if (info.own && info.type === 'hq') {
       btns = `<div class="btns"><button class="sbtn ${info.repair.reason ? 'off' : ''}" id="s-rep" title="${esc(info.repair.reason || '')}">${icon('repair')} Repair ${info.repair.reason ? '— ' + esc(info.repair.reason) : '+' + info.repair.amount + ' (' + info.repair.cost + 'c)'} <kbd>T</kbd></button></div>`;
     }
     p.innerHTML = `<div class="side" style="color:${info.own ? 'var(--c-player)' : 'var(--c-ai)'}">${info.own ? 'Your structure' : (info.ghost ? 'Enemy — last known' : 'Enemy structure')}</div>
-      <h3>${icon(info.type)} ${esc(info.name)}</h3>
+      <h3>${icon(info.type)} ${esc(info.name)}${info.level > 1 ? ' <span style="color:#ffc83c;font-size:14px">★ II</span>' : ''}</h3>
       <div class="hpb"><i style="width:${frac * 100}%;background:${col}"></i></div>
       <div class="mono" style="font-size:13px;color:var(--c-dim)">HP ${info.hp} / ${info.maxHp}${info.extra ? ' &middot; ' + esc(info.extra) : ''}</div>
       <div class="desc">${esc(info.desc)}</div>
       <ul>${info.stats.map(s => '<li>' + esc(s) + '</li>').join('')}</ul>${btns}`;
     p.classList.add('show');
-    const rep = $('s-rep'), sell = $('s-sell');
+    const rep = $('s-rep'), sell = $('s-sell'), upb = $('s-up');
+    if (upb) upb.addEventListener('click', () => H.onAction('upgrade'));
     if (rep) rep.addEventListener('click', () => H.onAction('repair'));
     if (sell) sell.addEventListener('click', () => H.onAction('sell'));
   }
