@@ -332,8 +332,9 @@ window.Renderer = (function () {
   // Team-coloured ground marking under each structure (readable from far away)
   const footMats = {};
   let footGeo = null;
-  function footprint(side) {
-    if (!footMats[side]) {
+  function footprint(side, upgraded) {
+    const key = side + (upgraded ? '_up' : '');
+    if (!footMats[key]) {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 128;
       const g = cv.getContext('2d');
@@ -345,10 +346,12 @@ window.Renderer = (function () {
       g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
       g.strokeStyle = 'rgba(' + col + ',0.95)'; g.lineWidth = 5;
       g.strokeRect(8, 8, 112, 112);
-      footMats[side] = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      if (upgraded) { g.strokeStyle = 'rgba(255,200,60,1)'; g.lineWidth = 4; g.strokeRect(18, 18, 92, 92); }
+      footMats[key] = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
       footGeo = footGeo || new THREE.PlaneGeometry(CELL * 0.98, CELL * 0.98).rotateX(-Math.PI / 2);
     }
-    const m = new THREE.Mesh(footGeo, footMats[side]);
+    const m = new THREE.Mesh(footGeo, footMats[key]);
+    m.name = 'footprint';
     m.position.y = 0.12;
     m.renderOrder = 5;
     return m;
@@ -737,7 +740,7 @@ window.Renderer = (function () {
     // face the enemy
     g.rotation.y = b.side === CONST.SIDE_PLAYER ? Math.PI / 2 : -Math.PI / 2;
     scene.add(g);
-    g.add(footprint(b.side));
+    g.add(footprint(b.side, b.level > 1));
     const height = g.userData.height || 8;
     const bar = makeHpBar(b.type === 'hq' ? 12 : 8);
     bar.position.set(p.x, height + 3, p.z);
@@ -754,8 +757,26 @@ window.Renderer = (function () {
     }
     buildings[b.id] = rec;
     setBuildingHp(b.id, b.hp, b.maxHp);
+    rec.level = 1;
+    if (b.level > 1 && b.type !== 'decoy') setBuildingLevel(b.id, b.level);
     if (rise) g.scale.y = 0.01;
     return rec;
+  }
+
+  // Upgraded structures are a little larger and get a gold ground frame
+  function setBuildingLevel(id, level) {
+    const rec = buildings[id];
+    if (!rec || rec.level === level) return;
+    rec.level = level;
+    const s = level > 1 ? 1.14 : 1;
+    rec.group.scale.x = rec.group.scale.z = s;
+    if (rec.rise >= 1 && rec.collapse < 0) rec.group.scale.y = s;
+    rec.baseScale = s;
+    const old = rec.group.getObjectByName('footprint');
+    if (old) rec.group.remove(old);
+    const f = footprint(rec.b.side, level > 1);
+    f.scale.setScalar(1 / s);
+    rec.group.add(f);
   }
 
   function setBuildingHp(id, hp, maxHp) {
@@ -1158,7 +1179,7 @@ window.Renderer = (function () {
       if (rec.rise < 1) {
         rec.rise = Math.min(1, rec.rise + dt / 0.55);
         const t = rec.rise, c1 = 1.70158, c3 = c1 + 1;
-        g.scale.y = Math.max(0.01, 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2));
+        g.scale.y = Math.max(0.01, 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)) * (rec.baseScale || 1);
       }
       if (rec.collapse >= 0) {
         rec.collapse += dt / 0.8;
@@ -1220,7 +1241,7 @@ window.Renderer = (function () {
   }
 
   return {
-    init, render, reset, cycleQuality, setOcclusion, setMap, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,

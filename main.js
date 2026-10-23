@@ -197,6 +197,7 @@
         if (!rec) rec = Renderer.addBuilding(b, !instant && b.side === P && playerSees(c));
         else Renderer.setBuildingHp(b.id, b.hp, b.maxHp);
         if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
+        if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
         Renderer.setBuildingVisible(b.id, playerSees(c));
       }
       Renderer.setCrater(c, state.cells[c].crater > 0 && !state.cells[c].building);
@@ -313,6 +314,8 @@
       const def = BUILDINGS[a.type];
       const info = { type: a.type, name: def.name, own, hp: a.hp, maxHp: a.maxHp, desc: def.desc, stats: def.stats(), ghost: false };
       if (own && b.type === 'decoy') info.extra = 'Disguised as ' + BUILDINGS[b.disguise].name;
+      if ((a.level || 1) > 1 && UPGRADES[a.type]) { info.level = 2; info.stats = info.stats.concat(['Level II — ' + UPGRADES[a.type].name + ': ' + UPGRADES[a.type].desc]); }
+      if (own) info.upgrade = R.upgradeInfo(state, P, c);
       if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + BUILDINGS.shield.pool;
       if (b.type === 'aa' || b.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + b.shots;
       if (own) {
@@ -552,6 +555,18 @@
         if (mode === 'drop') UI.toast('Click an enemy cell to drop a mech', 'warn');
         break;
       }
+      case 'upgrade': {
+        if (selectedCell < 0) return fail('Select one of your structures first');
+        const r = R.upgrade(state, P, selectedCell);
+        if (!r.ok) return fail(r.reason);
+        SND.play('build', { pan: panAt(selectedCell) });
+        Renderer.setBuildingLevel(r.building.id, 2);
+        Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
+        Fx.heal(Renderer.cellCenter(selectedCell));
+        floatAt(selectedCell, r.name + '!', 'info');
+        UI.log('Upgraded ' + BUILDINGS[r.building.type].name + ' at ' + cellName(selectedCell) + ': ' + r.name, 'player');
+        break;
+      }
       case 'repair': {
         if (selectedCell < 0) return fail('Select one of your structures first');
         const r = R.repair(state, P, selectedCell);
@@ -579,7 +594,8 @@
         if (!r.ok) return fail(r.reason);
         SND.play('uiClick');
         if (r.kind === 'build') { Renderer.removeBuilding(r.building.id, true); if (r.building.type === 'radar') syncWorld(false); }
-        if (r.kind === 'repair') Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
+        if (r.kind === 'repair' || r.kind === 'upgrade') Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
+        if (r.kind === 'upgrade') Renderer.setBuildingLevel(r.building.id, 1);
         if (r.kind === 'sell') { Renderer.addBuilding(r.building, true); if (r.building.type === 'radar') syncWorld(false); }
         UI.toast('Undone', 'good');
         break;
@@ -592,6 +608,7 @@
       case 'end': endTurn(); return;
     }
     refreshAll();
+    cellTooltip();
   }
 
   function onKey(e) {
@@ -622,6 +639,7 @@
       case 'KeyQ': action('fire'); break;
       case 'KeyE': action('drop'); break;
       case 'KeyT': action('repair'); break;
+      case 'KeyU': action('upgrade'); break;
       case 'KeyX': case 'Delete': action('sell'); break;
       case 'KeyZ': case 'Backspace': e.preventDefault(); action('undo'); break;
       case 'Escape': cancelMode(); break;

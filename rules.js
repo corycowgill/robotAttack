@@ -11,6 +11,16 @@
 
   const C = (typeof CONST !== 'undefined') ? CONST : require('./config.js').CONST;
   const B = (typeof BUILDINGS !== 'undefined') ? BUILDINGS : require('./config.js').BUILDINGS;
+  const UP = (typeof UPGRADES !== 'undefined') ? UPGRADES : require('./config.js').UPGRADES;
+  const UP_COST = (typeof UPGRADE_COST !== 'undefined') ? UPGRADE_COST : require('./config.js').UPGRADE_COST;
+  const UP_HP = (typeof UPGRADE_HP !== 'undefined') ? UPGRADE_HP : require('./config.js').UPGRADE_HP;
+
+  // A structure's stat, honouring its upgrade level
+  function stat(b, key) {
+    const u = b.level > 1 && UP[b.type];
+    return u && u[key] !== undefined ? u[key] : B[b.type][key];
+  }
+  function upgradeCost(type) { return UP[type] ? Math.round(B[type].cost * UP_COST / 10) * 10 : 0; }
 
   const W = C.GRID_W, H = C.GRID_H, N = W * H;
   const P = C.SIDE_PLAYER, A = C.SIDE_AI;
@@ -209,7 +219,7 @@
     const b = {
       id: state.nextId++, type, side, cell,
       hp: def.hp, maxHp: def.hp,
-      shots: 0, pool: def.pool || 0,
+      shots: 0, pool: def.pool || 0, level: 1,
       fired: false, deployed: false, repaired: 0,
       dead: false, builtTurn: state.turn
     };
@@ -245,21 +255,21 @@
   function income(state, side) {
     let credits = C.BASE_CREDITS, energy = C.BASE_ENERGY;
     for (const b of buildingsOf(state, side)) {
-      if (b.type === 'depot') credits += B.depot.credits;
-      if (b.type === 'power') energy += B.power.energy;
+      if (b.type === 'depot') credits += stat(b, 'credits');
+      if (b.type === 'power') energy += stat(b, 'energy');
     }
     const m = incomeMul(state, side);
     return { credits: Math.round(credits * m), energy: Math.round(energy * m) };
   }
   function energyCap(state, side) {
-    return C.ENERGY_CAP_BASE + buildingsOf(state, side, 'power').length * B.power.cap;
+    return C.ENERGY_CAP_BASE + buildingsOf(state, side, 'power').reduce((t, b) => t + stat(b, 'cap'), 0);
   }
 
   // What an enemy observer sees: decoys pose as their disguise, HP scaled to match
   function apparent(b) {
-    if (!b.disguise) return { type: b.type, hp: b.hp, maxHp: b.maxHp };
+    if (!b.disguise) return { type: b.type, hp: b.hp, maxHp: b.maxHp, level: b.level };
     const maxHp = B[b.disguise].hp;
-    return { type: b.disguise, hp: Math.max(1, Math.round(b.hp / b.maxHp * maxHp)), maxHp };
+    return { type: b.disguise, hp: Math.max(1, Math.round(b.hp / b.maxHp * maxHp)), maxHp, level: 1 };
   }
 
   // ── Vision ───────────────────────────────────────────────
@@ -277,7 +287,7 @@
       return out;
     }
     for (const r of onlineRadars(state, side)) {
-      for (const c of cellsInRadius(r.cell, B.radar.range)) if (ownerOfCell(c) === foe) out.add(c);
+      for (const c of cellsInRadius(r.cell, stat(r, 'range'))) if (ownerOfCell(c) === foe) out.add(c);
     }
     for (const c of state.sides[side].intel.reveal) out.add(c);
     // Enemy HQ position is always known
@@ -294,7 +304,7 @@
     const vis = visibleEnemyCells(state, side);
     vis.forEach(c => {
       const b = buildingAt(state, c);
-      if (b) { const a = apparent(b); seen[c] = { type: a.type, hp: a.hp, maxHp: a.maxHp, turn: state.turn }; }
+      if (b) { const a = apparent(b); seen[c] = { type: a.type, hp: a.hp, maxHp: a.maxHp, level: a.level, turn: state.turn }; }
       else delete seen[c];
     });
     return vis;
@@ -307,7 +317,7 @@
     return state.missiles.filter(m => {
       if (m.side === side) return false;
       if (dist(m.to, hq) <= C.INCOMING_HQ_RADIUS + 0.01) return true;
-      return radars.some(r => dist(r.cell, m.to) <= B.radar.range + 0.01);
+      return radars.some(r => dist(r.cell, m.to) <= stat(r, 'range') + 0.01);
     });
   }
 
@@ -374,7 +384,32 @@
     return { ok: true, amount: info.amount, cost: info.cost, building: b };
   }
 
-  function sellValue(b) { return Math.floor(B[b.type].cost * C.SELL_REFUND * (Math.max(0, b.hp - b.repaired) / b.maxHp)); }
+  function sellValue(b) {
+    const invested = B[b.type].cost + (b.level > 1 ? upgradeCost(b.type) : 0);
+    return Math.floor(invested * C.SELL_REFUND * (Math.max(0, b.hp - b.repaired) / b.maxHp));
+  }
+
+  function upgradeInfo(state, side, cell) {
+    const b = buildingAt(state, cell);
+    if (!b || b.side !== side) return { reason: 'Select one of your structures' };
+    if (!UP[b.type]) return { reason: B[b.type].name + ' cannot be upgraded' };
+    if (b.level > 1) return { reason: 'Already upgraded' };
+    const cost = upgradeCost(b.type);
+    if (state.sides[side].credits < cost) return { cost, reason: 'Need ' + cost + ' credits' };
+    return { cost, reason: null, name: UP[b.type].name, desc: UP[b.type].desc };
+  }
+
+  function upgrade(state, side, cell) {
+    const info = upgradeInfo(state, side, cell);
+    if (info.reason) return { ok: false, reason: info.reason };
+    const b = buildingAt(state, cell), s = state.sides[side];
+    const extra = Math.round(b.maxHp * (UP_HP - 1));
+    s.credits -= info.cost;
+    b.level = 2; b.maxHp += extra; b.hp += extra;
+    if (b.type === 'aa' && !b.fired) b.shots = stat(b, 'shots');
+    s.undo.push({ kind: 'upgrade', id: b.id, cell, cost: info.cost, extra });
+    return { ok: true, building: b, cost: info.cost, name: info.name };
+  }
 
   function sell(state, side, cell) {
     const b = buildingAt(state, cell);
@@ -480,6 +515,13 @@
       s.stats.built--;
       return { ok: true, kind: 'build', building: b };
     }
+    if (u.kind === 'upgrade') {
+      b.level = 1; b.maxHp -= u.extra; b.hp = Math.min(b.maxHp, Math.max(1, b.hp - u.extra));
+      if (b.type === 'aa') b.shots = Math.min(b.shots, stat(b, 'shots'));
+      if (b.type === 'shield') b.pool = Math.min(b.pool, stat(b, 'pool'));
+      s.credits += u.cost;
+      return { ok: true, kind: 'upgrade', building: b };
+    }
     if (u.kind === 'repair') {
       b.hp -= u.amount;
       b.repaired -= u.amount;
@@ -496,7 +538,7 @@
       const b = state.cells[i].building;
       if (!b) continue;
       b.fired = false; b.deployed = false; b.repaired = 0;
-      if (b.type === 'aa') b.shots = B.aa.shots;
+      if (b.type === 'aa') b.shots = stat(b, 'shots');
       if (b.type === 'hq') b.shots = 1;
     }
     for (const r of state.robots) r.fresh = false;
@@ -512,7 +554,7 @@
       const c = state.cells[i];
       if (c.crater > 0) c.crater--;
       const b = c.building;
-      if (b && b.type === 'shield') b.pool = Math.min(B.shield.pool, b.pool + B.shield.regen);
+      if (b && b.type === 'shield') b.pool = Math.min(stat(b, 'pool'), b.pool + stat(b, 'regen'));
     }
     refreshTurnState(state);
     for (const side of [P, A]) {
@@ -614,7 +656,7 @@
       const ms = incoming.filter(m => ownerOfCell(m.to) === def)
         .sort((a, b) => targetValue(state, b.to) - targetValue(state, a.to) || a.id - b.id);
       const batteries = buildingsOf(state, def).filter(b => b.type === 'aa' || b.type === 'hq');
-      const covers = (bat, m) => dist(bat.cell, m.to) <= (bat.type === 'aa' ? B.aa.range : B.hq.range) + 0.01;
+      const covers = (bat, m) => dist(bat.cell, m.to) <= stat(bat, 'range') + 0.01;
       for (let mi = 0; mi < ms.length; mi++) {
         const m = ms[mi];
         // Prefer the battery that covers the fewest remaining missiles, so
@@ -633,7 +675,7 @@
         while (best) {
           best.shots--;
           tried.add(best);
-          const hit = rand(state) < B[best.type].hitChance;
+          const hit = rand(state) < stat(best, 'hitChance');
           shots.push({ by: best.cell, hit });
           if (hit) { m.interceptedBy = best.cell; sideOf(def).stats.intercepts++; break; }
           best = null; bd = Infinity;
@@ -654,10 +696,10 @@
       sideOf(atk).stats.missilesHit++;
       const hits = [];
       const direct = buildingAt(state, m.to);
-      if (direct) hits.push(damageBuilding(state, direct, C.MISSILE_DAMAGE, atk, events));
+      if (direct) hits.push(damageBuilding(state, direct, m.dmg || C.MISSILE_DAMAGE, atk, events));
       for (const n of neighbors(m.to, 1)) {
         const b = buildingAt(state, n);
-        if (b && b.side !== atk) hits.push(damageBuilding(state, b, C.MISSILE_SPLASH, atk, events));
+        if (b && b.side !== atk) hits.push(damageBuilding(state, b, m.splash || C.MISSILE_SPLASH, atk, events));
       }
       state.cells[m.to].scorch = 1;
       // Impact reveals the area for the attacker next planning phase
@@ -670,7 +712,7 @@
     for (const side of [P, A]) {
       // Gun Pods, plus the Command Center's own close-defense gun
       for (const g of buildingsOf(state, side).filter(b => b.type === 'gunpod' || b.type === 'hq')) {
-        const gun = g.type === 'hq' ? B.hq.gun : B.gunpod;
+        const gun = g.type === 'hq' ? B.hq.gun : { shots: stat(g, 'shots'), damage: B.gunpod.damage, range: B.gunpod.range };
         const shots = [];
         for (let s = 0; s < gun.shots; s++) {
           let tgt = null;
@@ -705,7 +747,7 @@
         if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp < adj.hp)) adj = b;
       }
       if (adj) {
-        const hit = damageBuilding(state, adj, C.ROBOT_DAMAGE, r.side, events);
+        const hit = damageBuilding(state, adj, r.dmg || C.ROBOT_DAMAGE, r.side, events);
         ev(BEAT.ROBOTS, { type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
         continue;
       }
@@ -745,7 +787,8 @@
           cell = best;
         }
         if (cell < 0) { ev(BEAT.DROPS, { type: 'cancelled', kind: 'drop', side, from: o.from }); continue; }
-        const robot = { id: state.nextId++, side, cell, hp: C.ROBOT_HP, maxHp: C.ROBOT_HP, fresh: true };
+        const mhp = hangar.level > 1 ? UP.hangar.mechHp : C.ROBOT_HP;
+        const robot = { id: state.nextId++, side, cell, hp: mhp, maxHp: mhp, dmg: hangar.level > 1 ? UP.hangar.mechDmg : C.ROBOT_DAMAGE, heavy: hangar.level > 1, fresh: true };
         state.robots.push(robot);
         sideOf(side).stats.robotsDeployed++;
         ev(BEAT.DROPS, { type: 'drop', side, from: o.from, to: cell, aimed: o.to, robot: Object.assign({}, robot) });
@@ -758,7 +801,7 @@
         const silo = buildingAt(state, o.from);
         if (!silo) { ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'missile', side, from: o.from }); continue; }
         silo.fired = true;
-        const m = { id: state.nextId++, side, from: o.from, to: o.to };
+        const m = { id: state.nextId++, side, from: o.from, to: o.to, dmg: stat(silo, 'dmg') || C.MISSILE_DAMAGE, splash: stat(silo, 'splash') || C.MISSILE_SPLASH };
         state.missiles.push(m);
         sideOf(side).stats.missilesFired++;
         ev(BEAT.LAUNCH, { type: 'launch', id: m.id, side, from: o.from, to: o.to });
@@ -821,7 +864,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, generateIslands, isLand, apparent, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, dropReason, queueDrop, cancelOrder, undo,

@@ -128,6 +128,20 @@ const BUILDINGS = {
 
 const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy'];
 
+// One upgrade level per structure (Metal Marines style). Values replace the base stats.
+const UPGRADES = {
+  silo:   { name: 'Heavy Warheads',  desc: 'Missiles deal 60 damage + 20 splash', dmg: 60, splash: 20 },
+  aa:     { name: 'Fire Control',    desc: '85% hit chance, radius 5', hitChance: 0.85, range: 5 },
+  depot:  { name: 'Logistics Hub',   desc: '+50 credits per turn', credits: 50 },
+  power:  { name: 'Fusion Core',     desc: '+11 energy per turn, +20 capacity', energy: 11, cap: 20 },
+  gunpod: { name: 'Rotary Cannons',  desc: '3 shots per turn', shots: 3 },
+  shield: { name: 'Hardened Field',  desc: 'Dome absorbs 90, regenerates 35', pool: 90, regen: 35 },
+  hangar: { name: 'Heavy Mechs',     desc: 'Mechs get 75 HP and hit for 30', mechHp: 75, mechDmg: 30 },
+  radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 }
+};
+const UPGRADE_COST = 0.75;    // fraction of the structure's price
+const UPGRADE_HP = 1.5;       // max HP multiplier
+
 // ── Campaign ────────────────────────────────────────────────
 // Positions in `start` are relative to that side's HQ (dx points toward the enemy).
 const COMMANDERS = {
@@ -174,10 +188,10 @@ const CAMPAIGN = [
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. The war is over, Commander. Outstanding.',
-    credits: { player: 420 },
+    credits: { player: 360 },
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }, { type: 'aa', dx: 1, dy: 2 }, { type: 'power', dx: 2, dy: 2 }], ai: [{ type: 'aa', dx: 2, dy: 1 }, { type: 'decoy', dx: 5, dy: -3 }, { type: 'decoy', dx: 5, dy: 3 }] }
   }
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, COMMANDERS, CAMPAIGN };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN };
