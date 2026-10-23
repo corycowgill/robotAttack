@@ -893,19 +893,46 @@ window.Renderer = (function () {
     const p = cellCenter(cell);
     focus(p.x, p.z + 8, dist, force);
   }
-  // Fit the labelled map between the screen-space areas covered by side panels
-  let occl = { left: 0, right: 0 };
-  function setOcclusion(left, right) { occl = { left: left || 0, right: right || 0 }; }
+  // Fit the labelled map into the screen area not covered by UI panels, by
+  // projecting its corners from candidate camera positions (exact under perspective).
+  let occl = { left: 0, right: 0, top: 0, bottom: 0 };
+  function setOcclusion(left, right, top, bottom) { occl = { left: left || 0, right: right || 0, top: top || 0, bottom: bottom || 0 }; }
+  const fitCam = new THREE.PerspectiveCamera();
+  const corners = [[-CELL, -CELL], [MAP_W + CELL, -CELL], [-CELL, MAP_H + CELL], [MAP_W + CELL, MAP_H + CELL]].map(c => new THREE.Vector3(c[0], 0, c[1]));
+  function screenBox(gx, gz, d) {
+    fitCam.copy(camera);
+    fitCam.position.set(gx, Math.sin(cam.pitch) * d, gz + Math.cos(cam.pitch) * d);
+    fitCam.lookAt(gx, 0, gz);
+    fitCam.updateMatrixWorld(true);
+    const W = window.innerWidth, H = window.innerHeight, v = new THREE.Vector3();
+    const box = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+    for (const c of corners) {
+      v.copy(c).project(fitCam);
+      const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
+      box.x0 = Math.min(box.x0, x); box.x1 = Math.max(box.x1, x);
+      box.y0 = Math.min(box.y0, y); box.y1 = Math.max(box.y1, y);
+    }
+    return box;
+  }
   function frameAll(instant) {
-    const W = window.innerWidth;
-    const free = Math.max(W * 0.45, W - occl.left - occl.right - 24);
-    const aspect = W / window.innerHeight;
-    const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect;
-    const visW = (MAP_W + CELL * 2.5) * W / free;          // world width the screen must show
-    const d = Math.max(280, Math.min(760, visW / (2 * tanH) * 0.92));
-    const worldPerPx = (2 * tanH * d) / W;
-    cam.gx = MAP_W / 2 - (occl.left - occl.right) / 2 * worldPerPx;
-    cam.gz = MAP_H / 2 + 18; cam.gdist = d;
+    const W = window.innerWidth, H = window.innerHeight, pad = 10;
+    const ax0 = occl.left + pad, ax1 = W - occl.right - pad, ay0 = occl.top + pad, ay1 = H - occl.bottom - pad;
+    let gx = MAP_W / 2, gz = MAP_H / 2, d = 400;
+    for (let iter = 0; iter < 3; iter++) {
+      // closest distance at which the map fits the free area
+      let lo = 150, hi = 1400;
+      for (let k = 0; k < 24; k++) {
+        const mid = (lo + hi) / 2, bx = screenBox(gx, gz, mid);
+        if (bx.x1 - bx.x0 <= ax1 - ax0 && bx.y1 - bx.y0 <= ay1 - ay0) hi = mid; else lo = mid;
+      }
+      d = hi;
+      // centre the projected map in the free area
+      const bx = screenBox(gx, gz, d);
+      const worldPerPx = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * d) / H;
+      gx -= ((ax0 + ax1) / 2 - (bx.x0 + bx.x1) / 2) * worldPerPx;
+      gz -= ((ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2) * worldPerPx / Math.sin(cam.pitch);
+    }
+    cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(760, d);
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {
