@@ -384,6 +384,7 @@ window.Renderer = (function () {
   function setBuildGhost(type, cell, valid) {
     if (buildGhost && (buildGhost.userData.ghostType !== type || cell < 0)) {
       scene.remove(buildGhost);
+      Models.dispose(buildGhost);
       buildGhost = null;
     }
     if (!type || cell < 0) return;
@@ -643,10 +644,14 @@ window.Renderer = (function () {
       if (rec.dome) rec.dome.visible = false;
     }
   }
+  function disposeTree(obj) {
+    obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  }
   function disposeBuilding(rec) {
     scene.remove(rec.group);
     scene.remove(rec.bar);
-    if (rec.dome) scene.remove(rec.dome);
+    disposeTree(rec.bar);
+    if (rec.dome) { scene.remove(rec.dome); disposeTree(rec.dome); }
     Models.dispose(rec.group);
   }
 
@@ -703,6 +708,7 @@ window.Renderer = (function () {
     for (const cell in ghosts) {
       if (want[cell] !== ghosts[cell].userData.ghostType) {
         scene.remove(ghosts[cell]);
+        Models.dispose(ghosts[cell]);
         delete ghosts[cell];
       }
     }
@@ -774,6 +780,7 @@ window.Renderer = (function () {
     const rec = robots[id];
     if (!rec) return;
     scene.remove(rec.group); scene.remove(rec.bar);
+    disposeTree(rec.bar);
     Models.dispose(rec.group);
     delete robots[id];
   }
@@ -964,7 +971,7 @@ window.Renderer = (function () {
   function reset() {
     for (const id in buildings) { disposeBuilding(buildings[id]); delete buildings[id]; }
     for (const id in robots) removeRobot(id);
-    for (const c in ghosts) { scene.remove(ghosts[c]); delete ghosts[c]; }
+    for (const c in ghosts) { scene.remove(ghosts[c]); Models.dispose(ghosts[c]); delete ghosts[c]; }
     for (const c in craters) { scene.remove(craters[c]); delete craters[c]; }
     clearMarkers();
     hideRange();

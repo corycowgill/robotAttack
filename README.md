@@ -40,7 +40,7 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 | — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense intercept within radius 2 |
 | 1 | Supply Depot | 100 | 40 | +30 credits per turn |
 | 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
-| 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 5 |
+| 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 9; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 35 damage + 12 splash; maximum 5 |
 | 5 | AA Battery | 110 | 45 | Intercepts 1 incoming missile per turn aimed within radius 4 |
 | 6 | Shield Generator | 120 | 35 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
@@ -48,7 +48,7 @@ Three.js and the fonts load from CDNs, so the game needs an internet connection.
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
-- **Sell:** refunds 50% of the cost, scaled by remaining HP.
+- **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count).
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
 
 ## Opponents

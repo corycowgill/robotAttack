@@ -166,6 +166,11 @@
   }
 
   // ── Vision ───────────────────────────────────────────────
+  // Radars come online the turn after construction (no build-peek-undo)
+  function onlineRadars(state, side) {
+    return buildingsOf(state, side, 'radar').filter(r => r.builtTurn < state.turn);
+  }
+
   // Returns a Set of enemy-owned cells that `side` can currently see.
   function visibleEnemyCells(state, side) {
     const out = new Set();
@@ -174,7 +179,7 @@
       for (let i = 0; i < N; i++) if (ownerOfCell(i) === foe) out.add(i);
       return out;
     }
-    for (const r of buildingsOf(state, side, 'radar')) {
+    for (const r of onlineRadars(state, side)) {
       for (const c of cellsInRadius(r.cell, B.radar.range)) if (ownerOfCell(c) === foe) out.add(c);
     }
     for (const c of state.sides[side].intel.reveal) out.add(c);
@@ -200,7 +205,7 @@
 
   // Enemy missiles in flight that `side` can detect (target within radar range or near HQ)
   function detectedIncoming(state, side) {
-    const radars = buildingsOf(state, side, 'radar');
+    const radars = onlineRadars(state, side);
     const hq = hqCell(side);
     return state.missiles.filter(m => {
       if (m.side === side) return false;
@@ -271,7 +276,7 @@
     return { ok: true, amount: info.amount, cost: info.cost, building: b };
   }
 
-  function sellValue(b) { return Math.floor(B[b.type].cost * C.SELL_REFUND * (b.hp / b.maxHp)); }
+  function sellValue(b) { return Math.floor(B[b.type].cost * C.SELL_REFUND * (Math.max(0, b.hp - b.repaired) / b.maxHp)); }
 
   function sell(state, side, cell) {
     const b = buildingAt(state, cell);
@@ -498,13 +503,18 @@
       const ms = incoming.filter(m => ownerOfCell(m.to) === def)
         .sort((a, b) => targetValue(state, b.to) - targetValue(state, a.to) || a.id - b.id);
       const batteries = buildingsOf(state, def).filter(b => b.type === 'aa' || b.type === 'hq');
-      for (const m of ms) {
-        let best = null, bd = Infinity;
+      const covers = (bat, m) => dist(bat.cell, m.to) <= (bat.type === 'aa' ? B.aa.range : B.hq.range) + 0.01;
+      for (let mi = 0; mi < ms.length; mi++) {
+        const m = ms[mi];
+        // Prefer the battery that covers the fewest remaining missiles, so
+        // batteries with wide coverage stay free for missiles only they can reach
+        let best = null, bScore = Infinity, bd = Infinity;
         for (const bat of batteries) {
-          if (bat.shots <= 0) continue;
-          const range = bat.type === 'aa' ? B.aa.range : B.hq.range;
+          if (bat.shots <= 0 || !covers(bat, m)) continue;
+          let load = 0;
+          for (let mj = mi + 1; mj < ms.length; mj++) if (covers(bat, ms[mj])) load++;
           const d = dist(bat.cell, m.to);
-          if (d <= range + 0.01 && d < bd) { bd = d; best = bat; }
+          if (load < bScore || (load === bScore && d < bd)) { bScore = load; bd = d; best = bat; }
         }
         if (best) {
           best.shots--;
