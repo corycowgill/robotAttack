@@ -76,7 +76,7 @@
     UI.showMenu(false);
     UI.showGameUI(true);
     state = R.newGame(diff);
-    window.__game = { get state() { return state; }, get phase() { return phase; } }; // debug handle
+    window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
     UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
@@ -387,6 +387,7 @@
   }
 
   function onMouseUp(e) {
+    UI.hideReport();
     if (!mouse.down) return;
     mouse.down = false;
     const moved = Math.hypot(e.clientX - mouse.downX, e.clientY - mouse.downY) > 6;
@@ -519,6 +520,7 @@
   }
 
   function onKey(e) {
+    if (!/Tab|Shift|Control|Alt/.test(e.key)) reportTimer = Math.min(reportTimer, 0.01);
     if (e.repeat && e.code !== 'Tab') return;
     if (UI.isHelpOpen()) {
       if (e.code === 'Escape' || e.key === '?' || e.code === 'Slash') UI.showHelp(false);
