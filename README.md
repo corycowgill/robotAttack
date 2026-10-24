@@ -12,7 +12,7 @@ The game is static files with no build step.
 - **Local:** open `index.html` in a modern browser, or serve the folder (`python3 -m http.server`) and browse to it.
 - **Hosting:** put the folder on any static host.
 
-Three.js and the fonts load from CDNs, so the game needs an internet connection.
+Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come from a CDN, and the game falls back to system fonts without them. When the game is served over HTTPS, a service worker (`sw.js`) caches it on the first visit, and after that it plays offline, including from the home screen. It fetches its own files network-first, so updates show up as soon as you're online.
 
 **iPhone / phones:**
 - Landscape is best. In portrait the game asks you to rotate, but you can play anyway.
@@ -170,7 +170,7 @@ npm run test:e2e      # headless-browser smoke tests of real UI flows
 
 - `tests/rules.test.js`: island generation, build/upgrade/sell/undo, decoys, drops, missiles and AA, win conditions, determinism and save round trips.
 - `tests/sim.test.js`: AI-vs-AI games at every difficulty and on every campaign map must finish within the rules; the Commander mirror must stay roughly balanced.
-- `tests/e2e.test.js`: plays through skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Three.js is served from `node_modules`, so the tests need no internet access.
+- `tests/e2e.test.js`: plays through skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Everything is served locally, so the tests need no internet access.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request.
 
