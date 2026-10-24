@@ -219,6 +219,29 @@
     }
   }
 
+  // Orbital strikes are always detected: smart AIs throw a shield over the target and patch up
+  // whatever would not survive (HQ first). Returns true if it spent on a defense.
+  function planStrikeDefense(state) {
+    const s = state.sides[ME];
+    const strikes = state.missiles.filter(m => m.strike && m.side !== ME);
+    for (const m of strikes) {
+      const inBlast = R.buildingsOf(state, ME).filter(b => R.cheb(b.cell, m.to) <= 1);
+      if (!inBlast.length) continue;
+      const covered = R.buildingsOf(state, ME, 'shield').some(sh => R.cheb(sh.cell, m.to) <= B.shield.range && sh.pool >= 30);
+      if (!covered && s.credits >= B.shield.cost) {
+        // a shield cell whose dome covers the target, preferring one outside the blast
+        const spots = R.cellsInRadius(m.to, 1).concat([m.to]).filter(c => R.cheb(c, m.to) <= B.shield.range && !R.buildableReason(state, ME, 'shield', c));
+        spots.sort((a, b) => (a === m.to) - (b === m.to));
+        if (spots.length) R.build(state, ME, 'shield', spots[0]);
+      }
+      inBlast.sort((a, b) => (b.type === 'hq') - (a.type === 'hq') || (TARGET_SCORE[b.type] || 1) - (TARGET_SCORE[a.type] || 1));
+      for (const b of inBlast) {
+        const hit = b.cell === m.to ? C.STRIKE_DAMAGE : C.STRIKE_SPLASH;
+        if (b.hp <= hit && s.credits > 60) R.repair(state, ME, b.cell);
+      }
+    }
+  }
+
   // ── Offense ───────────────────────────────────────────────
   function knownTargets(state) {
     const seen = state.sides[ME].intel.seen;
@@ -374,6 +397,7 @@
     mem.missileDamageTaken = s.stats.damageTaken - mem.lastTaken;
     mem.lastTaken = s.stats.damageTaken;
 
+    if (smart) planStrikeDefense(state);
     planRepairs(state, diff);
     if (smart) planGarrison(state);
     planStrike(state, smart);

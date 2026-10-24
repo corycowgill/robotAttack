@@ -97,7 +97,7 @@ Seven missions, each on a fixed island map against a named enemy commander. Each
 
 **Medals:** each mission awards up to three stars:
 - one for winning;
-- one for winning within the mission's par turn count (12, 18, 14, 14, 15, 15 and 13 turns);
+- one for winning within the mission's par turn count (12, 18, 14, 14, 15, 17 and 15 turns);
 - one for finishing with your HQ above 50% health.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
@@ -125,6 +125,7 @@ The browser remembers your choices, and they also apply to Two Players.
   - Adapts its builds: AA when you shell it, Gun Pods when your mechs land.
   - Fires all its missiles at once to overwhelm your AA, picks off unprotected economy buildings, and repairs its HQ.
   - Builds a Strike Uplink mid-game where available and aims each strike at the 3×3 area that hurts you most.
+  - When your strike is inbound, it raises a Shield over the target and repairs whatever wouldn't survive.
 - **Warlord:**
   - Commander tactics plus full map vision and +25% income.
   - Repairs structures that your missiles are about to hit.
