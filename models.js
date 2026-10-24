@@ -11,9 +11,10 @@
 //   * Materials and geometries are cached and SHARED across all models.
 //   * Per-instance resources (pushed to group.userData._own) are:
 //       - building beacon material (clone of team trim, blinks per instance)
-//       - robot hull / paint / visor materials (clones, flashed on hit;
-//         listed in userData.flashMats, each has userData.baseEmissive /
-//         userData.baseIntensity to restore after a flash)
+//       - robot visor material (clone, flashed on hit; the renderer adds the
+//         mech's baked vertex-coloured armour material). Both are listed in
+//         userData.flashMats, each with userData.baseEmissive /
+//         userData.baseIntensity to restore after a flash
 //     Models.dispose(group) disposes ONLY those.
 // ============================================================
 (function () {
@@ -835,10 +836,11 @@
     var g = new THREE.Group();
     g.name = 'robot';
     var own = [];
-    var hull = MAT.robotHull().clone();
-    var pnt = paint(side).clone();
+    // hull and paint are shared: the renderer bakes them into a per-mech vertex-coloured material
+    var hull = MAT.robotHull();
+    var pnt = paint(side);
     var visor = trimHot(side).clone();
-    [hull, pnt, visor].forEach(function (m) {
+    [visor].forEach(function (m) {
       m.userData.baseEmissive = m.emissive.getHex();
       m.userData.baseIntensity = m.emissiveIntensity;
       own.push(m);
@@ -936,7 +938,7 @@
 
     g.userData = {
       type: 'robot', side: side, parts: parts, muzzle: mz, height: 9.2,
-      flashMats: [hull, pnt, visor], visorMat: visor, _own: own, _torsoY: TORSO_Y
+      flashMats: [visor], visorMat: visor, _own: own, _torsoY: TORSO_Y
     };
     return g;
   }

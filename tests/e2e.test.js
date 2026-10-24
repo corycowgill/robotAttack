@@ -113,12 +113,15 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
   assert.strictEqual(await page.evaluate(() => __game.state.winner), 'player');
   await page.waitForSelector('#go-next', { state: 'visible', timeout: 15000 });
+  assert.strictEqual(await page.locator('#go-medals .medal.on').count(), 3, 'quick win with a full-health HQ earns all medals');
+  await page.screenshot({ path: 'test-results/victory.png' }).catch(() => {});
   await page.click('#go-next');
   await page.waitForSelector('#briefing.show');
   await page.click('#br-back');
   await page.waitForFunction(() => __game.phase === 'menu');
   const open2 = await page.evaluate(() => [...document.querySelectorAll('.mission')].filter(m => !m.classList.contains('locked')).length);
   assert.strictEqual(open2, 2);
+  assert.strictEqual(await page.locator('.mission.done .star.on').count(), 3, 'medals shown on the mission card');
   assert.ok(!(await page.isVisible('#m-cont-wrap')), 'no Continue after a finished mission');
   assert.deepStrictEqual(errors, []);
 });

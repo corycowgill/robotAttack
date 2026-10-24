@@ -92,6 +92,13 @@ Five missions, each on a fixed island map against a named enemy commander. Each 
 | 4 | Fortress Isle | Capt. Vey (Commander) | Shielded fortress HQ; you get extra starting credits |
 | 5 | Black Tide | Overseer NYX (Warlord) | Full-vision AI with decoys |
 
+**Medals:** each mission awards up to three stars:
+- one for winning;
+- one for winning within the mission's par turn count (12, 18, 14, 14 and 15 turns);
+- one for finishing with your HQ above 50% health.
+
+Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
+
 **Skirmish** plays a random island map against any of the three opponents.
 
 ## Opponents

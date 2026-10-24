@@ -37,10 +37,10 @@
       onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut),
       onContinue: continueGame,
       onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial),
-      onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1]); },
-      onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1]); },
+      onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
+      onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
-      onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n); } },
+      onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n, bestMedals(n.id)); } },
       onMenu: toMenu,
       onLayout: () => { if (state && phase !== 'menu') frameView(false); },
       onBuildSelect: selectBuild,
@@ -91,9 +91,20 @@
   function campaignDone() {
     try { return Math.max(0, parseInt(localStorage.getItem('ra_campaign'), 10) || 0); } catch (e) { return 0; }
   }
+  // Best medals per mission: { [id]: [won, par, hq] }
+  function loadMedals() {
+    try { return JSON.parse(localStorage.getItem('ra_medals')) || {}; } catch (e) { return {}; }
+  }
+  function bestMedals(id) { return loadMedals()[id] || [false, false, false]; }
+  function recordMedals(id, got) {
+    const all = loadMedals(), prev = all[id] || [false, false, false];
+    all[id] = prev.map((v, i) => v || got[i]);
+    try { localStorage.setItem('ra_medals', JSON.stringify(all)); } catch (e) { /* ignore */ }
+    return got.some((v, i) => v && !prev[i]);
+  }
   function refreshCampaign() {
     const done = campaignDone();
-    UI.setCampaign(CAMPAIGN.map(m => ({ id: m.id, name: m.name, enemy: m.enemy, state: m.id <= done ? 'done' : m.id === done + 1 ? 'open' : 'locked' })));
+    UI.setCampaign(CAMPAIGN.map(m => ({ id: m.id, name: m.name, enemy: m.enemy, medals: bestMedals(m.id), state: m.id <= done ? 'done' : m.id === done + 1 ? 'open' : 'locked' })));
   }
   function startMission(id) {
     const m = CAMPAIGN[id - 1];
@@ -1181,6 +1192,8 @@
     if (mission && state.winner === P && campaignDone() < mission.id) {
       try { localStorage.setItem('ra_campaign', String(mission.id)); } catch (e) { /* ignore */ }
     }
+    const medals = mission ? R.missionMedals(state, mission, P) : null;
+    const newBest = medals ? recordMedals(mission.id, medals) : false;
     UI.setDock(false);
     SND.setMode('off');
     SND.setTension(false);
@@ -1198,6 +1211,7 @@
         reason: state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : CONST.DIFFICULTY[state.difficulty].name),
         next: !!(mission && w === P && CAMPAIGN[mission.id]),
         again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : 'Rematch',
+        medals: medals ? { got: medals, labels: UI.medalLabels(mission), newBest } : null,
         quote: mission ? (w === P ? { who: COMMANDERS.hale, text: mission.win } : { who: COMMANDERS[mission.enemy], text: w === A ? 'As expected. Go home, Commander.' : 'Stalemate... this time.' }) : null,
         rows: [
           ['Damage dealt', ps.damageDealt, as.damageDealt],

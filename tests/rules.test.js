@@ -219,3 +219,16 @@ test('turn resolution is deterministic and survives a save/load round trip', () 
   play(a); play(saved);
   assert.deepEqual(JSON.parse(JSON.stringify(saved)), JSON.parse(JSON.stringify(a)), 'a reloaded save continues identically');
 });
+
+test('campaign medals: win, par and HQ health', () => {
+  const m = CAMPAIGN[0];
+  const s = R.newGame(m.difficulty, 1, { mapSeed: m.mapSeed, landTarget: m.land, start: m.start, credits: m.credits });
+  const hq = R.buildingsOf(s, 'player', 'hq')[0];
+  assert.deepStrictEqual(R.missionMedals(s, m), [false, false, false]);
+  s.winner = 'player'; s.turn = m.par;
+  assert.deepStrictEqual(R.missionMedals(s, m), [true, true, true]);
+  s.turn = m.par + 1; hq.hp = Math.floor(hq.maxHp / 2) - 1;
+  assert.deepStrictEqual(R.missionMedals(s, m), [true, false, false]);
+  s.winner = 'ai';
+  assert.deepStrictEqual(R.missionMedals(s, m), [false, false, false]);
+});

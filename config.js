@@ -154,21 +154,21 @@ const COMMANDERS = {
 
 const CAMPAIGN = [
   {
-    id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140,
+    id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12,
     brief: 'Rusk holds a lightly defended sand island across the strait. Build an economy, get missiles in the air and knock out his Command Center.',
     taunt: 'A rookie? I will have you swimming home by sundown.',
     win: 'Clean work. Rusk is out of the fight — but word of you will travel.',
     start: { player: [], ai: [] }
   },
   {
-    id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125,
+    id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18,
     brief: 'Vey has dug in behind AA batteries and a gun pod. Saturate her air defense — fire several missiles in the same turn — or slip mechs past it.',
     taunt: 'My batteries have never let a missile through. Try your luck.',
     win: 'Her defenses cracked. Remember: volume beats precision against AA.',
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
   },
   {
-    id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120,
+    id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 14,
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
@@ -176,7 +176,7 @@ const CAMPAIGN = [
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'depot', dx: 2, dy: 2 }, { type: 'radar', dx: 4, dy: 0 }] }
   },
   {
-    id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110,
+    id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 14,
     brief: 'Vey is back with a fortress: shields, layered AA and gun pods around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
     win: 'The fortress fell. Only one enemy remains.',
@@ -184,7 +184,7 @@ const CAMPAIGN = [
     start: { player: [{ type: 'power', dx: 1, dy: 2 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 3, dy: 2 }, { type: 'gunpod', dx: 2, dy: 0 }, { type: 'depot', dx: 4, dy: -1 }] }
   },
   {
-    id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110,
+    id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 15,
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. The war is over, Commander. Outstanding.',
