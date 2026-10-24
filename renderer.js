@@ -676,58 +676,7 @@ window.Renderer = (function () {
     return dome;
   }
 
-  // Merge a building's static (non-animated, shared-material) meshes into one
-  // mesh per material to cut draw calls. Merged geometry is cached per type/side.
   const bakeCache = {};
-  function bakeStatic(g, key) {
-    g.updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
-    const skip = new Set();
-    const parts = g.userData.parts || {};
-    for (const k in parts) if (parts[k]) parts[k].traverse(o => skip.add(o));
-    if (g.userData.muzzle) g.userData.muzzle.traverse(o => skip.add(o));
-    const own = new Set(g.userData._own || []);
-    const byMat = new Map();
-    g.traverse(o => {
-      if (!o.isMesh || skip.has(o) || o.children.length || Array.isArray(o.material)) return;
-      if (own.has(o.material) || own.has(o.geometry) || o.material.transparent) return;
-      if (!byMat.has(o.material)) byMat.set(o.material, []);
-      byMat.get(o.material).push(o);
-    });
-    const cached = bakeCache[key] || (bakeCache[key] = []);
-    let i = 0;
-    byMat.forEach((meshes, mat) => {
-      if (meshes.length < 2) return;
-      let geo = cached[i];
-      if (!geo) {
-        const pos = [], nor = [], uv = [];
-        const m4 = new THREE.Matrix4();
-        for (const m of meshes) {
-          let gg = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
-          m4.multiplyMatrices(inv, m.matrixWorld);
-          gg.applyMatrix4(m4);
-          const n = gg.attributes.position.count;
-          pos.push(gg.attributes.position.array);
-          nor.push(gg.attributes.normal ? gg.attributes.normal.array : new Float32Array(n * 3));
-          uv.push(gg.attributes.uv ? gg.attributes.uv.array : new Float32Array(n * 2));
-          gg.dispose();
-        }
-        const cat = arrs => { const out = new Float32Array(arrs.reduce((t, a) => t + a.length, 0)); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
-        geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3));
-        geo.setAttribute('normal', new THREE.BufferAttribute(cat(nor), 3));
-        geo.setAttribute('uv', new THREE.BufferAttribute(cat(uv), 2));
-        geo.computeBoundingSphere();
-        cached[i] = geo;
-      }
-      i++;
-      let cast = false, receive = false;
-      for (const m of meshes) { cast = cast || m.castShadow; receive = receive || m.receiveShadow; m.parent.remove(m); }
-      const merged = new THREE.Mesh(geo, mat);
-      merged.castShadow = cast; merged.receiveShadow = receive;
-      g.add(merged);
-    });
-  }
 
   // Concatenate meshes (already transformed by `matrixOf(mesh)`) into one geometry
   function mergeGeometry(meshes, matrixOf) {
