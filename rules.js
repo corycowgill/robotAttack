@@ -255,7 +255,8 @@
       missiles: [],           // in flight, launched last turn
       sides: { player: newSide(P), ai: newSide(A) },
       locked: (opts.locked || []).slice(),  // structure types not available in this game
-      hotseat: !!opts.hotseat               // two humans: no AI income bonus
+      hotseat: !!opts.hotseat,              // two humans: no AI income bonus
+      maxTurns: opts.maxTurns || C.MAX_TURNS
     };
     state.mapSeed = (opts.mapSeed >>> 0) || ((state.rng * 7919 + 17) >>> 0);
     state.land = generateIslands(state.mapSeed, opts.landTarget || C.LAND_TARGET);
@@ -994,7 +995,7 @@
     if (pDead && aDead) { state.winner = 'draw'; state.endReason = 'Mutual destruction'; }
     else if (pDead) { state.winner = A; state.endReason = 'Your Command Center was destroyed'; }
     else if (aDead) { state.winner = P; state.endReason = 'Enemy Command Center destroyed'; }
-    else if (state.turn >= C.MAX_TURNS) {
+    else if (state.turn >= (state.maxTurns || C.MAX_TURNS)) {
       const ph = buildingsOf(state, P, 'hq')[0], ah = buildingsOf(state, A, 'hq')[0];
       const pp = ph.hp / ph.maxHp, ap = ah.hp / ah.maxHp;
       if (Math.abs(pp - ap) < 0.005) {

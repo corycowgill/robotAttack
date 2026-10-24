@@ -48,3 +48,12 @@ test('every campaign mission plays to completion', () => {
     }
   }
 });
+
+test('custom battle options play to completion', () => {
+  for (const [land, credits, turns] of [[95, 250, 20], [150, 600, 45]]) {
+    for (let g = 0; g < 8; g++) {
+      const s = R.newGame('commander', 700 + g, { landTarget: land, credits: { player: credits, ai: credits }, maxTurns: turns });
+      while (!s.winner) { AI.planTurn(s, 'player'); AI.planTurn(s, 'ai'); R.resolveTurn(s); assert.ok(s.turn <= turns + 1); }
+    }
+  }
+});

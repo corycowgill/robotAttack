@@ -42,11 +42,11 @@
     window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; } }; // debug handle
     Renderer.init();
     UI.init({
-      onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut),
-      onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true),
+      onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut, null, null, false, UI.getSkirmishOptions()),
+      onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true, UI.getSkirmishOptions()),
       onHandoffReady: () => { SND.play('uiClick'); const go = handoffNext; handoffNext = null; UI.hideHandoff(); if (go) go(); },
       onContinue: continueGame,
-      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat)),
+      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat), state && state.custom),
       onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
@@ -148,7 +148,25 @@
     startGame(s.state.difficulty, s.tutorial, s);
   }
 
-  function startGame(diff, tut, saved, mission, twoPlayer) {
+  // Battle options (SKIRMISH_OPTIONS values) -> newGame options
+  function customGameOpts(o) {
+    if (!o) return {};
+    return { landTarget: o.land, credits: { player: o.credits, ai: o.credits }, maxTurns: o.turns, locked: o.uplink ? [] : ['uplink'] };
+  }
+
+  // "Large islands · Rich start · no superweapon" — only the options that differ from the defaults
+  function customSummary(o) {
+    if (!o) return '';
+    const label = k => (SKIRMISH_OPTIONS[k].choices.find(c => c[0] === o[k]) || [])[1];
+    const parts = [];
+    if (o.land !== SKIRMISH_OPTIONS.land.def) parts.push(label('land') + ' islands');
+    if (o.credits !== SKIRMISH_OPTIONS.credits.def) parts.push(label('credits') + ' start');
+    if (o.turns !== SKIRMISH_OPTIONS.turns.def) parts.push(o.turns + ' turns');
+    if (!o.uplink) parts.push('no superweapon');
+    return parts.join(' · ');
+  }
+
+  function startGame(diff, tut, saved, mission, twoPlayer, custom) {
     SND.unlock();
     SND.play('uiClick');
     difficulty = diff;
@@ -165,7 +183,8 @@
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : { hotseat });
+    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : Object.assign(customGameOpts(custom), { hotseat }));
+    if (!saved && !mission && custom) state.custom = Object.assign({}, custom);   // kept for Rematch
     if (mission) state.mission = mission.id;
     Renderer.setMap(state.land);
     mode = 'select'; buildType = null; selectedCell = -1;
@@ -174,6 +193,7 @@
     if (saved) UI.log('Resumed operation — turn ' + state.turn + (hotseat ? ' · two players' : ' vs ' + (m ? COMMANDERS[m.enemy].name : CONST.DIFFICULTY[diff].name)), 'sys');
     else if (hotseat) {
       UI.log('Two-player battle. Player 1 is blue (left), Player 2 is red (right).', 'sys');
+      if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
       UI.log('Pass the device when prompted — the hand-off screen hides each base from the other player.', 'sys');
     }
     else if (m) {
@@ -181,6 +201,7 @@
       UI.log(COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', 'enemy');
     } else {
       UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
+      if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
       UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
     }
     beginPlanning(!saved);
@@ -317,7 +338,7 @@
       red: P === CONST.SIDE_AI,
       credits: s.credits, creditInc: inc.credits,
       energy: s.energy, energyCap: R.energyCap(state, P), energyInc: inc.energy,
-      turn: state.turn, maxTurns: CONST.MAX_TURNS, phase: phaseName,
+      turn: state.turn, maxTurns: state.maxTurns || CONST.MAX_TURNS, phase: phaseName,
       hq: { hp: hq ? hq.hp : 0, max: BUILDINGS.hq.hp }, enemyHq: enemyHqView()
     });
   }
