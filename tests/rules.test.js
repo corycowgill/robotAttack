@@ -342,3 +342,81 @@ test('robotIntent predicts what resolveTurn does with a mech', () => {
   s2.robots.push(g);
   assert.equal(R.robotIntent(s2, g).kind, 'hold');
 });
+
+test('analyst bug fixes: shield upgrade undo, decoy re-roll, sell refund, launcher refunds, drop scatter', () => {
+  // shield upgrade then undo does not refill the dome
+  const s = R.newGame('commander', 31);
+  rich(s, P);
+  const sc = buildable(s, P, 'shield');
+  R.build(s, P, 'shield', sc);
+  const sh = R.buildingAt(s, sc);
+  s.sides[P].undo = [];
+  sh.pool = 5;
+  assert.ok(R.upgrade(s, P, sc).ok);
+  assert.equal(sh.pool, 45);
+  assert.ok(R.undo(s, P).ok);
+  assert.equal(sh.pool, 5, 'pool back where it was');
+
+  // build / undo / build a decoy keeps the same disguise
+  const dc = buildable(s, P, 'decoy');
+  R.build(s, P, 'decoy', dc);
+  const first = R.buildingAt(s, dc).disguise;
+  for (let k = 0; k < 10; k++) {
+    R.undo(s, P);
+    R.build(s, P, 'decoy', dc);
+    assert.equal(R.buildingAt(s, dc).disguise, first);
+  }
+
+  // selling in the build turn refunds in full; later it's the usual 50%
+  const before = s.sides[P].credits;
+  const dep = buildable(s, P, 'depot');
+  R.build(s, P, 'depot', dep);
+  assert.equal(R.sell(s, P, dep).value, BUILDINGS.depot.cost);
+  assert.equal(s.sides[P].credits, before);
+  R.build(s, P, 'depot', dep);
+  s.turn++;
+  assert.equal(R.sell(s, P, dep).value, BUILDINGS.depot.cost / 2);
+
+  // a silo destroyed before it launches refunds the missile's energy
+  const s2 = R.newGame('commander', 32);
+  const silo = R.buildingsOf(s2, P, 'silo')[0];
+  s2.sides[P].energy = 20;
+  R.queueMissile(s2, P, R.hqCell(A));
+  silo.hp = 1; silo.dead = true;
+  const e0 = s2.sides[P].energy;
+  const ev = R.resolveTurn(s2);
+  assert.ok(ev.some(e => e.type === 'cancelled' && e.refund === CONST.MISSILE_ENERGY));
+  assert.ok(s2.sides[P].energy >= Math.min(R.energyCap(s2, P), e0 + CONST.MISSILE_ENERGY), 'energy refunded');
+
+  // scattered raid pods never land inside the enemy HQ's no-drop zone
+  for (let seed = 1; seed <= 30; seed++) {
+    const g = R.newGame('commander', seed);
+    rich(g, P);
+    R.build(g, P, 'hangar', buildable(g, P, 'hangar'));
+    for (const b of R.buildingsOf(g, P)) b.builtTurn = 0;
+    const ehq = R.hqCell(A);
+    const aim = R.cellsInRadius(ehq, 4).find(c => !R.dropReason(g, P, c) && R.cheb(c, ehq) === CONST.DROP_HQ_EXCLUSION + 1);
+    if (aim === undefined) continue;
+    R.queueDrop(g, P, aim);
+    rich(g, A);
+    R.build(g, A, 'depot', aim) || R.build(g, A, 'decoy', aim); // occupy the landing cell
+    const drop = R.resolveTurn(g).find(e => e.type === 'drop' && e.side === P);
+    if (drop) assert.ok(R.cheb(drop.to, ehq) > CONST.DROP_HQ_EXCLUSION, `seed ${seed}: landed ${drop.to}`);
+  }
+});
+
+test('supply depots get pricier the more you own; refunds use what was paid', () => {
+  const s = R.newGame('commander', 41);
+  rich(s, P);
+  const step = BUILDINGS.depot.costStep, c0 = s.sides[P].credits;
+  assert.equal(R.buildCost(s, P, 'depot'), BUILDINGS.depot.cost);
+  R.build(s, P, 'depot', buildable(s, P, 'depot'));
+  assert.equal(R.buildCost(s, P, 'depot'), BUILDINGS.depot.cost + step);
+  const second = buildable(s, P, 'depot');
+  R.build(s, P, 'depot', second);
+  assert.equal(s.sides[P].credits, c0 - (2 * BUILDINGS.depot.cost + step));
+  assert.equal(R.buildingAt(s, second).paid, BUILDINGS.depot.cost + step);
+  assert.ok(R.undo(s, P).ok);
+  assert.equal(s.sides[P].credits, c0 - BUILDINGS.depot.cost, 'undo refunds the escalated price');
+  assert.equal(R.buildCost(s, P, 'silo'), BUILDINGS.silo.cost, 'other structures are flat');
+});

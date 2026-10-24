@@ -125,7 +125,7 @@
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
     // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
     // opening beats a missiles-first one about 60/40)
-    const opening = ['depot', 'power', 'silo', 'aa', 'hangar', 'power', 'depot', 'radar'];
+    const opening = ['depot', 'depot', 'power', 'silo', 'aa', 'hangar', 'power', 'depot', 'radar'];
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
@@ -181,7 +181,7 @@
         if (!R.upgrade(state, ME, b.cell).ok) return;
         continue;
       }
-      if (state.sides[ME].credits < B[type].cost) return; // save up for it
+      if (state.sides[ME].credits < R.buildCost(state, ME, type)) return; // save up for it
       if (!tryBuild(state, type)) return;
     }
   }
@@ -396,8 +396,10 @@
     const s = state.sides[ME];
     state.aiMem = state.aiMem || {};
     const mem = state.aiMem[ME] || (state.aiMem[ME] = { lastTaken: 0, missileDamageTaken: 0 });
-    mem.missileDamageTaken = s.stats.damageTaken - mem.lastTaken;
-    mem.lastTaken = s.stats.damageTaken;
+    // only missile damage calls for AA (mech raids are answered by gun pods and garrisons)
+    const taken = s.stats.missileDamageTaken || 0;
+    mem.missileDamageTaken = taken - mem.lastTaken;
+    mem.lastTaken = taken;
 
     if (smart) planStrikeDefense(state);
     planRepairs(state, diff);

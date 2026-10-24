@@ -86,7 +86,7 @@
   function newStats() {
     return {
       damageDealt: 0, damageTaken: 0, built: 0, destroyed: 0, lost: 0,
-      missilesFired: 0, missilesHit: 0, intercepts: 0, strikes: 0,
+      missilesFired: 0, missilesHit: 0, intercepts: 0, strikes: 0, missileDamageTaken: 0,
       robotsDeployed: 0, robotsLost: 0, robotsKilled: 0
     };
   }
@@ -295,7 +295,12 @@
     if (type === 'aa') b.shots = def.shots;
     if (type === 'hq') b.shots = 1;
     if (type === 'uplink') b.charge = 0;
-    if (type === 'decoy') b.disguise = def.disguises[Math.floor(rand(state) * def.disguises.length)];
+    if (type === 'decoy') {
+      // pre-rolled per side and put back if the build is undone, so build / undo / build can't re-roll it
+      const sd = state.sides[side];
+      b.disguise = sd.nextDisguise || def.disguises[Math.floor(rand(state) * def.disguises.length)];
+      sd.nextDisguise = def.disguises[Math.floor(rand(state) * def.disguises.length)];
+    }
     state.cells[cell].building = b;
     return b;
   }
@@ -417,8 +422,16 @@
     const own = buildingsOf(state, side);
     if (!own.some(b => cheb(b.cell, cell) <= C.BUILD_RADIUS)) return 'Out of build range';
     if (def.max && buildingsOf(state, side, type).length >= def.max) return 'Max ' + def.max + ' ' + def.name + 's';
-    if (state.sides[side].credits < def.cost) return 'Need ' + def.cost + ' credits';
+    const cost = buildCost(state, side, type);
+    if (state.sides[side].credits < cost) return 'Need ' + cost + ' credits';
     return null;
+  }
+
+  // What the next structure of a type costs this side. Supply Depots get pricier the more you own,
+  // so an all-economy opening can't snowball unchecked.
+  function buildCost(state, side, type) {
+    const def = B[type];
+    return def.cost + (def.costStep ? def.costStep * buildingsOf(state, side, type).length : 0);
   }
 
   // Cheap check ignoring credits/max — for the build-zone overlay
@@ -433,9 +446,11 @@
     const reason = buildableReason(state, side, type, cell);
     if (reason) return { ok: false, reason };
     const s = state.sides[side];
-    s.credits -= B[type].cost;
+    const cost = buildCost(state, side, type);
+    s.credits -= cost;
     const b = placeBuilding(state, side, type, cell);
-    s.undo.push({ kind: 'build', id: b.id, cell, cost: B[type].cost });
+    b.paid = cost;
+    s.undo.push({ kind: 'build', id: b.id, cell, cost, disguise: b.disguise });
     s.stats.built++;
     return { ok: true, building: b };
   }
@@ -464,8 +479,9 @@
     return { ok: true, amount: info.amount, cost: info.cost, building: b };
   }
 
-  function sellValue(b) {
-    const invested = B[b.type].cost + (b.level > 1 ? upgradeCost(b.type) : 0);
+  function sellValue(b, state) {
+    const invested = (b.paid || B[b.type].cost) + (b.level > 1 ? upgradeCost(b.type) : 0);
+    if (state && b.builtTurn === state.turn) return invested; // changed your mind this turn: full refund
     return Math.floor(invested * C.SELL_REFUND * (Math.max(0, b.hp - b.repaired) / b.maxHp));
   }
 
@@ -489,7 +505,7 @@
     b.level = 2; b.maxHp += extra; b.hp += extra;
     if (b.type === 'shield') b.pool += stat(b, 'pool') - poolBefore;
     if (b.type === 'aa' && !b.fired) b.shots = stat(b, 'shots');
-    s.undo.push({ kind: 'upgrade', id: b.id, cell, cost: info.cost, extra });
+    s.undo.push({ kind: 'upgrade', id: b.id, cell, cost: info.cost, extra, poolBefore: b.type === 'shield' ? b.pool - (stat(b, 'pool') - poolBefore) : undefined });
     return { ok: true, building: b, cost: info.cost, name: info.name };
   }
 
@@ -498,7 +514,7 @@
     if (!b || b.side !== side) return { ok: false, reason: 'Nothing to sell' };
     if (b.type === 'hq') return { ok: false, reason: 'Cannot sell the Command Center' };
     if (state.sides[side].orders.some(o => o.from === cell)) return { ok: false, reason: 'Cancel its orders first' };
-    const value = sellValue(b);
+    const value = sellValue(b, state);
     state.cells[cell].building = null;
     state.sides[side].credits += value;
     // Selling replaces earlier undo entries for that building with a sell entry
@@ -634,6 +650,7 @@
     if (u.kind === 'build') {
       if (s.orders.some(o => o.from === u.cell)) return { ok: false, reason: 'Cancel its orders first' };
       state.cells[u.cell].building = null;
+      if (u.disguise) s.nextDisguise = u.disguise;
       s.credits += u.cost;
       s.stats.built--;
       return { ok: true, kind: 'build', building: b };
@@ -641,7 +658,7 @@
     if (u.kind === 'upgrade') {
       b.level = 1; b.maxHp -= u.extra; b.hp = Math.min(b.maxHp, Math.max(1, b.hp - u.extra));
       if (b.type === 'aa') b.shots = Math.min(b.shots, stat(b, 'shots'));
-      if (b.type === 'shield') b.pool = Math.min(b.pool, stat(b, 'pool'));
+      if (b.type === 'shield') b.pool = u.poolBefore !== undefined ? Math.min(u.poolBefore, b.pool) : Math.min(b.pool, stat(b, 'pool'));
       s.credits += u.cost;
       return { ok: true, kind: 'upgrade', building: b };
     }
@@ -874,6 +891,7 @@
         const b = buildingAt(state, n);
         if (b && b.side !== atk) hits.push(damageBuilding(state, b, m.splash || C.MISSILE_SPLASH, atk, events));
       }
+      if (!m.strike) { const def = sideOf(enemyOf(atk)).stats; def.missileDamageTaken = (def.missileDamageTaken || 0) + hits.reduce((t, h) => t + h.dmg, 0); }
       state.cells[m.to].scorch = 1;
       // Impact reveals the area for the attacker next planning phase
       const reveal = [m.to].concat(neighbors(m.to, C.IMPACT_REVEAL_RADIUS)).filter(c => ownerOfCell(c) === enemyOf(atk));
@@ -932,20 +950,23 @@
     for (const side of [P, A]) {
       for (const o of sideOf(side).orders.filter(o => o.kind === 'drop')) {
         const hangar = buildingAt(state, o.from);
-        if (!hangar) { ev(BEAT.DROPS, { type: 'cancelled', kind: 'drop', side, from: o.from }); continue; }
+        if (!hangar) { sideOf(side).energy += o.cost; ev(BEAT.DROPS, { type: 'cancelled', kind: 'drop', side, from: o.from, refund: o.cost }); continue; }
         hangar.deployed = true;
         let cell = o.to;
         if (!passable(state, cell, null)) {
-          // scatter to the nearest free cell on the island that was aimed at
+          // scatter to the nearest free cell on the island that was aimed at (a raid still
+          // respects the enemy HQ's no-drop zone)
+          const raid = ownerOfCell(o.to) !== side, foeHq = hqCell(enemyOf(side));
           let best = -1, bd = Infinity;
           for (let i = 0; i < N; i++) {
             if (ownerOfCell(i) !== ownerOfCell(o.to) || !passable(state, i, null)) continue;
+            if (raid && cheb(i, foeHq) <= C.DROP_HQ_EXCLUSION) continue;
             const d = dist(i, o.to);
             if (d < bd) { bd = d; best = i; }
           }
           cell = best;
         }
-        if (cell < 0) { ev(BEAT.DROPS, { type: 'cancelled', kind: 'drop', side, from: o.from }); continue; }
+        if (cell < 0) { sideOf(side).energy += o.cost; ev(BEAT.DROPS, { type: 'cancelled', kind: 'drop', side, from: o.from, refund: o.cost }); continue; }
         const mhp = hangar.level > 1 ? UP.hangar.mechHp : C.ROBOT_HP;
         const robot = { id: state.nextId++, side, cell, hp: mhp, maxHp: mhp, dmg: hangar.level > 1 ? UP.hangar.mechDmg : C.ROBOT_DAMAGE, heavy: hangar.level > 1, fresh: true };
         state.robots.push(robot);
@@ -958,7 +979,7 @@
     for (const side of [P, A]) {
       for (const o of sideOf(side).orders.filter(o => o.kind === 'missile')) {
         const silo = buildingAt(state, o.from);
-        if (!silo) { ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'missile', side, from: o.from }); continue; }
+        if (!silo) { sideOf(side).energy += o.cost; ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'missile', side, from: o.from, refund: o.cost }); continue; }
         silo.fired = true;
         const m = { id: state.nextId++, side, from: o.from, to: o.to, dmg: stat(silo, 'dmg') || C.MISSILE_DAMAGE, splash: stat(silo, 'splash') || C.MISSILE_SPLASH };
         state.missiles.push(m);
@@ -967,7 +988,7 @@
       }
       for (const o of sideOf(side).orders.filter(o => o.kind === 'strike')) {
         const up = buildingAt(state, o.from);
-        if (!up || up.type !== 'uplink') { ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'strike', side, from: o.from }); continue; }
+        if (!up || up.type !== 'uplink') { sideOf(side).energy += o.cost; ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'strike', side, from: o.from, refund: o.cost }); continue; }
         up.charge = 0;
         const m = { id: state.nextId++, side, from: o.from, to: o.to, dmg: C.STRIKE_DAMAGE, splash: C.STRIKE_SPLASH, strike: true };
         state.missiles.push(m);
@@ -1002,7 +1023,7 @@
       const ph = buildingsOf(state, P, 'hq')[0], ah = buildingsOf(state, A, 'hq')[0];
       const pp = ph.hp / ph.maxHp, ap = ah.hp / ah.maxHp;
       if (Math.abs(pp - ap) < 0.005) {
-        const val = side => buildingsOf(state, side).reduce((t, b) => t + B[b.type].cost, 0);
+        const val = side => buildingsOf(state, side).reduce((t, b) => t + B[b.type].cost + (b.level > 1 ? upgradeCost(b.type) : 0), 0);
         const pv = val(P), av = val(A);
         state.winner = pv === av ? 'draw' : (pv > av ? P : A);
       } else {
@@ -1034,7 +1055,7 @@
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
     newGame, generateIslands, isLand, apparent, missionMedals, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
-    buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
+    buildableReason, buildCost, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
     resolveTurn, robotIntent, targetValue
   };
