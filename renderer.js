@@ -729,12 +729,88 @@ window.Renderer = (function () {
     });
   }
 
+  // Concatenate meshes (already transformed by `matrixOf(mesh)`) into one geometry
+  function mergeGeometry(meshes, matrixOf) {
+    const pos = [], nor = [], uv = [];
+    for (const m of meshes) {
+      const gg = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      gg.applyMatrix4(matrixOf(m));
+      const n = gg.attributes.position.count;
+      pos.push(gg.attributes.position.array);
+      nor.push(gg.attributes.normal ? gg.attributes.normal.array : new Float32Array(n * 3));
+      uv.push(gg.attributes.uv ? gg.attributes.uv.array : new Float32Array(n * 2));
+      gg.dispose();
+    }
+    const cat = arrs => { const out = new Float32Array(arrs.reduce((t, a) => t + a.length, 0)); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(cat(nor), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(cat(uv), 2));
+    geo.computeBoundingSphere();
+    return geo;
+  }
+
+  // Merge every opaque leaf mesh into its nearest animated pivot (or the root),
+  // one mesh per material, so rigs keep animating with far fewer draw calls.
+  // Merged geometry is cached per model key.
+  function bakePivots(root, pivots, key) {
+    const cache = bakeCache[key] || (bakeCache[key] = {});
+    root.updateMatrixWorld(true);
+    const all = [root].concat(pivots.filter(p => p && p !== root));
+    const isPivot = new Set(all);
+    const m4 = new THREE.Matrix4();
+    all.forEach((pivot, pi) => {
+      const inv = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
+      const meshes = [];
+      const walk = o => {
+        for (const ch of o.children) {
+          if (isPivot.has(ch)) continue;
+          if (ch.isMesh && !ch.children.length && !Array.isArray(ch.material) && !ch.material.transparent) meshes.push(ch);
+          else walk(ch);
+        }
+      };
+      walk(pivot);
+      const byMat = new Map();
+      for (const m of meshes) { if (!byMat.has(m.material)) byMat.set(m.material, []); byMat.get(m.material).push(m); }
+      let mi = 0;
+      byMat.forEach((list, mat) => {
+        if (list.length < 2) return;
+        const ck = pi + '_' + (mi++);
+        const geo = cache[ck] || (cache[ck] = mergeGeometry(list, m => m4.multiplyMatrices(inv, m.matrixWorld)));
+        let cast = false, receive = false;
+        for (const m of list) { cast = cast || m.castShadow; receive = receive || m.receiveShadow; m.parent.remove(m); }
+        const merged = new THREE.Mesh(geo, mat);
+        merged.castShadow = cast; merged.receiveShadow = receive;
+        pivot.add(merged);
+      });
+    });
+  }
+
+  let blobMat = null, blobGeo = null;
+  function blobShadow() {
+    if (!blobMat) {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 64;
+      const g = cv.getContext('2d');
+      const grd = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+      grd.addColorStop(0, 'rgba(0,0,0,0.55)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+      blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false });
+      blobGeo = new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2);
+    }
+    const m = new THREE.Mesh(blobGeo, blobMat);
+    m.position.y = 0.2;
+    m.renderOrder = 4;
+    return m;
+  }
+
   function addBuilding(b, rise) {
     removeBuilding(b.id, true);
     // decoys wear their disguise; only the owner's badge gives them away
     const modelType = b.type === 'decoy' ? b.disguise : b.type;
     const g = Models.building(modelType, b.side);
-    bakeStatic(g, modelType + '_' + b.side);
+    const parts = g.userData.parts || {};
+    bakePivots(g, Object.keys(parts).sort().map(k => parts[k]), modelType + '_' + b.side);
     const p = cellCenter(b.cell);
     g.position.copy(p);
     // face the enemy
@@ -928,6 +1004,11 @@ window.Renderer = (function () {
   function addRobot(r) {
     removeRobot(r.id);
     const g = Models.robot(r.side);
+    const rp = g.userData.parts || {};
+    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side);
+    // cheap blob shadow instead of shadow-map casting (mechs are small and always moving)
+    g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    g.add(blobShadow());
     g.scale.setScalar(1.3);
     const p = cellCenter(r.cell);
     g.position.copy(p);
@@ -1171,7 +1252,7 @@ window.Renderer = (function () {
       if (m.dash) m.obj.material.dashOffset = -time * 8;
     }
     const q = camera.quaternion;
-    const badgeAlpha = Math.max(0, Math.min(1, (cam.dist - 260) / 120));
+    const badgeAlpha = Math.max(0, Math.min(1, (cam.dist - 310) / 110));
     for (const k in badgeMats) badgeMats[k].opacity = badgeAlpha;
     for (const id in buildings) {
       const rec = buildings[id];
@@ -1241,6 +1322,7 @@ window.Renderer = (function () {
   }
 
   return {
+    stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
