@@ -211,20 +211,20 @@ const CAMPAIGN = [
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }, { type: 'aa', dx: 1, dy: 2 }, { type: 'power', dx: 2, dy: 2 }], ai: [{ type: 'aa', dx: 2, dy: 1 }, { type: 'decoy', dx: 5, dy: -3 }, { type: 'decoy', dx: 5, dy: 3 }] }
   },
   {
-    id: 6, name: 'Skyfall', enemy: 'kord', difficulty: 'commander', mapSeed: 6637, land: 115, par: 15,
+    id: 6, name: 'Skyfall', enemy: 'kord', difficulty: 'commander', mapSeed: 6637, land: 115, par: 17,
     brief: 'Kord bought NYX\'s orbital codes. His Strike Uplink is already charging, and no AA can stop what it calls down. Spread out, shield the HQ, and get our own Uplink online.',
     taunt: 'Look up, Commander. The sky belongs to me now.',
     win: 'Kord\'s uplink is scrap. But those codes came from somewhere higher up.',
     credits: { player: 480 },
-    start: { player: [{ type: 'uplink', dx: -1, dy: 3 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 2 }, { type: 'depot', dx: 2, dy: 2 }, { type: 'radar', dx: 4, dy: 0 }] }
+    start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 1 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 2 }, { type: 'depot', dx: 2, dy: 2 }, { type: 'radar', dx: 4, dy: 0 }] }
   },
   {
-    id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 13,
-    brief: 'Director Sol runs the orbital network itself: strikes early and often, AA that never sleeps, eyes on everything. Our Uplink is half charged. Make the first strike count.',
+    id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 15,
+    brief: 'Director Sol runs the orbital network itself: strikes early and often, shields that go up the moment you fire, eyes on everything. Our Uplink is half charged. Make the first strike count.',
     taunt: 'I have watched your little war from above. It ends today.',
     win: 'The network is down and the skies are clear. Now the war is over, Commander.',
-    credits: { player: 500 },
-    start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 2 }, { type: 'shield', dx: 1, dy: 0 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 2 }, { type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 3, dy: 2 }, { type: 'decoy', dx: 5, dy: 0 }] }
+    credits: { player: 560 },
+    start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 2 }, { type: 'shield', dx: 1, dy: 0 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 1 }, { type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'decoy', dx: 5, dy: 0 }] }
   }
 ];
 
