@@ -273,3 +273,25 @@ test('battle options apply to the skirmish and are remembered', async t => {
   assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0');
   assert.deepStrictEqual(errors, []);
 });
+
+test('settings: gear opens them, choices apply and persist across a reload', async t => {
+  const { page, errors } = await open(t);
+  await page.click('#m-settings');
+  await page.waitForSelector('#settings.show');
+  await page.click('#settings button[data-set="speed"][data-v="3"]');
+  await page.click('#settings button[data-set="shake"][data-v="0"]');
+  await page.click('#settings button[data-set="intents"][data-v="0"]');
+  await page.click('#settings button[data-set="quality"][data-v="0"]');
+  await page.locator('#settings input[data-set="music"]').fill('0.3');
+  await page.click('#set-done');
+  assert.ok(!(await page.isVisible('#settings')));
+  await page.reload();
+  await dismissSplash(page);
+  await page.click('#m-settings');
+  const on = await page.locator('#settings button.on').evaluateAll(bs => bs.map(b => b.dataset.set + '=' + b.dataset.v).sort().join(','));
+  assert.strictEqual(on, 'intents=0,quality=0,shake=0,speed=3');
+  assert.strictEqual(+(await page.locator('#settings input[data-set="music"]').inputValue()), 0.3);
+  await page.keyboard.press('Escape');
+  assert.ok(!(await page.isVisible('#settings')));
+  assert.deepStrictEqual(errors, []);
+});

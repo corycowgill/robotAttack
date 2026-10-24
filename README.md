@@ -150,6 +150,7 @@ The browser remembers your choices, and they also apply to Two Players.
 | `H` / `F` | Camera to your HQ / whole map |
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
+| Gear button / menu **Settings** | Master, music and effects volume; graphics quality (Auto / Low / Medium / High); combat playback speed; camera shake; mech arrows. Saved in the browser. |
 | `?` | Help |
 | Touch | Tap to select / place / target; drag one finger to pan, pinch to zoom |
 

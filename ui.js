@@ -31,6 +31,7 @@ window.UI = (function () {
     end: '<path d="M6 4l12 8-12 8z"/>',
     sound: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
     mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
@@ -168,6 +169,16 @@ window.UI = (function () {
   @keyframes flt { 0% { opacity: 0; margin-top: 0; } 12% { opacity: 1; } 100% { opacity: 0; margin-top: -42px; } }
   #combathint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 8px 16px; font-size: 14px; color: var(--c-dim); display: none; gap: 16px; }
   #combathint.show { display: flex; }
+  .hintbtn { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+  .hintbtn:hover { color: var(--c-text); background: rgba(255,255,255,.06); }
+  body.compact .hintbtn kbd { display: none; }
+  #settings .menu-box { width: min(520px, 94vw); padding: 24px 26px; text-align: left; }
+  #settings h2 { margin: 0 0 14px; letter-spacing: .14em; }
+  .setrow { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--c-line); font-size: 15px; }
+  .setrow:last-of-type { border-bottom: 0; }
+  .setrow small { display: block; font-size: 12px; color: var(--c-dim); }
+  .setrow input[type=range] { width: min(200px, 40vw); }
+  body.compact #settings .menu-box { padding: 12px 16px; } body.compact .setrow { padding: 5px 0; font-size: 13px; }
 
   /* Report */
   #report { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
@@ -443,6 +454,7 @@ window.UI = (function () {
       <div class="panel" style="display:flex;align-items:center;padding:0 10px;gap:6px" title="Master volume"><input id="vol" type="range" min="0" max="1" step="0.05"></div>
       <div class="panel iconbtn" id="b-mute" title="Mute (M)">${icon('sound')}</div>
       <div class="panel iconbtn" id="b-log" title="Orders & battle log">${icon('log')}</div>
+      <div class="panel iconbtn" id="b-settings" title="Settings">${icon('gear')}</div>
       <div class="panel iconbtn" id="b-help" title="How to play (?)">${icon('help')}</div>
       <div class="panel iconbtn" id="b-menu" title="Save &amp; return to menu" style="display:none">${icon('menu')}</div>
     `));
@@ -465,7 +477,7 @@ window.UI = (function () {
         <button class="abtn end" id="b-end">${icon('end')}<span>End Turn</span><small><kbd>Space</kbd></small></button>
       </div>
     `));
-    root.appendChild(el('div', { id: 'combathint', class: 'panel' }, `<span><kbd>Space</kbd> skip</span><span><kbd>Tab</kbd> speed <b id="spd">1x</b></span>`));
+    root.appendChild(el('div', { id: 'combathint', class: 'panel pi' }, `<button class="hintbtn" id="ch-skip"><kbd>Space</kbd> skip</button><button class="hintbtn" id="ch-speed"><kbd>Tab</kbd> speed <b id="spd">1x</b></button>`));
     root.appendChild(el('div', { id: 'toasts' }));
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
@@ -489,6 +501,7 @@ window.UI = (function () {
         <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
+          <span class="lnk" id="m-settings">Settings</span>
           <label class="chk"><input type="checkbox" id="m-tut" checked> Show tutorial objectives</label>
           <label class="chk"><input type="checkbox" id="m-music" checked> Music</label>
         </div>
@@ -519,6 +532,20 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
 
     root.appendChild(el('div', { id: 'splash', class: 'screen' }));
+
+    const seg = (key, choices) => `<div class="opt"><div class="seg">${choices.map(c => `<button data-set="${key}" data-v="${c[0]}">${c[1]}</button>`).join('')}</div></div>`;
+    root.appendChild(el('div', { id: 'settings', class: 'screen' }, `
+      <div class="menu-box panel">
+        <h2>SETTINGS</h2>
+        <div class="setrow"><span>Master volume</span><input type="range" min="0" max="1" step="0.05" data-set="vol"></div>
+        <div class="setrow"><span>Music</span><input type="range" min="0" max="1" step="0.05" data-set="music"></div>
+        <div class="setrow"><span>Sound effects</span><input type="range" min="0" max="1" step="0.05" data-set="sfx"></div>
+        <div class="setrow"><span>Graphics<small>Auto lowers detail if the frame rate drops</small></span>${seg('quality', [['auto', 'Auto'], [0, 'Low'], [1, 'Medium'], [2, 'High']])}</div>
+        <div class="setrow"><span>Combat playback</span>${seg('speed', [[1, '1x'], [2, '2x'], [3, '3x']])}</div>
+        <div class="setrow"><span>Camera shake</span>${seg('shake', [[1, 'On'], [0, 'Off']])}</div>
+        <div class="setrow"><span>Mech arrows<small>Where visible mechs go next turn</small></span>${seg('intents', [[1, 'On'], [0, 'Off']])}</div>
+        <p style="text-align:center;margin:16px 0 0"><button class="bigbtn" id="set-done">Done</button></p>
+      </div>`));
 
     root.appendChild(el('div', { id: 'handoff', class: 'screen' }, `
       <div class="menu-box panel"><h2 id="ho-title"></h2><p id="ho-sub"></p><button class="bigbtn" id="ho-go">I'm ready</button></div>`));
@@ -553,6 +580,19 @@ window.UI = (function () {
     $('b-undo').addEventListener('click', () => H.onAction('undo'));
     $('b-mute').addEventListener('click', () => H.onAction('mute'));
     $('b-help').addEventListener('click', () => showHelp(!isHelpOpen()));
+    $('b-settings').addEventListener('click', () => H.onSettings());
+    $('m-settings').addEventListener('click', () => H.onSettings());
+    $('set-done').addEventListener('click', () => showSettings(null));
+    $('settings').addEventListener('click', e => { if (e.target.id === 'settings') showSettings(null); });
+    root.querySelectorAll('#settings [data-set]').forEach(c => {
+      const ev = c.tagName === 'INPUT' ? 'input' : 'click';
+      c.addEventListener(ev, () => {
+        const v = c.tagName === 'INPUT' ? +c.value : (c.dataset.v === 'auto' ? 'auto' : +c.dataset.v);
+        H.onSetting(c.dataset.set, v);
+      });
+    });
+    $('ch-skip').addEventListener('click', () => H.onAction('end'));
+    $('ch-speed').addEventListener('click', () => H.onSpeed());
     $('b-log').addEventListener('click', () => $('orders').classList.toggle('open'));
     root.appendChild(el('div', { id: 'rotate' }, `<div class="phone"></div><div><b>Rotate your phone</b><br><span style="color:var(--c-dim);font-size:15px">Robot Attack plays best in landscape.</span></div><button class="bigbtn alt" id="rot-ok">Play anyway</button>`));
     $('rot-ok').addEventListener('click', () => { rotateDismissed = true; layout(); });
@@ -970,6 +1010,20 @@ window.UI = (function () {
   function hideGameOver() { $('gameover').classList.remove('show'); }
 
   function showHelp(on) { $('help').classList.toggle('show', on); }
+  // values: { vol, music, sfx, quality, speed, shake, intents }; null closes
+  function showSettings(values) {
+    if (!values) { $('settings').classList.remove('show'); return; }
+    paintSettings(values);
+    $('settings').classList.add('show');
+  }
+  function paintSettings(v) {
+    document.querySelectorAll('#settings [data-set]').forEach(c => {
+      const cur = v[c.dataset.set];
+      if (c.tagName === 'INPUT') c.value = cur;
+      else c.classList.toggle('on', String(cur) === c.dataset.v);
+    });
+  }
+  function isSettingsOpen() { return $('settings').classList.contains('show'); }
   function isHelpOpen() { return $('help').classList.contains('show'); }
 
   function setMuted(m) { $('b-mute').innerHTML = icon(m ? 'mute' : 'sound'); }
@@ -977,7 +1031,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
+    showSettings, paintSettings, isSettingsOpen, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

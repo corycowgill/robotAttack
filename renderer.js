@@ -1280,6 +1280,7 @@ window.Renderer = (function () {
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {
+    if (!shakeOn) return;
     let k = 1;
     if (pos) {
       const d = Math.hypot(pos.x - cam.tx, pos.z - cam.tz);
@@ -1408,6 +1409,24 @@ window.Renderer = (function () {
       if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     }
   }
+  // 'auto' or an index into QUALITY; returns the active level's name
+  function setQuality(q) {
+    if (q === 'auto') {
+      qualityLocked = false;
+      try { localStorage.removeItem('ra_quality'); } catch (e) { /* ignore */ }
+      quality = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 1 : 2;
+      perf.warm = 1.5;
+    } else if (QUALITY[q]) {
+      quality = q; qualityLocked = true;
+      try { localStorage.setItem('ra_quality', q); } catch (e) { /* ignore */ }
+    }
+    applyQuality();
+    return QUALITY[quality].name;
+  }
+  function getQuality() { return qualityLocked ? quality : 'auto'; }
+  let shakeOn = true;
+  function setShake(on) { shakeOn = !!on; if (!on) cam.trauma = 0; }
+
   function cycleQuality() {
     quality = (quality + QUALITY.length - 1) % QUALITY.length;
     qualityLocked = true;
@@ -1515,7 +1534,7 @@ window.Renderer = (function () {
   return {
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
-    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setQuality, getQuality, setShake, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,

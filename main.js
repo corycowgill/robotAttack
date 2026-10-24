@@ -36,7 +36,7 @@
   let selectedCell = -1;
   let hoverCell = -1;
   let visible = new Set();      // enemy cells the player sees
-  let speed = 1;
+  let speed = 1;   // combat playback speed; the saved preference is applied at boot
   let lastFrame = performance.now();
   let reportTimer = 0;
   let mouse = { x: 0, y: 0, downX: 0, downY: 0, down: false };
@@ -63,12 +63,17 @@
       onBuildSelect: selectBuild,
       onAction: action,
       onVolume: v => { SND.setVolume(v); },
+      onSettings: () => { SND.play('uiClick'); UI.showSettings(currentSettings()); },
+      onSetting: applySetting,
+      onSpeed: cycleSpeed,
       onMusic: on => SND.setMusicEnabled(on),
       onHover: () => SND.play('uiHover'),
       onCardHover: cardTooltip,
       onOrderHover: id => { hoveredOrder = id; }
     });
     UI.setVolume(SND.getVolume());
+    speed = [1, 2, 3].includes(+lsGet('ra_speed', 1)) ? +lsGet('ra_speed', 1) : 1;
+    Renderer.setShake(lsGet('ra_shake', '1') !== '0');
     UI.setMuted(SND.isMuted());
     UI.setMusicChecked(SND.isMusicEnabled());
     refreshContinue();
@@ -413,8 +418,35 @@
     Renderer.setGhosts(ghosts);
   }
 
+  // ── Settings (persisted per browser) ──
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
+  const lsPut = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } };
+  let showIntents = lsGet('ra_intents', '1') !== '0';
+  function currentSettings() {
+    return { vol: SND.getVolume(), music: SND.getMusicVolume(), sfx: SND.getSfxVolume(), quality: Renderer.getQuality(),
+      speed, shake: lsGet('ra_shake', '1') === '0' ? 0 : 1, intents: showIntents ? 1 : 0 };
+  }
+  function applySetting(key, v) {
+    if (key === 'vol') { SND.setVolume(v); UI.setVolume(v); }
+    if (key === 'music') SND.setMusicVolume(v);
+    if (key === 'sfx') { SND.setSfxVolume(v); SND.play('select'); }
+    if (key === 'quality') Renderer.setQuality(v);
+    if (key === 'speed') { speed = v; lsPut('ra_speed', v); }
+    if (key === 'shake') { Renderer.setShake(!!v); lsPut('ra_shake', v); }
+    if (key === 'intents') { showIntents = !!v; lsPut('ra_intents', v); if (state && phase === 'planning') refreshMarkers(); }
+    if (key !== 'sfx' && key !== 'vol' && key !== 'music') SND.play('uiClick');
+    UI.paintSettings(currentSettings());
+  }
+  function cycleSpeed() {
+    speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
+    lsPut('ra_speed', speed);
+    UI.setCombatHint(phase === 'resolving', speed);
+    if (phase !== 'resolving') UI.toast('Combat playback speed: ' + speed + 'x', 'good');
+  }
+
   // What every mech the player can see will do next resolution, for the planning overlay
   function mechIntents() {
+    if (!showIntents) return [];
     const out = [];
     for (const r of state.robots) {
       if (r.hp <= 0 || !playerSees(r.cell)) continue;
@@ -812,7 +844,7 @@
       toMenu();
       return;
     }
-    if (phase === 'resolving' && name === 'end') { Timeline.skip(); return; }
+    if (phase === 'resolving' && name === 'end') { slowmo = 0; Timeline.skip(); return; }
     if (phase !== 'planning') return;
     switch (name) {
       case 'fire': {
@@ -904,6 +936,10 @@
       if (e.code === 'Escape') UI.closeBriefing();
       return;
     }
+    if (UI.isSettingsOpen()) {
+      if (e.code === 'Escape') UI.showSettings(null);
+      return;
+    }
     if (UI.isHelpOpen()) {
       if (e.code === 'Escape' || e.key === '?' || e.code === 'Slash') UI.showHelp(false);
       e.preventDefault();
@@ -913,13 +949,7 @@
     if (e.code === 'KeyM') { action('mute'); return; }
     if (e.code === 'KeyG') { UI.toast('Graphics quality: ' + Renderer.cycleQuality(), 'good'); return; }
     if (!state) return;
-    if (e.code === 'Tab') {
-      e.preventDefault();
-      speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
-      UI.setCombatHint(phase === 'resolving', speed);
-      if (phase !== 'resolving') UI.toast('Combat playback speed: ' + speed + 'x', 'good');
-      return;
-    }
+    if (e.code === 'Tab') { e.preventDefault(); cycleSpeed(); return; }
     if (e.code === 'KeyH') { Renderer.focusCell(R.hqCell(P), 250, true); return; }
     if (e.code === 'KeyF') { frameView(false); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); action('end'); return; }
@@ -1040,6 +1070,7 @@
     const turn = state.turn;
     combatHud = hudData();   // HUD stays on this turn's values during playback
     UI.setHUD(combatHud);
+    slowmo = 0;
     preNames = {};
     for (let c = 0; c < R.N; c++) if (state.cells[c].building || state.sides[P].intel.seen[c]) preNames[c] = describeCell(c);
     const events = R.resolveTurn(state);
@@ -1165,6 +1196,13 @@
     }, () => { beam.dispose(); if (impact) applyImpact(impact, idAt); });
   }
 
+  // Missiles stay readable when the whole map is framed (far camera), true to size up close
+  function missileScale() { return 2.4 * Math.max(1, Math.min(1.7, Renderer.framedDist() / 380)); }
+
+  // A beat of slow motion on the moments that matter (HQ hits, the killing blow)
+  let slowmo = 0, slowmoRate = 1;
+  function slowMotion(seconds, rate) { if (seconds > slowmo) { slowmo = seconds; slowmoRate = rate; } }
+
   function animateLaunch(e, idAt) {
     if (e.strike) return animateStrikeLaunch(e);
     const sid = idAt[e.from];
@@ -1184,7 +1222,7 @@
       Fx.dustRing(a, 0.6);
     }
     const m = Models.missile(e.side);
-    m.scale.setScalar(2.4);
+    m.scale.setScalar(missileScale());
     Renderer.add(m);
     const p = new THREE.Vector3(), prev = new THREE.Vector3().copy(a);
     Timeline.tween(1.4, k => {
@@ -1202,7 +1240,7 @@
     const own = e.side === P;
     const { a, b, h } = missilePath(e);
     const m = Models.missile(e.side);
-    m.scale.setScalar(2.4);
+    m.scale.setScalar(missileScale());
     Renderer.add(m);
     if (!own) SND.play('incoming', { pan: panAt(e.to), gain: 0.8 });
     const intercepted = e.interceptedBy >= 0;
@@ -1282,6 +1320,7 @@
     else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit || big }); }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
+    if (hqHit) slowMotion(0.55, 0.35);
     // the target's own damage, with splash on its neighbours reported separately
     let direct = 0, splash = 0;
     for (const h of ev.hits) { const d = applyHit(h, idAt); if (h.cell === ev.cell) direct += d; else splash += d; }
@@ -1323,6 +1362,7 @@
       Renderer.setBuildingVisible(h.id, true);
       Renderer.removeBuilding(h.id, false);
       Fx.explosion(pos, h.type === 'hq' ? 2 : 1.2);
+      if (h.type === 'hq') slowMotion(1.4, 0.25); // the killing blow
       Fx.setEmitter('ruin' + h.cell, { x: pos.x, y: 1, z: pos.z }, 'fire', 6);
       SND.play('destroyed', { pan: panAt(h.cell), big: h.type === 'hq' });
       Renderer.addTrauma(h.type === 'hq' ? 1 : 0.5, pos);
@@ -1612,7 +1652,11 @@
     const raw = Math.min(0.25, (now - lastFrame) / 1000);   // real time, so slow machines don't slow playback
     const dt = Math.min(0.05, raw);
     lastFrame = now;
-    if (phase === 'resolving') Timeline.update(raw * speed);
+    if (phase === 'resolving') {
+      let rate = speed;
+      if (slowmo > 0) { slowmo -= raw; rate = Math.min(speed, slowmoRate); }
+      Timeline.update(raw * rate);
+    }
     backdropTick(raw);
     if (reportTimer > 0) { reportTimer -= raw; if (reportTimer <= 0) UI.hideReport(); }
     // highlight hovered order's target
