@@ -830,7 +830,7 @@ window.UI = (function () {
   let briefingId = 0;
   function closeBriefing() { $('briefing').classList.remove('show'); H.onBriefingBack(); }
   function isBriefingOpen() { return $('briefing').classList.contains('show'); }
-  function medalLabels(m) { return ['Win the mission', 'Win by turn ' + m.par, 'Keep your HQ above 50%']; }
+  function medalLabels(m) { return ['Win the mission', 'Win by turn ' + m.par, 'Keep your HQ at 50%+']; }
   const medalRow = (got, labels) => got.map((on, i) => `<div class="medal${on ? ' on' : ''}"><span class="star${on ? ' on' : ''}">★</span>${esc(labels[i])}</div>`).join('');
   function showBriefing(m, best) {
     briefingId = m.id;
@@ -842,6 +842,7 @@ window.UI = (function () {
     $('br-foe').innerHTML = portrait(foe) + `<div><div class="who" style="color:${foe.look.color}">${esc(foe.name)}</div><div class="role">${esc(foe.title)}</div><div class="say">“${esc(m.taunt)}”</div></div>`;
     $('menu').classList.remove('show');
     $('briefing').classList.add('show');
+    $('briefing').scrollTop = 0;
   }
 
   function showGameOver(g) {

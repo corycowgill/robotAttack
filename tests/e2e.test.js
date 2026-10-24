@@ -191,8 +191,9 @@ test('two players: hand-off screens, separate views and logs, battle after both 
   await page.click('#m-hotseat');
   await page.waitForFunction(() => __game.phase === 'planning' && __game.side === 'player');
   await page.evaluate(() => __game.setSpeed(3));
+  const p1cell = await freeCell(page, 'depot');
   await page.click('.card[data-type="depot"]');
-  await clickCell(page, await freeCell(page, 'depot'));
+  await clickCell(page, p1cell);
   await page.keyboard.press('Escape');
   await page.click('#b-end');
   await page.waitForSelector('#handoff.show');
@@ -202,6 +203,7 @@ test('two players: hand-off screens, separate views and logs, battle after both 
   await page.click('#ho-go');
   await page.waitForFunction(() => __game.phase === 'planning' && __game.side === 'ai');
   assert.ok(!(await page.textContent('#log')).includes('Built Supply Depot'), "Player 1's log stays with Player 1");
+  assert.strictEqual(await page.evaluate(c => Rules.buildingAt(__game.state, c), p1cell), null, "Player 2 doesn't see Player 1's same-turn build");
   const p2cell = await page.evaluate(() => { for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(__game.state, 'ai', 'depot', c)) return c; return -1; });
   await page.click('.card[data-type="depot"]');
   await clickCell(page, p2cell);
@@ -216,6 +218,17 @@ test('two players: hand-off screens, separate views and logs, battle after both 
   assert.strictEqual(await page.evaluate(() => __game.side), 'player');
   assert.ok((await page.textContent('#log')).includes('Built Supply Depot'), "Player 1's log is back");
   assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'ai', 'depot').length), 1);
+  assert.strictEqual(await page.evaluate(c => Rules.buildingAt(__game.state, c)?.type, p1cell), 'depot', "both players' builds are in the battle");
+
+  // a resumed two-player game opens behind a hand-off screen
+  await page.reload();
+  await page.waitForSelector('#m-continue', { state: 'visible' });
+  await page.click('#m-continue');
+  await page.waitForSelector('#handoff.show');
+  assert.match(await page.textContent('#ho-title'), /Player 1/);
+  assert.strictEqual(await page.evaluate(() => __game.phase), 'handoff');
+  await page.click('#ho-go');
+  await page.waitForFunction(() => __game.phase === 'planning' && __game.side === 'player');
   assert.deepStrictEqual(errors, []);
 });
 
