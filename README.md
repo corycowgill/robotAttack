@@ -112,6 +112,13 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 
 The browser remembers your choices, and they also apply to Two Players.
 
+**Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 20-turn blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
+- A win scores 1000, plus 30 for every turn under the limit, plus 5 for every % of HQ health left.
+- A loss scores 10 for every % of the enemy HQ you destroyed.
+- The browser keeps your best score for each day, and **Retry Daily** replays the same battle.
+
+**Achievements:** twelve of them, from *First Blood* to *Decorated* (all 21 campaign medals). Find them under **Achievements** on the menu.
+
 **Two players** is a pass-and-play mode on one device:
 - Player 1 (blue, left) plans first.
 - A full-screen hand-off screen hides the board while you pass the device. Then Player 2 (red, right) plans, seeing only their own island and their own battle log.

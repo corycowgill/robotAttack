@@ -349,6 +349,16 @@
     return [won, won && state.turn <= mission.par, won && !!hq && hq.hp * 2 >= hq.maxHp];
   }
 
+  // Daily Operation score: wins score 1000 + 30 per turn under the limit + 5 per HQ health %;
+  // a loss or draw scores 10 per enemy-HQ health % destroyed (so a close loss still counts)
+  function dailyScore(state, side) {
+    side = side || P;
+    const limit = state.maxTurns || C.MAX_TURNS;
+    const mine = buildingsOf(state, side, 'hq')[0], theirs = buildingsOf(state, enemyOf(side), 'hq')[0];
+    if (state.winner === side) return 1000 + Math.max(0, limit - state.turn) * 30 + Math.round(100 * (mine ? mine.hp / mine.maxHp : 0)) * 5;
+    return Math.round(100 * (theirs ? 1 - theirs.hp / theirs.maxHp : 1)) * 10;
+  }
+
   function apparent(b) {
     if (!b.disguise) return { type: b.type, hp: b.hp, maxHp: b.maxHp, level: b.level };
     const maxHp = B[b.disguise].hp;
@@ -1054,7 +1064,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, generateIslands, isLand, apparent, missionMedals, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, missionMedals, dailyScore, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, buildCost, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
