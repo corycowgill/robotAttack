@@ -157,6 +157,32 @@ const SKIRMISH_OPTIONS = {
   uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 }
 };
 
+// Daily Operation: one seeded battle per calendar day, with one twist from this list
+const DAILY_TWISTS = [
+  { id: 'large',   name: 'Large islands',     opts: { land: 150 } },
+  { id: 'small',   name: 'Cramped islands',   opts: { land: 95 } },
+  { id: 'rich',    name: 'War chest',         opts: { credits: 600 } },
+  { id: 'lean',    name: 'Lean supply',       opts: { credits: 250 } },
+  { id: 'blitz',   name: 'Blitz (20 turns)',  opts: { turns: 20 } },
+  { id: 'noorbit', name: 'No superweapons',   opts: { uplink: 0 } }
+];
+
+// Achievements: checked by main.js against game stats; ids are stored in the browser
+const ACHIEVEMENTS = [
+  { id: 'first_blood', name: 'First Blood',      desc: 'Destroy an enemy structure' },
+  { id: 'iron_dome',   name: 'Iron Dome',        desc: 'Shoot down 10 missiles in one battle' },
+  { id: 'fooled',      name: 'Fooled You',       desc: 'Have a decoy soak up an enemy attack' },
+  { id: 'orbital',     name: 'Fire From Above',  desc: 'Land an orbital strike' },
+  { id: 'garrison',    name: 'Home Guard',       desc: 'Destroy an invading mech with a garrison mech or Gun Pod' },
+  { id: 'untouched',   name: 'Untouchable',      desc: 'Win with your Command Center at full health' },
+  { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10' },
+  { id: 'tycoon',      name: 'Tycoon',           desc: 'Own 5 Supply Depots at once' },
+  { id: 'warlord',     name: 'Warlord Slayer',   desc: 'Beat the Warlord in a skirmish' },
+  { id: 'campaign',    name: 'Victory in the Pacific', desc: 'Complete the campaign' },
+  { id: 'all_medals',  name: 'Decorated',        desc: 'Earn all 21 campaign medals' },
+  { id: 'daily',       name: 'Daily Duty',       desc: 'Win a Daily Operation' }
+];
+
 const UPGRADE_COST = 0.75;    // fraction of the structure's price
 const UPGRADE_HP = 1.5;       // max HP multiplier
 
@@ -229,4 +255,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS, DAILY_TWISTS, ACHIEVEMENTS };

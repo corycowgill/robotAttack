@@ -434,3 +434,14 @@ test('mech melee ignores shields (they stop projectiles, not mechs inside the do
   assert.equal(hp0 - hq.hp >= 20, true, 'the HQ took the full blow');
   assert.ok(R.buildingAt(s, shCell).pool >= pool0, 'the dome was not drained by melee');
 });
+
+test('daily operation score rewards speed and HQ health; losses score damage dealt', () => {
+  const s = R.newGame('commander', 61, { maxTurns: 30 });
+  const ehq = R.buildingsOf(s, A, 'hq')[0], hq = R.buildingsOf(s, P, 'hq')[0];
+  s.winner = P; s.turn = 12;
+  assert.equal(R.dailyScore(s), 1000 + 18 * 30 + 100 * 5);
+  hq.hp = hq.maxHp / 2;
+  assert.equal(R.dailyScore(s), 1000 + 18 * 30 + 50 * 5);
+  s.winner = A; ehq.hp = ehq.maxHp * 0.25;
+  assert.equal(R.dailyScore(s), 750);
+});

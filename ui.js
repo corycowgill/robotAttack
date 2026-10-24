@@ -308,6 +308,15 @@ window.UI = (function () {
   body.compact .opts { gap: 6px 10px; margin-bottom: 8px; } body.compact .opt { font-size: 11px; } body.compact .opt button { padding: 4px 7px; font-size: 11px; }
   .hotseat { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding: 12px 16px; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
   .hotseat:hover { transform: translateY(-3px); border-color: rgba(46,196,255,.7); }
+  .hotseat.daily { border-color: rgba(255,207,74,.35); } .hotseat.daily h3 { color: #ffcf4a; } .hotseat.daily h3 span { color: var(--c-dim); font-size: 13px; letter-spacing: .1em; margin-left: 6px; }
+  .hotseat.daily .vs { font-size: 15px; color: var(--c-dim); text-align: right; } .hotseat.daily .vs b, .hotseat.daily .vs b:last-child { color: #ffcf4a; font-size: 20px; display: block; }
+  #go-daily { text-align: center; margin: 4px 0 12px; font-size: 15px; color: var(--c-dim); letter-spacing: .08em; }
+  #go-daily b { color: #ffcf4a; font-size: 26px; letter-spacing: .04em; margin: 0 6px; }
+  #achievements .menu-box { width: min(640px, 94vw); padding: 24px 26px; text-align: left; max-height: 90vh; overflow-y: auto; }
+  .achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 14px 0; }
+  .ach { padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 6px; opacity: .45; }
+  .ach.got { opacity: 1; border-color: rgba(255,207,74,.5); background: rgba(255,207,74,.06); }
+  .ach b { display: block; font-size: 15px; } .ach.got b::before { content: '🏆 '; } .ach span { font-size: 12px; color: var(--c-dim); }
   .hotseat h3 { margin: 0 0 2px; font-size: 18px; letter-spacing: .12em; } .hotseat p { margin: 0; font-size: 13px; color: var(--c-dim); }
   .hotseat .vs { font-size: 20px; font-weight: 700; white-space: nowrap; } .hotseat .vs b:first-child { color: var(--c-player); } .hotseat .vs b:last-child { color: var(--c-ai); }
   /* hot-seat hand-off: fully opaque and above everything, so the next player can't see the last one's base */
@@ -498,10 +507,12 @@ window.UI = (function () {
         <div class="sect">Skirmish &amp; two players &mdash; random islands</div>
         <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span>${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}">${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
         <div class="diffs">${diffs}</div>
+        <div class="panel hotseat daily" id="m-daily"><div><h3>DAILY OPERATION <span id="dl-date"></span></h3><p id="dl-desc"></p></div><div class="vs" id="dl-best"></div></div>
         <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
           <span class="lnk" id="m-settings">Settings</span>
+          <span class="lnk" id="m-ach">Achievements <span id="ach-count"></span></span>
           <label class="chk"><input type="checkbox" id="m-tut" checked> Show tutorial objectives</label>
           <label class="chk"><input type="checkbox" id="m-music" checked> Music</label>
         </div>
@@ -512,6 +523,7 @@ window.UI = (function () {
         <div id="go-title">VICTORY</div>
         <div id="go-reason"></div>
         <div id="go-medals" class="medals"></div>
+        <div id="go-daily"></div>
         <div id="go-quote"></div>
         <div id="go-stats"></div>
         <button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
@@ -532,6 +544,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
 
     root.appendChild(el('div', { id: 'splash', class: 'screen' }));
+    root.appendChild(el('div', { id: 'achievements', class: 'screen' }, `<div class="menu-box panel"><h2>ACHIEVEMENTS</h2><div class="achs" id="ach-list"></div><p style="text-align:center;margin:0"><button class="bigbtn" id="ach-done">Close</button></p></div>`));
 
     const seg = (key, choices) => `<div class="opt"><div class="seg">${choices.map(c => `<button data-set="${key}" data-v="${c[0]}">${c[1]}</button>`).join('')}</div></div>`;
     root.appendChild(el('div', { id: 'settings', class: 'screen' }, `
@@ -582,6 +595,10 @@ window.UI = (function () {
     $('b-help').addEventListener('click', () => showHelp(!isHelpOpen()));
     $('b-settings').addEventListener('click', () => H.onSettings());
     $('m-settings').addEventListener('click', () => H.onSettings());
+    $('m-daily').addEventListener('click', () => H.onDaily());
+    $('m-ach').addEventListener('click', () => H.onAchievements());
+    $('ach-done').addEventListener('click', () => $('achievements').classList.remove('show'));
+    $('achievements').addEventListener('click', e => { if (e.target.id === 'achievements') $('achievements').classList.remove('show'); });
     $('set-done').addEventListener('click', () => showSettings(null));
     $('settings').addEventListener('click', e => { if (e.target.id === 'settings') showSettings(null); });
     root.querySelectorAll('#settings [data-set]').forEach(c => {
@@ -1002,6 +1019,8 @@ window.UI = (function () {
     $('go-reason').textContent = g.reason;
     $('go-medals').innerHTML = g.medals ? medalRow(g.medals.got, g.medals.labels) + (g.medals.newBest ? '<div class="newbest">NEW MEDAL</div>' : '') : '';
     $('go-medals').style.display = g.medals ? '' : 'none';
+    $('go-daily').innerHTML = g.daily ? `Daily score <b>${g.daily.score}</b> ${g.daily.newBest ? '— new best!' : '· best ' + g.daily.best}` : '';
+    $('go-daily').style.display = g.daily ? '' : 'none';
     const cols = g.cols || ['You', 'Enemy'];
     $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">' + esc(cols[0]) + '</span><span class="h" style="color:var(--c-ai)">' + esc(cols[1]) + '</span>' +
       g.rows.map(r => `<span>${esc(r[0])}</span><b>${r[1]}</b><b>${r[2]}</b>`).join('');
@@ -1024,6 +1043,16 @@ window.UI = (function () {
     });
   }
   function isSettingsOpen() { return $('settings').classList.contains('show'); }
+  function setDaily(d) {
+    $('dl-date').textContent = d.date;
+    $('dl-desc').textContent = 'Today: ' + d.twist + ' vs ' + d.opponent + ' — same battle for everyone today. Win fast, keep your HQ intact.';
+    $('dl-best').innerHTML = d.best ? 'Best<b>' + d.best + '</b>' : 'Not played<b>—</b>';
+  }
+  function setAchCount(n, total) { $('ach-count').textContent = '(' + n + '/' + total + ')'; }
+  function showAchievements(list) {
+    $('ach-list').innerHTML = list.map(a => `<div class="ach${a.got ? ' got' : ''}"><b>${esc(a.name)}</b><span>${esc(a.desc)}</span></div>`).join('');
+    $('achievements').classList.add('show');
+  }
   function isHelpOpen() { return $('help').classList.contains('show'); }
 
   function setMuted(m) { $('b-mute').innerHTML = icon(m ? 'mute' : 'sound'); }
@@ -1031,7 +1060,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    showSettings, paintSettings, isSettingsOpen, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
+    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

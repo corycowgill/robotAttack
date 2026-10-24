@@ -295,3 +295,27 @@ test('settings: gear opens them, choices apply and persist across a reload', asy
   assert.ok(!(await page.isVisible('#settings')));
   assert.deepStrictEqual(errors, []);
 });
+
+test('daily operation: seeded by date, scored, best kept; achievements unlock', async t => {
+  const { page, errors } = await open(t);
+  assert.match(await page.textContent('#dl-best'), /Not played/);
+  await page.click('#m-daily');
+  await page.waitForFunction(() => __game.phase === 'planning' && __game.state.daily);
+  const first = await page.evaluate(() => ({ key: __game.state.daily, seed: __game.state.mapSeed, max: __game.state.maxTurns }));
+  const d = new Date(), key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  assert.strictEqual(first.key, key);
+  // win at once: the enemy HQ falls this turn
+  await page.evaluate(() => { __game.setSpeed(3); Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
+  await page.click('#b-end');
+  await skipPlayback(page);
+  await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
+  await page.waitForSelector('#go-daily', { state: 'visible', timeout: 15000 });
+  assert.match(await page.textContent('#go-daily'), /Daily score \d+ — new best!/);
+  const ach = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('ra_ach')) || {}).sort());
+  assert.ok(ach.includes('daily') && ach.includes('first_blood') && ach.includes('blitz'), ach.join(','));
+  // retry replays the same seeded battle
+  await page.click('#go-again');
+  await page.waitForFunction(() => __game.phase === 'planning');
+  assert.strictEqual(await page.evaluate(() => __game.state.mapSeed), first.seed);
+  assert.deepStrictEqual(errors, []);
+});

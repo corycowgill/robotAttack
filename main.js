@@ -53,7 +53,9 @@
       onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true, UI.getSkirmishOptions()),
       onHandoffReady: () => { SND.play('uiClick'); const go = handoffNext; handoffNext = null; UI.hideHandoff(); if (go) go(); },
       onContinue: continueGame,
-      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat), state && state.custom),
+      onRematch: () => state && state.mission ? startMission(state.mission) : state && state.daily ? startDaily() : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat), state && state.custom),
+      onDaily: startDaily,
+      onAchievements: () => { SND.play('uiClick'); const got = loadAch(); UI.showAchievements(ACHIEVEMENTS.map(a => Object.assign({ got: !!got[a.id] }, a))); },
       onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
@@ -157,7 +159,9 @@
 
   function refreshContinue() {
     const s = loadSave();
-    UI.setContinue(s ? (s.state.hotseat ? 'Two players · Turn ' + s.state.turn : (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name)) : null);
+    refreshDaily();
+    UI.setAchCount(Object.keys(loadAch()).filter(id => ACHIEVEMENTS.some(a => a.id === id)).length, ACHIEVEMENTS.length);
+    UI.setContinue(s ? (s.state.daily ? 'Daily Operation · Turn ' + s.state.turn : s.state.hotseat ? 'Two players · Turn ' + s.state.turn : (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name)) : null);
     refreshCampaign();
     pendingOverwrite = null;
     UI.warnOverwrite(null);
@@ -187,7 +191,74 @@
     return parts.join(' · ');
   }
 
-  function startGame(diff, tut, saved, mission, twoPlayer, custom) {
+  // ── Daily Operation: the same seeded battle for everyone on a given day ──
+  function dailyInfo(d) {
+    d = d || new Date();
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const seed = +key.replace(/-/g, '');
+    const twist = DAILY_TWISTS[seed % DAILY_TWISTS.length];
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    const custom = {};
+    for (const k in SKIRMISH_OPTIONS) custom[k] = SKIRMISH_OPTIONS[k].def;
+    Object.assign(custom, twist.opts);
+    return { key, seed, twist, difficulty: weekend ? 'warlord' : 'commander', custom };
+  }
+  function dailyBest(key) {
+    try { return (JSON.parse(localStorage.getItem('ra_daily')) || {})[key] || 0; } catch (e) { return 0; }
+  }
+  function recordDaily(key, score) {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('ra_daily')) || {}; } catch (e) { /* fresh */ }
+    const prev = all[key] || 0;
+    if (score > prev) { all[key] = score; try { localStorage.setItem('ra_daily', JSON.stringify(all)); } catch (e) { /* ignore */ } }
+    return prev;
+  }
+  function refreshDaily() {
+    const d = dailyInfo();
+    UI.setDaily({ date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), opponent: CONST.DIFFICULTY[d.difficulty].name, twist: d.twist.name, best: dailyBest(d.key) });
+  }
+  function startDaily() {
+    const d = dailyInfo();
+    if (!confirmOverwrite('daily')) return;
+    startGame(d.difficulty, false, null, null, false, d.custom, d);
+  }
+
+  // ── Achievements ──
+  function loadAch() { try { return JSON.parse(localStorage.getItem('ra_ach')) || {}; } catch (e) { return {}; } }
+  function unlock(id) {
+    if (hotseat) return;
+    const all = loadAch();
+    if (all[id]) return;
+    all[id] = Date.now();
+    try { localStorage.setItem('ra_ach', JSON.stringify(all)); } catch (e) { /* ignore */ }
+    const a = ACHIEVEMENTS.find(x => x.id === id);
+    if (a) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('select'); }
+  }
+  // checked after every resolved turn
+  function checkTurnAchievements(events) {
+    for (const e of events) {
+      if (e.type === 'end' && e.destroyed.some(d => d.side === A)) unlock('first_blood');
+      if (e.type === 'impact' && e.strike && e.side === P && e.hits.some(h => h.dmg > 0)) unlock('orbital');
+      if ((e.type === 'impact' && e.side === A && e.hits.some(h => h.type === 'decoy')) || (e.type === 'robotHit' && e.side === A && e.hit.type === 'decoy')) unlock('fooled');
+      if (e.type === 'gunfire' && e.side === P && e.shots.some(sh => sh.killed)) unlock('garrison');
+      if (e.type === 'robotFight' && e.side === P && e.killed && R.ownerOfCell(e.targetCell) === P) unlock('garrison');
+    }
+    if (state.sides[P].stats.intercepts >= 10) unlock('iron_dome');
+    if (R.buildingsOf(state, P, 'depot').length >= 5) unlock('tycoon');
+  }
+  function checkEndAchievements() {
+    if (state.winner !== P) return;
+    const hq = R.buildingsOf(state, P, 'hq')[0];
+    if (hq && hq.hp >= hq.maxHp) unlock('untouched');
+    if (state.turn <= 10) unlock('blitz');
+    if (!state.mission && !state.daily && state.difficulty === 'warlord') unlock('warlord');
+    if (state.daily) unlock('daily');
+    if (campaignDone() >= CAMPAIGN.length) unlock('campaign');
+    const medals = loadMedals();
+    if (CAMPAIGN.every(m => (medals[m.id] || []).filter(Boolean).length === 3)) unlock('all_medals');
+  }
+
+  function startGame(diff, tut, saved, mission, twoPlayer, custom, daily) {
     SND.unlock();
     SND.play('uiClick');
     difficulty = diff;
@@ -207,9 +278,10 @@
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : Object.assign(customGameOpts(custom), { hotseat }));
+    state = saved ? saved.state : R.newGame(diff, daily ? daily.seed : undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : Object.assign(customGameOpts(custom), { hotseat }));
     if (!saved && !mission && custom) state.custom = Object.assign({}, custom);   // kept for Rematch
     if (mission) state.mission = mission.id;
+    if (daily) state.daily = daily.key;
     Renderer.setMap(state.land);
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
@@ -224,7 +296,7 @@
       UI.log('Mission ' + m.id + ': ' + m.name, 'sys');
       UI.log(COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', 'enemy');
     } else {
-      UI.log('Operation started — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
+      UI.log((state.daily ? 'Daily Operation ' + state.daily : 'Operation started') + ' — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
       if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
       UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
     }
@@ -1521,6 +1593,7 @@
 
   function finishTurn(events, turn) {
     preNames = null;
+    checkTurnAchievements(events);
     frameView(false);
     UI.setCombatHint(false);
     combatHud = null;
@@ -1568,6 +1641,9 @@
     }
     const medals = mission ? R.missionMedals(state, mission, P) : null;
     const newBest = medals ? recordMedals(mission.id, medals) : false;
+    const daily = state.daily ? { score: R.dailyScore(state, P) } : null;
+    if (daily) daily.prev = recordDaily(state.daily, daily.score);
+    checkEndAchievements();
     UI.setDock(false);
     SND.setMode('off');
     SND.setTension(false);
@@ -1587,9 +1663,10 @@
         title,
         kind: hotseat ? (w === 'draw' ? 'draw' : 'win') : w === P ? 'win' : w === A ? 'lose' : 'draw',
         cols: hotseat ? ['Player 1', 'Player 2'] : null,
-        reason: (hotseat ? seatReason + ' — turn ' + state.turn + ' · two players' : state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : CONST.DIFFICULTY[state.difficulty].name)),
+        reason: (hotseat ? seatReason + ' — turn ' + state.turn + ' · two players' : state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : state.daily ? 'Daily Operation ' + state.daily : CONST.DIFFICULTY[state.difficulty].name)),
+        daily: daily ? { score: daily.score, best: Math.max(daily.score, daily.prev), newBest: daily.score > daily.prev } : null,
         next: !!(mission && w === P && CAMPAIGN[mission.id]),
-        again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : 'Rematch',
+        again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : state.daily ? 'Retry Daily' : 'Rematch',
         medals: medals ? { got: medals, labels: UI.medalLabels(mission), newBest } : null,
         quote: mission ? (w === P ? { who: COMMANDERS.hale, text: mission.win } : { who: COMMANDERS[mission.enemy], text: w === A ? 'As expected. Go home, Commander.' : 'Stalemate... this time.' }) : null,
         rows: [
