@@ -1084,6 +1084,7 @@ window.Renderer = (function () {
   // Fit the labelled map into the screen area not covered by UI panels, by
   // projecting its corners from candidate camera positions (exact under perspective).
   let occl = { left: 0, right: 0, top: 0, bottom: 0 };
+  let framedDist = 400;
   function setOcclusion(left, right, top, bottom) { occl = { left: left || 0, right: right || 0, top: top || 0, bottom: bottom || 0 }; }
   const fitCam = new THREE.PerspectiveCamera();
   const corners = [[-CELL, -CELL], [MAP_W + CELL, -CELL], [-CELL, MAP_H + CELL], [MAP_W + CELL, MAP_H + CELL]].map(c => new THREE.Vector3(c[0], 0, c[1]));
@@ -1121,6 +1122,7 @@ window.Renderer = (function () {
       gz -= ((ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2) * worldPerPx / Math.sin(cam.pitch);
     }
     cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(760, d);
+    framedDist = cam.gdist;
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {
@@ -1312,6 +1314,7 @@ window.Renderer = (function () {
 
   return {
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
+    framedDist: () => framedDist,
     init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
