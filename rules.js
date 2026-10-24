@@ -254,7 +254,8 @@
       robots: [],
       missiles: [],           // in flight, launched last turn
       sides: { player: newSide(P), ai: newSide(A) },
-      locked: (opts.locked || []).slice()   // structure types not available in this game
+      locked: (opts.locked || []).slice(),  // structure types not available in this game
+      hotseat: !!opts.hotseat               // two humans: no AI income bonus
     };
     state.mapSeed = (opts.mapSeed >>> 0) || ((state.rng * 7919 + 17) >>> 0);
     state.land = generateIslands(state.mapSeed, opts.landTarget || C.LAND_TARGET);
@@ -318,7 +319,7 @@
   function robotsOf(state, side) { return state.robots.filter(r => r.side === side && r.hp > 0); }
 
   function incomeMul(state, side) {
-    return side === A ? C.DIFFICULTY[state.difficulty].incomeMul : 1;
+    return side === A && !state.hotseat ? C.DIFFICULTY[state.difficulty].incomeMul : 1;
   }
   function income(state, side) {
     let credits = C.BASE_CREDITS, energy = C.BASE_ENERGY;

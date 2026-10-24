@@ -185,3 +185,36 @@ test('orbital strike: build an uplink, charge, target with R, strike lands', asy
   assert.ok(before - after >= 40, `strike hit the HQ (${before} -> ${after})`);
   assert.deepStrictEqual(errors, []);
 });
+
+test('two players: hand-off screens, separate views and logs, battle after both plan', async t => {
+  const { page, errors } = await open(t);
+  await page.click('#m-hotseat');
+  await page.waitForFunction(() => __game.phase === 'planning' && __game.side === 'player');
+  await page.evaluate(() => __game.setSpeed(3));
+  await page.click('.card[data-type="depot"]');
+  await clickCell(page, await freeCell(page, 'depot'));
+  await page.keyboard.press('Escape');
+  await page.click('#b-end');
+  await page.waitForSelector('#handoff.show');
+  assert.match(await page.textContent('#ho-title'), /Player 2/);
+  assert.strictEqual(await page.evaluate(() => __game.state.turn), 1, 'no combat before Player 2 has planned');
+
+  await page.click('#ho-go');
+  await page.waitForFunction(() => __game.phase === 'planning' && __game.side === 'ai');
+  assert.ok(!(await page.textContent('#log')).includes('Built Supply Depot'), "Player 1's log stays with Player 1");
+  const p2cell = await page.evaluate(() => { for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(__game.state, 'ai', 'depot', c)) return c; return -1; });
+  await page.click('.card[data-type="depot"]');
+  await clickCell(page, p2cell);
+  await page.keyboard.press('Escape');
+  assert.strictEqual(await page.evaluate(c => Rules.buildingAt(__game.state, c)?.side, p2cell), 'ai', 'Player 2 builds on the red island');
+  await page.click('#b-end');
+  await page.waitForSelector('#handoff.show');
+  assert.match(await page.textContent('#ho-title'), /Player 1/);
+  await page.click('#ho-go');
+  await skipPlayback(page);
+  await waitPlanning(page, 2);
+  assert.strictEqual(await page.evaluate(() => __game.side), 'player');
+  assert.ok((await page.textContent('#log')).includes('Built Supply Depot'), "Player 1's log is back");
+  assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'ai', 'depot').length), 1);
+  assert.deepStrictEqual(errors, []);
+});
