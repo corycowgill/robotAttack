@@ -31,6 +31,7 @@
 
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
+    window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     Renderer.init();
     UI.init({
       onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut),
@@ -141,7 +142,6 @@
     state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits } : {});
     if (mission) state.mission = mission.id;
     Renderer.setMap(state.land);
-    window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
     const m = state.mission ? CAMPAIGN[state.mission - 1] : null;

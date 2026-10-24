@@ -159,6 +159,21 @@ Check each model's licence before shipping generated audio:
 - Stable Audio Open uses the Stability AI Community License.
 - AudioLDM2 and MusicGen weights are non-commercial.
 
+## Testing
+
+```bash
+npm install
+npm test              # rules unit tests + AI-vs-AI simulations (Node only, a few seconds)
+npx playwright install chromium   # once, for the browser tests
+npm run test:e2e      # headless-browser smoke tests of real UI flows
+```
+
+- `tests/rules.test.js`: island generation, build/upgrade/sell/undo, decoys, drops, missiles and AA, win conditions, determinism and save round trips.
+- `tests/sim.test.js`: AI-vs-AI games at every difficulty and on every campaign map must finish within the rules; the Commander mirror must stay roughly balanced.
+- `tests/e2e.test.js`: plays through skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Three.js is served from `node_modules`, so the tests need no internet access.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request.
+
 ### Simulating games headlessly
 
 `rules.js` and `ai.js` load under Node, so AI-vs-AI games can be simulated for balance testing:
