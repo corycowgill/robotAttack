@@ -408,6 +408,57 @@
     g.userData.height = 9.4;
   }
 
+  // Strike Uplink: hex bunker, three-arm pylon and an upward emitter ring around a charged core.
+  // Four lights on the bunker show the charge (Models.setCharge).
+  function buildUplink(g, side) {
+    var y0 = plinth(g, side, 10);
+    var C = MAT.concrete(), GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side);
+    add(g, cyl(3.6, 4.2, 1.8, 6), C, 0, y0 + 0.9, 0);
+    add(g, cyl(3.75, 3.75, 0.22, 6), GM, 0, y0 + 1.9, 0);
+    addFlat(g, cyl(4.0, 4.0, 0.12, 6, true), T, 0, y0 + 0.55, 0);
+    add(g, cyl(0.9, 1.3, 4.6, 10), ST, 0, y0 + 4.2, 0);
+    add(g, cyl(1.5, 1.5, 0.4, 12), GM, 0, y0 + 6.6, 0);
+    for (var k = 0; k < 3; k++) {
+      var a = k * 2 * PI / 3 + PI / 6, cx = Math.cos(a), cz = Math.sin(a);
+      beam(g, V(cx * 3.1, y0 + 2.0, cz * 3.1), V(cx * 2.0, y0 + 8.1, cz * 2.0), 0.18, MAT.steelLight(), 6);
+      add(g, box(0.9, 0.9, 0.9), P, cx * 3.1, y0 + 2.4, cz * 3.1).rotation.y = -a;
+    }
+    // emitter ring (spins) and core
+    var rings = group(g, 0, y0 + 8.4, 0);
+    add(rings, torus(2.2, 0.24, 8, 32), GM).rotation.x = PI / 2;
+    addFlat(rings, torus(2.2, 0.09, 6, 32), T, 0, 0.2, 0).rotation.x = PI / 2;
+    for (var j = 0; j < 6; j++) {
+      var b = j * PI / 3;
+      add(rings, box(0.5, 0.35, 0.7), ST, Math.cos(b) * 2.2, 0, Math.sin(b) * 2.2).rotation.y = -b;
+    }
+    var orb = group(g, 0, y0 + 8.4, 0);
+    addFlat(orb, sph(0.85, 18, 12), trimHot(side));
+    addFlat(orb, sph(0.38, 12, 10), MAT.orbCore());
+    halo(orb, teamColor(side), 5.5);
+    g.userData.parts.orb = orb;
+    g.userData.parts.rings = rings;
+    g.userData._rings = rings;
+    // charge lights (per instance)
+    var lights = [];
+    for (var i = 0; i < 4; i++) {
+      var m = new THREE.MeshStandardMaterial({ color: 0x15191e, emissive: teamColor(side), emissiveIntensity: 0.06, roughness: 0.4 });
+      g.userData._own.push(m);
+      var la = -PI / 4 + (i - 1.5) * 0.42;
+      addFlat(g, box(0.55, 0.42, 0.2), m, Math.cos(la) * 3.95, y0 + 1.05, Math.sin(la) * 3.95).rotation.y = -la + PI / 2;
+      lights.push(m);
+    }
+    g.userData.chargeLights = lights;
+    g.userData.height = y0 + 10.2;
+  }
+
+  // Strike Uplink charge display: n of the 4 lights lit; a full charge makes the core throb
+  function setCharge(g, n, max) {
+    var ud = g.userData;
+    if (!ud.chargeLights) return;
+    ud.chargeLights.forEach(function (m, i) { m.emissiveIntensity = i < n ? 2.4 : 0.06; });
+    ud.ready = n >= max;
+  }
+
   function buildRadar(g, side) {
     var y0 = plinth(g, side, 10);
     var C = MAT.concrete(), GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side);
@@ -767,7 +818,7 @@
   }
 
   var BUILDERS = {
-    hq: buildHQ, depot: buildDepot, power: buildPower, radar: buildRadar, silo: buildSilo,
+    hq: buildHQ, depot: buildDepot, power: buildPower, radar: buildRadar, silo: buildSilo, uplink: buildUplink,
     aa: buildAA, shield: buildShield, hangar: buildHangar, gunpod: buildGunpod
   };
 
@@ -804,9 +855,12 @@
       if (h) { var s = on ? p.beacon.userData.haloSize : 0.001; h.scale.set(s, s, s); }
     }
     if (p.orb) {
-      var k = 1 + 0.08 * Math.sin((t + ph) * 3.2);
+      var k = ud.ready ? 1.15 + 0.25 * Math.sin((t + ph) * 7) : 1 + 0.08 * Math.sin((t + ph) * 3.2);
       p.orb.scale.set(k, k, k);
-      if (ud._rings) { ud._rings.rotation.y += dt * 1.4; ud._rings.rotation.z = 0.2 * Math.sin(t * 0.7 + ph); }
+      if (ud._rings) {
+        ud._rings.rotation.y += dt * (ud.ready ? 4 : 1.4);
+        if (ud.type !== 'uplink') ud._rings.rotation.z = 0.2 * Math.sin(t * 0.7 + ph);
+      }
     }
     if (p.turret) {
       if (ud.aimYaw === undefined || ud.aimYaw === null) {
@@ -1089,6 +1143,7 @@
     aa: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.0, 4.0, 1.4, 8, 0, 1.3, 0], ['b', 2.8, 1.3, 2.6, 0, 3.45, 0], ['b', 1.6, 0.3, 4.0, 0, 4.4, 2.2]],
     shield: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.4, 1.0, 6, 0, 1.1, 0], ['c', 0.9, 1.3, 1.6, 6, 0, 2.8, 0], ['c', 1.4, 2.8, 4.8, 3, 0, 4.0, 0], ['c', 0.95, 0.95, 1.9, 8, 0, 5.7, 0]],
     hangar: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 9, 3.6, 7.6, 0, 2.4, -0.4], ['b', 6.6, 1.9, 7.6, 0, 5.1, -0.4], ['b', 8.4, 5.4, 0.9, 0, 3.3, 3.4]],
+    uplink: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.2, 1.8, 6, 0, 1.5, 0], ['c', 0.9, 1.3, 4.6, 10, 0, 4.8, 0], ['c', 2.4, 2.4, 0.5, 12, 0, 9.0, 0]],
     gunpod: [['b', 9.5, 0.6, 9.5, 0, 0.3, 0], ['c', 2.9, 3.6, 1.0, 6, 0, 1.1, 0], ['c', 1.2, 1.9, 1.6, 8, 0, 2.4, 0], ['b', 0.9, 0.9, 2.6, 0, 2.55, 3.2]]
   };
   function ghost(type) {
@@ -1126,6 +1181,7 @@
 
   window.Models = {
     building: building,
+    setCharge: setCharge,
     animate: animate,
     robot: robot,
     animateRobot: animateRobot,

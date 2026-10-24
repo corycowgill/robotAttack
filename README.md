@@ -61,6 +61,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
+| 0 | Strike Uplink | 260 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
@@ -82,7 +83,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 
 ## Campaign
 
-Five missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
+Seven missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
 
 | # | Mission | Opponent | Twist |
 |---|---|---|---|
@@ -91,10 +92,12 @@ Five missions, each on a fixed island map against a named enemy commander. Each 
 | 3 | Iron Strait | Marshal Kord (Commander) | Adaptive AI with an early Radar |
 | 4 | Fortress Isle | Capt. Vey (Commander) | Shielded fortress HQ; you get extra starting credits |
 | 5 | Black Tide | Overseer NYX (Warlord) | Full-vision AI with decoys |
+| 6 | Skyfall | Marshal Kord (Commander) | Kord's Strike Uplink is already half charged; you get one of your own |
+| 7 | Zero Hour | Director Sol (Warlord) | Orbital duel: both Uplinks start charged, against a full-vision AI behind shields and AA |
 
 **Medals:** each mission awards up to three stars:
 - one for winning;
-- one for winning within the mission's par turn count (12, 18, 14, 14 and 15 turns);
+- one for winning within the mission's par turn count (12, 18, 14, 14, 15, 15 and 13 turns);
 - one for finishing with your HQ above 50% health.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
@@ -109,6 +112,7 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 - **Commander:**
   - Adapts its builds: AA when you shell it, Gun Pods when your mechs land.
   - Fires all its missiles at once to overwhelm your AA, picks off unprotected economy buildings, and repairs its HQ.
+  - Builds a Strike Uplink mid-game where available and aims each strike at the 3×3 area that hurts you most.
 - **Warlord:**
   - Commander tactics plus full map vision and +25% income.
   - Repairs structures that your missiles are about to hit.
@@ -117,10 +121,10 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 
 | Input | Action |
 |---|---|
-| `1`–`9` | Select a structure to build (Shift+click places several) |
+| `1`–`9`, `0` | Select a structure to build (Shift+click places several) |
 | Left click | Place / target / select |
 | Right click, `Esc` | Cancel |
-| `Q` / `E` | Fire missile / drop mech |
+| `Q` / `E` / `R` | Fire missile / drop mech / orbital strike |
 | `T` / `U` / `X` | Repair / upgrade / sell the selected structure |
 | `Z` | Undo |
 | `Space` | End turn; during combat, skip the playback |

@@ -182,6 +182,35 @@
     chain(saw, lp, rg, o);
   };
 
+  // Strike Uplink firing: a rising, shimmering charge-up into the sky
+  R.strikeUp = function (o, t, p) {
+    var a = O('sine', 220 * p, t, 1.65), b = O('sine', 331 * p, t, 1.65);
+    a.frequency.exponentialRampToValueAtTime(1760 * p, t + 1.5);
+    b.frequency.exponentialRampToValueAtTime(2650 * p, t + 1.5);
+    var trem = O('sine', 14, t, 1.65), td = G(0.35);
+    var g = G(0);
+    chain(trem, td, g.gain);
+    env(g, t, 0.35, 0.16, 1.25);
+    chain(a, g, o); chain(b, g);
+    var n = N(t, 1.6), hp = F('highpass', 3000, 0.7), ng = G(0);
+    env(ng, t, 0.9, 0.05, 0.65);
+    chain(n, hp, ng, o);
+  };
+
+  // Orbital strike coming down: a descending growl and a crackling beam
+  R.strikeDown = function (o, t, p) {
+    var saw = O('sawtooth', 900 * p, t, 1.45), lp = F('lowpass', 2400, 2), g = G(0);
+    saw.frequency.exponentialRampToValueAtTime(60, t + 1.3);
+    sweep(lp.frequency, 2400, 300, t, 1.3);
+    env(g, t, 0.05, 0.3, 1.35);
+    chain(saw, lp, g, o);
+    var n = N(t, 1.4), bp = F('bandpass', 1200, 0.8), ng = G(0);
+    var crackle = O('square', 31, t, 1.4), cd = G(0.12);
+    chain(crackle, cd, ng.gain);
+    env(ng, t, 0.1, 0.22, 1.25);
+    chain(n, bp, ng, o);
+  };
+
   R.incoming = function (o, t, p) {
     var osc = O('sine', 1800 * p, t, 1.85);
     osc.frequency.exponentialRampToValueAtTime(500 * p, t + 1.8);
@@ -372,6 +401,7 @@
   var META = {
     explosion: ['sfx', 1.8, 0.22, 1], flak: ['sfx', 0.6, 0.2, 1],
     missileLaunch: ['sfx', 1.3, 0.2, 1], incoming: ['sfx', 1.9, 0.15, 1],
+    strikeUp: ['sfx', 1.7, 0.05, 1], strikeDown: ['sfx', 1.5, 0.05, 1],
     intercept: ['sfx', 0.3, 0.2, 1], shieldHit: ['sfx', 1.0, 0.6, 1],
     gunfire: ['sfx', 0.4, 0.15, 1], robotStep: ['sfx', 0.25, 0.1, 1],
     robotLand: ['sfx', 0.6, 0.2, 1], robotPunch: ['sfx', 0.3, 0.15, 1],

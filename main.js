@@ -150,7 +150,7 @@
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits } : {});
+    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : {});
     if (mission) state.mission = mission.id;
     Renderer.setMap(state.land);
     mode = 'select'; buildType = null; selectedCell = -1;
@@ -205,7 +205,9 @@
     const inc = R.detectedIncoming(state, P);
     if (inc.length) {
       setTimeout(() => { if (phase === 'planning') SND.play('alarm'); }, 500);
-      UI.toast(inc.length + ' incoming missile' + (inc.length > 1 ? 's' : '') + ' detected!', 'bad');
+      const strikes = inc.filter(m => m.strike), missiles = inc.length - strikes.length;
+      if (missiles) UI.toast(missiles + ' incoming missile' + (missiles > 1 ? 's' : '') + ' detected!', 'bad');
+      for (const m of strikes) UI.toast('ORBITAL STRIKE inbound on ' + describeCell(m.to) + ' — AA cannot stop it. Shield, repair or move out!', 'bad');
     }
     UI.log('Turn ' + state.turn, 'turn');
     saveGame();
@@ -229,6 +231,7 @@
         if (!rec) rec = Renderer.addBuilding(b, !instant && b.side === P && playerSees(c));
         else Renderer.setBuildingHp(b.id, b.hp, b.maxHp);
         if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
+        if (b.type === 'uplink') Renderer.setBuildingCharge(b.id, playerSees(c) ? b.charge : 0);
         if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
         Renderer.setBuildingVisible(b.id, playerSees(c));
       }
@@ -298,7 +301,8 @@
 
   function refreshDock() {
     const s = state.sides[P];
-    const cards = BUILD_ORDER.map(t => {
+    const locked = state.locked || [];
+    const cards = BUILD_ORDER.filter(t => !locked.includes(t)).map(t => {
       const def = BUILDINGS[t];
       const count = R.buildingsOf(state, P, t).length;
       let reason = null;
@@ -311,10 +315,17 @@
     const hangars = R.buildingsOf(state, P, 'hangar').length, freeH = R.freeLaunchers(state, P, 'hangar').length;
     const fireReason = !silos ? 'Build a Missile Silo first' : !freeSilos ? 'All silos tasked' : s.energy < CONST.MISSILE_ENERGY ? 'Need ' + CONST.MISSILE_ENERGY + ' energy' : null;
     const dropReason = !hangars ? 'Build a Robot Hangar first' : R.dropReadyReason(state, P);
-    const ready = phase === 'planning' && !!fireReason && !!dropReason && s.credits < 80;
+    const uplink = R.buildingsOf(state, P, 'uplink')[0];
+    const strikeReason = R.strikeReadyReason(state, P);
+    const strikeOrdered = s.orders.some(o => o.kind === 'strike');
+    const ready = phase === 'planning' && !!fireReason && !!dropReason && (!!strikeReason || !uplink) && s.credits < 80;
     UI.setActions({
       fire: { enabled: !fireReason, selected: mode === 'fire', reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? freeSilos + '/' + silos : '' },
       drop: { enabled: !dropReason, selected: mode === 'drop', reason: dropReason, sub: CONST.DROP_ENERGY + 'e', badge: hangars ? freeH + '/' + hangars : '' },
+      strike: {
+        visible: !!uplink, enabled: !strikeReason, selected: mode === 'strike', reason: strikeReason, sub: CONST.STRIKE_ENERGY + 'e',
+        ready: !strikeReason, badge: uplink ? (strikeOrdered ? 'SET' : uplink.charge >= CONST.STRIKE_CHARGE ? 'READY' : uplink.charge + '/' + CONST.STRIKE_CHARGE) : ''
+      },
       endReady: ready
     });
   }
@@ -332,8 +343,9 @@
   }
 
   function refreshOrders() {
-    const orders = state.sides[P].orders.map(o => ({ id: o.id, kind: o.kind, text: (o.kind === 'missile' ? 'Missile → ' : 'Mech drop → ') + describeCell(o.to) }));
-    const inc = R.detectedIncoming(state, P).map(m => ({ text: 'INCOMING → ' + describeCell(m.to) }));
+    const label = { missile: 'Missile → ', drop: 'Mech drop → ', strike: 'Orbital strike → ' };
+    const orders = state.sides[P].orders.map(o => ({ id: o.id, kind: o.kind, text: label[o.kind] + describeCell(o.to) }));
+    const inc = R.detectedIncoming(state, P).map(m => ({ text: (m.strike ? 'ORBITAL STRIKE → ' : 'INCOMING → ') + describeCell(m.to), strike: !!m.strike }));
     UI.setOrders(orders, phase === 'planning' ? inc : []);
   }
 
@@ -353,6 +365,7 @@
       }
       if (own) info.upgrade = R.upgradeInfo(state, P, c);
       if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + R.stat(b, 'pool');
+      if (b.type === 'uplink') info.extra = b.charge >= CONST.STRIKE_CHARGE ? 'Strike READY — press R' : 'Charging ' + b.charge + '/' + CONST.STRIKE_CHARGE;
       // decoys disguised as AA show what a fresh AA would
       if (a.type === 'aa' || a.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + (b.type === 'decoy' ? 1 : b.shots);
       if (own) {
@@ -399,8 +412,8 @@
       const can = state.sides[P].credits >= BUILDINGS[buildType].cost;
       Renderer.setZone(c => R.inBuildZone(state, P, c) ? (can ? [60, 255, 130, 70] : [255, 200, 60, 50]) : (R.ownerOfCell(c) === P ? [0, 0, 0, 40] : null));
       Renderer.setGridEmphasis(true);
-    } else if (mode === 'fire' || mode === 'drop') {
-      const col = mode === 'fire' ? [255, 120, 30, 46] : [46, 196, 255, 46];
+    } else if (mode === 'fire' || mode === 'drop' || mode === 'strike') {
+      const col = mode === 'fire' ? [255, 120, 30, 46] : mode === 'strike' ? [61, 255, 200, 40] : [46, 196, 255, 46];
       // drops may also target your own island (garrison)
       Renderer.setZone(c => R.ownerOfCell(c) === A ? col : (mode === 'drop' && R.isLand(state, c) && R.ownerOfCell(c) === P ? [120, 255, 170, 26] : null));
       Renderer.setGridEmphasis(true);
@@ -427,6 +440,11 @@
     } else if (mode === 'drop') {
       Renderer.setBuildGhost(null, -1);
       Renderer.setHover(hoverCell, R.dropReason(state, P, hoverCell) ? 0xff4444 : 0x2ec4ff);
+    } else if (mode === 'strike') {
+      Renderer.setBuildGhost(null, -1);
+      const bad = R.strikeReason(state, P, hoverCell);
+      Renderer.setHover(hoverCell, bad ? 0xff4444 : 0x3dffc8);
+      if (bad) Renderer.hideRange(); else Renderer.showRange(hoverCell, 1, 0x3dffc8, true); // the 3x3 blast area
     } else {
       Renderer.setBuildGhost(null, -1);
       Renderer.setHover(hoverCell, 0xdddddd);
@@ -472,6 +490,10 @@
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
         : !R.isLand(state, hoverCell) ? '<span class="bad">Open water</span> — a missile here would be wasted'
           : 'Fire at <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">Lands at the start of next turn\'s combat</span>';
+    } else if (mode === 'strike') {
+      const reason = R.strikeReason(state, P, hoverCell);
+      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
+        : 'Orbital strike on <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area · lands next turn · cannot be intercepted</span>';
     } else if (mode === 'drop') {
       const reason = R.dropReason(state, P, hoverCell);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>' : 'Drop mech at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">Lands this turn, attacks from next turn</span>';
@@ -541,6 +563,12 @@
       const silo = R.buildingAt(state, r.order.from);
       if (silo) Renderer.aimTurret(silo.id, c);
       if (!R.freeLaunchers(state, P, 'silo').length || state.sides[P].energy < CONST.MISSILE_ENERGY) cancelMode();
+    } else if (mode === 'strike') {
+      const r = R.queueStrike(state, P, c);
+      if (!r.ok) return fail(r.reason);
+      SND.play('select');
+      UI.log('Orbital strike locked on ' + describeCell(c), 'player');
+      cancelMode();
     } else if (mode === 'drop') {
       const r = R.queueDrop(state, P, c);
       if (!r.ok) return fail(r.reason);
@@ -570,6 +598,7 @@
   function selectBuild(type) {
     if (!state || phase !== 'planning') return;
     const def = BUILDINGS[type];
+    if ((state.locked || []).includes(type)) return fail(def.name + ' is not available in this mission');
     if (state.sides[P].credits < def.cost) return fail('Need ' + def.cost + ' credits for ' + def.name);
     if (def.max && R.buildingsOf(state, P, type).length >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
     SND.play('uiClick');
@@ -600,6 +629,14 @@
         SND.play('uiClick');
         mode = mode === 'fire' ? 'select' : 'fire'; selectedCell = -1;
         if (mode === 'fire') UI.toast('Click an enemy cell to target (right-click to cancel)', 'warn');
+        break;
+      }
+      case 'strike': {
+        const reason = R.strikeReadyReason(state, P);
+        if (reason) return fail(reason);
+        SND.play('uiClick');
+        mode = mode === 'strike' ? 'select' : 'strike'; selectedCell = -1;
+        if (mode === 'strike') UI.toast('Click an enemy cell for the orbital strike (right-click to cancel)', 'warn');
         break;
       }
       case 'drop': {
@@ -694,11 +731,16 @@
     if (e.code === 'KeyF') { frameView(false); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); action('end'); return; }
     if (phase !== 'planning') return;
-    const digit = /^Digit([1-9])$/.exec(e.code) || /^Numpad([1-9])$/.exec(e.code);
-    if (digit) { selectBuild(BUILD_ORDER[+digit[1] - 1]); return; }
+    const digit = /^Digit([0-9])$/.exec(e.code) || /^Numpad([0-9])$/.exec(e.code);
+    if (digit) {
+      const type = BUILD_ORDER.find(t => BUILDINGS[t].key === digit[1]);
+      if (type) selectBuild(type);
+      return;
+    }
     switch (e.code) {
       case 'KeyQ': action('fire'); break;
       case 'KeyE': action('drop'); break;
+      case 'KeyR': action('strike'); break;
       case 'KeyT': action('repair'); break;
       case 'KeyU': action('upgrade'); break;
       case 'KeyX': case 'Delete': action('sell'); break;
@@ -830,7 +872,7 @@
   }
 
   function logCancelled(e) {
-    UI.log((e.side === P ? 'Your ' : 'Enemy ') + (e.kind === 'drop' ? 'drop' : 'launch') + ' cancelled — launcher destroyed', e.side === P ? 'bad' : 'good');
+    UI.log((e.side === P ? 'Your ' : 'Enemy ') + (e.kind === 'drop' ? 'drop' : e.kind === 'strike' ? 'orbital strike' : 'launch') + ' cancelled — launcher destroyed', e.side === P ? 'bad' : 'good');
   }
 
   function arcPoint(a, b, h, t, out) {
@@ -849,7 +891,34 @@
     return { a, b, h: Renderer.missileArcHeight(a, b) };
   }
 
+  // Orbital strike, part 1: the uplink fires a column of light into the sky
+  function animateStrikeLaunch(e) {
+    const own = e.side === P;
+    const pos = Renderer.cellCenter(e.from);
+    UI.log(own ? 'Orbital strike away — it lands on ' + describeCell(e.to) + ' next turn'
+      : 'ENEMY ORBITAL STRIKE launched — target ' + describeCell(e.to) + ', impact next turn', own ? 'player' : 'bad');
+    if (!playerSees(e.from)) { SND.play('strikeUp', { pan: 0.6, gain: 0.5 }); return; }
+    SND.play('strikeUp', { pan: panAt(e.from) });
+    const beam = Renderer.strikeBeam(pos, own ? 0x66e8ff : 0xff7a55, 1.4, true);
+    Fx.dustRing(pos, 1.2);
+    Renderer.addTrauma(0.2, pos);
+    Timeline.tween(1.4, k => beam.update(k), () => beam.dispose());
+  }
+
+  // Orbital strike, part 2: a targeting beam, then the strike itself
+  function animateStrikeDescent(e, impact, idAt) {
+    const own = e.side === P;
+    const pos = Renderer.cellCenter(e.to);
+    SND.play('strikeDown', { pan: panAt(e.to) });
+    const beam = Renderer.strikeBeam(pos, own ? 0x9ff4ff : 0xffb08a, 1.3, false);
+    Timeline.tween(1.3, k => {
+      beam.update(k);
+      if (k > 0.25) Renderer.addTrauma(0.02, pos);
+    }, () => { beam.dispose(); if (impact) applyImpact(impact, idAt); });
+  }
+
   function animateLaunch(e, idAt) {
+    if (e.strike) return animateStrikeLaunch(e);
     const sid = idAt[e.from];
     const own = e.side === P;
     const { a, b, h } = missilePath(e);
@@ -881,6 +950,7 @@
   }
 
   function animateDescent(e, dur, idAt, impact) {
+    if (e.strike) return animateStrikeDescent(e, impact, idAt);
     const own = e.side === P;
     const { a, b, h } = missilePath(e);
     const m = Models.missile(e.side);
@@ -959,13 +1029,16 @@
     const own = ev.side === P;
     const hqHit = ev.hits.some(h => h.type === 'hq' && h.dmg > 0);
     const wet = !R.isLand(state, ev.cell);
+    const big = ev.strike;
     if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('explosion', { pan: panAt(ev.cell), gain: 0.5 }); }
-    else { Fx.explosion(pos, hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit }); }
-    Renderer.addTrauma(wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
+    else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit || big }); }
+    if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
+    Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
     let total = 0;
     for (const h of ev.hits) total += applyHit(h, idAt);
     const name = describeCell(ev.cell);
-    if (!ev.hits.length) UI.log((own ? 'Your missile ' : 'Enemy missile ') + (wet ? 'splashed into the sea at ' : 'hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
+    if (big) UI.log((own ? 'ORBITAL STRIKE on ' : 'ENEMY ORBITAL STRIKE on ') + name + ': ' + total + ' damage', own ? 'good' : 'bad');
+    else if (!ev.hits.length) UI.log((own ? 'Your missile ' : 'Enemy missile ') + (wet ? 'splashed into the sea at ' : 'hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
     else UI.log((own ? 'Missile impact on ' : 'Enemy missile hit ') + name + ': ' + total + ' damage', own ? 'good' : 'bad');
     // the impact reveals the area — lift fog right away for the attacker
     if (own) {

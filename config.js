@@ -32,6 +32,10 @@ const CONST = {
   DROP_ENERGY: 12,
   MAX_ROBOTS: 6,
   DROP_HQ_EXCLUSION: 2,      // no drops within this Chebyshev distance of the enemy HQ
+  STRIKE_CHARGE: 4,          // turns a Strike Uplink needs to charge
+  STRIKE_ENERGY: 15,
+  STRIKE_DAMAGE: 80,
+  STRIKE_SPLASH: 40,         // to every structure in the 3x3 around the target
 
   // Robots
   ROBOT_HP: 50,
@@ -123,10 +127,16 @@ const BUILDINGS = {
     desc: 'Inflatable fake. The enemy sees it as a real high-value structure — it draws missiles and mechs away from your base.',
     stats: () => ['Disguised as a random silo, hangar, power plant, depot or AA', 'Exposed only when destroyed'],
     disguises: ['silo', 'hangar', 'power', 'depot', 'aa']
+  },
+  uplink: {
+    name: 'Strike Uplink', short: 'UPL', key: '0', cost: 260, hp: 70, max: 1,
+    desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
+    stats: () => ['Orbital strike: ' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area', 'Charges ' + CONST.STRIKE_CHARGE + ' turns, ' + CONST.STRIKE_ENERGY + ' energy to fire', 'Cannot be intercepted; Shields absorb it', 'Max 1'],
+    counter: 'Strikes are always detected — spread out, shield and repair'
   }
 };
 
-const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy'];
+const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'uplink'];
 
 // One upgrade level per structure (Metal Marines style). Values replace the base stats.
 const UPGRADES = {
@@ -149,26 +159,27 @@ const COMMANDERS = {
   rusk:  { name: 'Cmdr. Rusk',     title: 'Coastal garrison',        look: { color: '#ff7a3d', visor: '#ffd2a8', gear: 'none' } },
   vey:   { name: 'Capt. Vey',      title: 'Reef fortress warden',    look: { color: '#ffb000', visor: '#fff0b0', gear: 'patch' } },
   kord:  { name: 'Marshal Kord',   title: 'Strait fleet command',    look: { color: '#ff4422', visor: '#ffb3a3', gear: 'antenna' } },
-  nyx:   { name: 'Overseer NYX',   title: 'Autonomous war AI',       look: { color: '#c04dff', visor: '#f0c2ff', gear: 'crown' } }
+  nyx:   { name: 'Overseer NYX',   title: 'Autonomous war AI',       look: { color: '#c04dff', visor: '#f0c2ff', gear: 'crown' } },
+  sol:   { name: 'Director Sol',   title: 'Orbital network command', look: { color: '#3dffc8', visor: '#c8fff0', gear: 'antenna' } }
 };
 
 const CAMPAIGN = [
   {
-    id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12,
+    id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12, locked: ['uplink'],
     brief: 'Rusk holds a lightly defended sand island across the strait. Build an economy, get missiles in the air and knock out his Command Center.',
     taunt: 'A rookie? I will have you swimming home by sundown.',
     win: 'Clean work. Rusk is out of the fight — but word of you will travel.',
     start: { player: [], ai: [] }
   },
   {
-    id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18,
+    id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18, locked: ['uplink'],
     brief: 'Vey has dug in behind AA batteries and a gun pod. Saturate her air defense — fire several missiles in the same turn — or slip mechs past it.',
     taunt: 'My batteries have never let a missile through. Try your luck.',
     win: 'Her defenses cracked. Remember: volume beats precision against AA.',
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
   },
   {
-    id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 14,
+    id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 14, locked: ['uplink'],
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
@@ -176,7 +187,7 @@ const CAMPAIGN = [
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'depot', dx: 2, dy: 2 }, { type: 'radar', dx: 4, dy: 0 }] }
   },
   {
-    id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 14,
+    id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 14, locked: ['uplink'],
     brief: 'Vey is back with a fortress: shields, layered AA and gun pods around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
     win: 'The fortress fell. Only one enemy remains.',
@@ -184,12 +195,28 @@ const CAMPAIGN = [
     start: { player: [{ type: 'power', dx: 1, dy: 2 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 3, dy: 2 }, { type: 'gunpod', dx: 2, dy: 0 }, { type: 'depot', dx: 4, dy: -1 }] }
   },
   {
-    id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 15,
+    id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 15, locked: ['uplink'],
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
-    win: 'NYX is silent. The war is over, Commander. Outstanding.',
+    win: 'NYX is silent. Outstanding — but its orbital codes are already being sold.',
     credits: { player: 360 },
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }, { type: 'aa', dx: 1, dy: 2 }, { type: 'power', dx: 2, dy: 2 }], ai: [{ type: 'aa', dx: 2, dy: 1 }, { type: 'decoy', dx: 5, dy: -3 }, { type: 'decoy', dx: 5, dy: 3 }] }
+  },
+  {
+    id: 6, name: 'Skyfall', enemy: 'kord', difficulty: 'commander', mapSeed: 6637, land: 115, par: 15,
+    brief: 'Kord bought NYX\'s orbital codes. His Strike Uplink is already charging, and no AA can stop what it calls down. Spread out, shield the HQ, and get our own Uplink online.',
+    taunt: 'Look up, Commander. The sky belongs to me now.',
+    win: 'Kord\'s uplink is scrap. But those codes came from somewhere higher up.',
+    credits: { player: 480 },
+    start: { player: [{ type: 'uplink', dx: -1, dy: 3 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 2 }, { type: 'depot', dx: 2, dy: 2 }, { type: 'radar', dx: 4, dy: 0 }] }
+  },
+  {
+    id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 13,
+    brief: 'Director Sol runs the orbital network itself: strikes early and often, AA that never sleeps, eyes on everything. Our Uplink is half charged. Make the first strike count.',
+    taunt: 'I have watched your little war from above. It ends today.',
+    win: 'The network is down and the skies are clear. Now the war is over, Commander.',
+    credits: { player: 500 },
+    start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 2 }, { type: 'shield', dx: 1, dy: 0 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 2 }, { type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 3, dy: 2 }, { type: 'decoy', dx: 5, dy: 0 }] }
   }
 ];
 
