@@ -311,3 +311,34 @@ test('battle options: island size, start credits, turn limit', () => {
   assert.ok(s.winner, 'decided at the custom turn limit');
   assert.match(s.endReason, /Turn limit/);
 });
+
+test('robotIntent predicts what resolveTurn does with a mech', () => {
+  const s = R.newGame('commander', 21);
+  const ehq = R.hqCell(A);
+  // a raider two cells from an enemy depot walks toward it; next to it, it smashes it
+  rich(s, A);
+  const depotCell = buildable(s, A, 'depot');
+  R.build(s, A, 'depot', depotCell);
+  const far = R.cellsInRadius(depotCell, 3).find(c => R.ownerOfCell(c) === A && R.isLand(s, c) && !s.cells[c].building && R.cheb(c, depotCell) === 3 && R.dist(c, ehq) > CONST.ROBOT_HQ_PREFERENCE);
+  assert.ok(far !== undefined, 'test setup: a cell three steps from the depot');
+  const r = { id: 999, side: P, cell: far, hp: 50, maxHp: 50, dmg: 20 };
+  s.robots.push(r);
+  const a = R.robotIntent(s, r);
+  assert.equal(a.kind, 'move');
+  assert.ok(a.path.length >= 1 && a.path.length <= CONST.ROBOT_MOVE);
+  const ev = R.resolveTurn(s);
+  const mv = ev.find(e => e.type === 'robotMove' && e.id === 999);
+  assert.deepEqual(mv.path, a.path, 'the move matches the prediction');
+  const s2 = R.newGame('commander', 22);
+  const near = R.neighbors(R.hqCell(A), 1).find(c => R.isLand(s2, c) && !s2.cells[c].building);
+  const r2 = { id: 998, side: P, cell: near, hp: 50, maxHp: 50, dmg: 20 };
+  s2.robots.push(r2);
+  const a2 = R.robotIntent(s2, r2);
+  assert.equal(a2.kind, 'hit');
+  assert.equal(a2.building.type, 'hq');
+  // a garrison mech with no invaders holds
+  const home = freeLand(s2, P);
+  const g = { id: 997, side: P, cell: home, hp: 50, maxHp: 50, dmg: 20 };
+  s2.robots.push(g);
+  assert.equal(R.robotIntent(s2, g).kind, 'hold');
+});

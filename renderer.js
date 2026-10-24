@@ -582,8 +582,53 @@ window.Renderer = (function () {
   }
 
   // orders: [{kind, from, to}], incoming: [{to}]
-  function setMarkers(orders, incoming) {
+  // intents: [{ side, from, kind: 'move'|'hit'|'fight', path?: [cells], target?: cell }] — what each
+  // visible mech will do next resolution (dashed walk path + bracket on what it will attack)
+  function setMarkers(orders, incoming, intents) {
     clearMarkers();
+    for (const it of intents || []) {
+      const color = it.side === CONST.SIDE_PLAYER ? 0x5fd4ff : 0xff5a3a;
+      if (it.kind === 'move' && it.path && it.path.length) {
+        // a flat ribbon along the walk (GL lines are 1px wide) with an arrowhead on the last step
+        const pts = [it.from].concat(it.path).map(c => { const p = cellCenter(c); p.y = 1.6; return p; });
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthTest: false, side: THREE.DoubleSide });
+        const g = new THREE.Group();
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i], last = i === pts.length - 1;
+          const len = a.distanceTo(b) - (last ? 4.5 : 0);
+          const seg = new THREE.Mesh(new THREE.PlaneGeometry(1.8, Math.max(0.1, len)), mat);
+          seg.rotation.x = -Math.PI / 2;
+          seg.rotation.z = -Math.atan2(b.z - a.z, b.x - a.x) + Math.PI / 2;
+          const dir = b.clone().sub(a).normalize();
+          seg.position.copy(a).addScaledVector(dir, len / 2);
+          g.add(seg);
+          if (last) {
+            const tri = new THREE.Shape([new THREE.Vector2(-3.2, 0), new THREE.Vector2(3.2, 0), new THREE.Vector2(0, 5)]);
+            const head = new THREE.Mesh(new THREE.ShapeGeometry(tri), mat);
+            head.rotation.x = -Math.PI / 2;
+            head.rotation.z = -Math.atan2(b.z - a.z, b.x - a.x) - Math.PI / 2;
+            head.position.copy(a).addScaledVector(dir, len);
+            g.add(head);
+          }
+        }
+        g.renderOrder = 11;
+        g.traverse(o => { o.renderOrder = 11; });
+        scene.add(g);
+        markers.push({ obj: g });
+      }
+      if (it.target !== undefined && it.target >= 0) {
+        // corner brackets around the structure (or mech) it is going for; solid when it strikes this turn
+        const strikesNow = it.kind !== 'move';
+        const ret = new THREE.Mesh(new THREE.PlaneGeometry(CELL * 1.25, CELL * 1.25),
+          new THREE.MeshBasicMaterial({ map: getReticleTex(), color, transparent: true, opacity: strikesNow ? 1 : 0.7, depthWrite: false, depthTest: false }));
+        ret.rotation.x = -Math.PI / 2;
+        const t = cellCenter(it.target);
+        ret.position.set(t.x, 1.3, t.z);
+        ret.renderOrder = 10;
+        scene.add(ret);
+        markers.push(strikesNow ? { obj: ret, pulse: true, base: 0.6 } : { obj: ret, spin: 0.6 });
+      }
+    }
     for (const o of orders) {
       const strike = o.kind === 'strike';
       const color = o.kind === 'missile' ? 0xffb000 : strike ? 0x3dffc8 : 0x2ec4ff;
