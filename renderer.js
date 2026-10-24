@@ -678,9 +678,10 @@ window.Renderer = (function () {
 
   const bakeCache = {};
 
-  // Concatenate meshes (already transformed by `matrixOf(mesh)`) into one geometry
-  function mergeGeometry(meshes, matrixOf) {
-    const pos = [], nor = [], uv = [];
+  // Concatenate meshes (already transformed by `matrixOf(mesh)`) into one geometry.
+  // With `withMat`, each vertex also carries its material's colour and roughness/metalness.
+  function mergeGeometry(meshes, matrixOf, withMat) {
+    const pos = [], nor = [], uv = [], col = [], rm = [];
     for (const m of meshes) {
       const gg = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       gg.applyMatrix4(matrixOf(m));
@@ -688,6 +689,11 @@ window.Renderer = (function () {
       pos.push(gg.attributes.position.array);
       nor.push(gg.attributes.normal ? gg.attributes.normal.array : new Float32Array(n * 3));
       uv.push(gg.attributes.uv ? gg.attributes.uv.array : new Float32Array(n * 2));
+      if (withMat) {
+        const c = new Float32Array(n * 3), r = new Float32Array(n * 2), mc = m.material.color;
+        for (let i = 0; i < n; i++) { c[i * 3] = mc.r; c[i * 3 + 1] = mc.g; c[i * 3 + 2] = mc.b; r[i * 2] = m.material.roughness; r[i * 2 + 1] = m.material.metalness; }
+        col.push(c); rm.push(r);
+      }
       gg.dispose();
     }
     const cat = arrs => { const out = new Float32Array(arrs.reduce((t, a) => t + a.length, 0)); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
@@ -695,15 +701,39 @@ window.Renderer = (function () {
     geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(cat(nor), 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(cat(uv), 2));
+    if (withMat) {
+      geo.setAttribute('color', new THREE.BufferAttribute(cat(col), 3));
+      geo.setAttribute('rm', new THREE.BufferAttribute(cat(rm), 2));
+    }
     geo.computeBoundingSphere();
     return geo;
   }
 
-  // Merge every opaque leaf mesh into its nearest animated pivot (or the root),
-  // one mesh per material, so rigs keep animating with far fewer draw calls.
-  // Merged geometry is cached per model key.
-  function bakePivots(root, pivots, key) {
+  // Standard material whose colour, roughness and metalness come from vertex attributes,
+  // so plain untextured parts with different materials can share one draw call
+  function vertexMaterial() {
+    const m = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true });
+    m.onBeforeCompile = sh => {
+      sh.vertexShader = 'attribute vec2 rm;\nvarying vec2 vRM;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vRM = rm;');
+      sh.fragmentShader = 'varying vec2 vRM;\n' + sh.fragmentShader
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRM.x;')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+    };
+    m.customProgramCacheKey = () => 'vertex-rm';
+    return m;
+  }
+  let sharedVertexMat = null;
+  const plainMaterial = (mat, own) => mat.isMeshStandardMaterial && !mat.map && !mat.transparent && !mat.vertexColors &&
+    mat.side === THREE.FrontSide && !mat.flatShading && mat.emissive.getHex() === 0 && !own.has(mat);
+
+  // Merge every opaque leaf mesh into its nearest animated pivot (or the root), so rigs keep
+  // animating with far fewer draw calls: all plain untextured parts become one vertex-coloured
+  // mesh per pivot, everything else one mesh per material. Merged geometry is cached per model key.
+  // `vertexMat` overrides the shared vertex-coloured material (robots flash theirs per instance).
+  function bakePivots(root, pivots, key, vertexMat) {
     const cache = bakeCache[key] || (bakeCache[key] = {});
+    const own = new Set(root.userData._own || []);
+    const vmat = vertexMat || sharedVertexMat || (sharedVertexMat = vertexMaterial());
     root.updateMatrixWorld(true);
     const all = [root].concat(pivots.filter(p => p && p !== root));
     const isPivot = new Set(all);
@@ -719,19 +749,23 @@ window.Renderer = (function () {
         }
       };
       walk(pivot);
-      const byMat = new Map();
-      for (const m of meshes) { if (!byMat.has(m.material)) byMat.set(m.material, []); byMat.get(m.material).push(m); }
-      let mi = 0;
-      byMat.forEach((list, mat) => {
-        if (list.length < 2) return;
-        const ck = pi + '_' + (mi++);
-        const geo = cache[ck] || (cache[ck] = mergeGeometry(list, m => m4.multiplyMatrices(inv, m.matrixWorld)));
+      const groups = new Map(), plain = [];
+      for (const m of meshes) {
+        if (plainMaterial(m.material, own)) { plain.push(m); continue; }
+        if (!groups.has(m.material)) groups.set(m.material, []);
+        groups.get(m.material).push(m);
+      }
+      const emit = (list, mat, ck, withMat) => {
+        const geo = cache[ck] || (cache[ck] = mergeGeometry(list, m => m4.multiplyMatrices(inv, m.matrixWorld), withMat));
         let cast = false, receive = false;
         for (const m of list) { cast = cast || m.castShadow; receive = receive || m.receiveShadow; m.parent.remove(m); }
         const merged = new THREE.Mesh(geo, mat);
         merged.castShadow = cast; merged.receiveShadow = receive;
         pivot.add(merged);
-      });
+      };
+      if (plain.length) emit(plain, vmat, pi + '_v', true);
+      let mi = 0;
+      groups.forEach((list, mat) => { if (list.length >= 2) emit(list, mat, pi + '_' + (mi++), false); });
     });
   }
 
@@ -954,7 +988,12 @@ window.Renderer = (function () {
     removeRobot(r.id);
     const g = Models.robot(r.side);
     const rp = g.userData.parts || {};
-    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side);
+    // one vertex-coloured material per mech, so a hit flashes the whole armour
+    const body = vertexMaterial();
+    body.userData.baseEmissive = 0; body.userData.baseIntensity = 1;
+    g.userData._own.push(body);
+    g.userData.flashMats = [body, g.userData.visorMat];
+    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side, body);
     // cheap blob shadow instead of shadow-map casting (mechs are small and always moving)
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
     g.add(blobShadow());

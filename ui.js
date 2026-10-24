@@ -205,6 +205,16 @@ window.UI = (function () {
   .mission.locked:hover { transform: none; border-color: var(--c-line); }
   .mission .badge { position: absolute; top: 8px; right: 10px; font-size: 13px; }
   .mission.done .badge { color: var(--c-credit); }
+  .star { color: #3a4654; }
+  .star.on { color: #ffcf4a; text-shadow: 0 0 8px rgba(255,207,74,.55); }
+  .medals { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 14px; }
+  .medal { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--c-line); border-radius: 4px; font-size: 13px; color: var(--c-dim); }
+  .medal .star { font-size: 18px; }
+  .medal.on { color: var(--c-text); border-color: rgba(255,207,74,.5); }
+  #go-medals .medal { opacity: 0; transform: scale(.6); animation: medalIn .35s ease-out forwards; }
+  #go-medals .medal:nth-child(2) { animation-delay: .35s; } #go-medals .medal:nth-child(3) { animation-delay: .7s; }
+  #go-medals .newbest { width: 100%; text-align: center; font-size: 12px; letter-spacing: .2em; color: #ffcf4a; opacity: 0; animation: medalIn .35s 1.05s ease-out forwards; }
+  @keyframes medalIn { to { opacity: 1; transform: none; } }
   #briefing .menu-box { width: min(860px, 94vw); padding: 26px 28px; text-align: left; }
   #briefing h2 { margin: 0 0 4px; font-size: 30px; letter-spacing: .14em; text-transform: uppercase; }
   #briefing .sub { color: var(--c-dim); letter-spacing: .2em; font-size: 12px; text-transform: uppercase; margin-bottom: 18px; }
@@ -300,6 +310,7 @@ window.UI = (function () {
   body.compact .menu-foot { margin-top: 10px; font-size: 12px; }
   body.compact .bigbtn { padding: 8px 16px; font-size: 14px; }
   body.compact #briefing .menu-box, body.compact #gameover .menu-box, body.compact #help .menu-box { padding: 14px 16px; max-height: none; }
+  body.compact .medals { margin: 6px 0 8px; gap: 6px; } body.compact .medal { font-size: 12px; padding: 2px 8px; } body.compact .medal .star { font-size: 14px; }
   body.compact #briefing h2 { font-size: 18px; } body.compact .speaker svg { width: 56px; height: 56px; } body.compact .speaker .say { font-size: 13px; }
   body.compact #go-title { font-size: 34px; } body.compact #go-stats { font-size: 12px; margin-bottom: 10px; }
   body.compact .float { font-size: 14px; } body.compact .float.big { font-size: 18px; }
@@ -396,6 +407,7 @@ window.UI = (function () {
       <div class="menu-box panel">
         <div id="go-title">VICTORY</div>
         <div id="go-reason"></div>
+        <div id="go-medals" class="medals"></div>
         <div id="go-quote"></div>
         <div id="go-stats"></div>
         <button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
@@ -408,6 +420,7 @@ window.UI = (function () {
           <div class="speaker" id="br-co"></div>
           <div class="speaker enemy" id="br-foe"></div>
         </div>
+        <div id="br-medals" class="medals"></div>
         <div id="br-warn" class="warnline"></div>
         <div style="text-align:center"><button class="bigbtn" id="br-go">Launch Mission</button><button class="bigbtn alt" id="br-back">Back</button></div>
       </div>`));
@@ -716,7 +729,9 @@ window.UI = (function () {
     box.innerHTML = '';
     for (const m of missions) {
       const c = COMMANDERS[m.enemy];
-      const d = el('div', { class: 'panel mission ' + m.state }, `<span class="badge">${m.state === 'done' ? '✓' : m.state === 'locked' ? '🔒' : ''}</span>
+      const medals = m.medals && m.medals[0] ? m.medals : [true, false, false]; // cleared before medals existed
+      const badge = m.state === 'done' ? `<span title="${medals.filter(Boolean).length} of 3 medals">${medals.map(on => `<span class="star${on ? ' on' : ''}">★</span>`).join('')}</span>` : m.state === 'locked' ? '🔒' : '';
+      const d = el('div', { class: 'panel mission ' + m.state }, `<span class="badge">${badge}</span>
         <div class="num">MISSION ${m.id}</div><h4>${esc(m.name)}</h4><div class="vs">${portrait(c)}<span>vs ${esc(c.name)}</span></div>`);
       if (m.state !== 'locked') d.addEventListener('click', () => H.onMission(m.id));
       box.appendChild(d);
@@ -729,8 +744,11 @@ window.UI = (function () {
   let briefingId = 0;
   function closeBriefing() { $('briefing').classList.remove('show'); H.onBriefingBack(); }
   function isBriefingOpen() { return $('briefing').classList.contains('show'); }
-  function showBriefing(m) {
+  function medalLabels(m) { return ['Win the mission', 'Win by turn ' + m.par, 'Keep your HQ above 50%']; }
+  const medalRow = (got, labels) => got.map((on, i) => `<div class="medal${on ? ' on' : ''}"><span class="star${on ? ' on' : ''}">★</span>${esc(labels[i])}</div>`).join('');
+  function showBriefing(m, best) {
     briefingId = m.id;
+    $('br-medals').innerHTML = medalRow(best || [false, false, false], medalLabels(m));
     const co = COMMANDERS.hale, foe = COMMANDERS[m.enemy];
     $('br-name').textContent = 'Mission ' + m.id + ': ' + m.name;
     $('br-sub').textContent = 'Opponent: ' + foe.name + ' · ' + CONST.DIFFICULTY[m.difficulty].name + ' tactics';
@@ -750,6 +768,8 @@ window.UI = (function () {
     t.textContent = g.title;
     t.className = g.kind;
     $('go-reason').textContent = g.reason;
+    $('go-medals').innerHTML = g.medals ? medalRow(g.medals.got, g.medals.labels) + (g.medals.newBest ? '<div class="newbest">NEW MEDAL</div>' : '') : '';
+    $('go-medals').style.display = g.medals ? '' : 'none';
     $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">You</span><span class="h" style="color:var(--c-ai)">Enemy</span>' +
       g.rows.map(r => `<span>${esc(r[0])}</span><b>${r[1]}</b><b>${r[2]}</b>`).join('');
     $('gameover').classList.add('show');
@@ -763,7 +783,7 @@ window.UI = (function () {
   function setVolume(v) { $('vol').value = v; }
 
   return {
-    init, icon, esc, isCompact, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

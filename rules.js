@@ -328,6 +328,14 @@
   }
 
   // What an enemy observer sees: decoys pose as their disguise, HP scaled to match
+  // Campaign medals for a finished game: [won, won within par turns, won with HQ at 50%+ HP]
+  function missionMedals(state, mission, side) {
+    side = side || P;
+    const won = state.winner === side;
+    const hq = buildingsOf(state, side, 'hq')[0];
+    return [won, won && state.turn <= mission.par, won && !!hq && hq.hp * 2 >= hq.maxHp];
+  }
+
   function apparent(b) {
     if (!b.disguise) return { type: b.type, hp: b.hp, maxHp: b.maxHp, level: b.level };
     const maxHp = B[b.disguise].hp;
@@ -971,7 +979,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, generateIslands, isLand, apparent, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, missionMedals, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
