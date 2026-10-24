@@ -131,6 +131,8 @@
       have[t] = (have[t] || 0) + 1;
       if (n(t) < have[t]) return t;
     }
+    // the superweapon comes online mid-game (a 4-turn charge lands it around turn 15)
+    if (state.turn >= 10 && n('uplink') < 1 && unlocked(state, 'uplink')) return 'uplink';
     if ((mem.missileDamageTaken > 0 || knownEnemy(state, 'silo') >= 2) && aaCoveringHQ(state) < 2 && n('aa') < 4) return 'aa';
     if (mem.missileDamageTaken > 0 && n('aa') >= 2 && basic('aa')) return 'up:aa';
     if (knownEnemy(state, 'hangar') && n('gunpod') < 1) return 'gunpod';
@@ -144,7 +146,6 @@
     if (basic('silo') && state.turn >= 5) return 'up:silo';
     if (n('depot') >= 3 && basic('depot')) return 'up:depot';
     if (n('hangar') < 1) return 'hangar';
-    if (state.turn >= 7 && n('uplink') < 1 && unlocked(state, 'uplink')) return 'uplink';
     if (state.turn >= 6 && n('shield') < 1) return 'shield';
     if (n('silo') < 5 && n('silo') <= n('hangar') * 2 + 1) return 'silo';
     if (n('hangar') < 3) return 'hangar';

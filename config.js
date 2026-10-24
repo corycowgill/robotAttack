@@ -108,7 +108,7 @@ const BUILDINGS = {
   },
   shield: {
     name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 50, range: 1, pool: 50, regen: 20,
-    desc: 'Projects a 3x3 energy dome that absorbs damage from missiles and robots.',
+    desc: 'Projects a 3x3 energy dome that absorbs missile and orbital-strike damage. Mechs that walk inside the dome hit at full force.',
     stats: () => ['Absorbs 50 damage', 'Regenerates 20 / turn']
   },
   hangar: {
@@ -129,7 +129,7 @@ const BUILDINGS = {
     disguises: ['silo', 'hangar', 'power', 'depot', 'aa']
   },
   uplink: {
-    name: 'Strike Uplink', short: 'UPL', key: '0', cost: 260, hp: 70, max: 1,
+    name: 'Strike Uplink', short: 'UPL', key: '0', cost: 200, hp: 70, max: 1,
     desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
     stats: () => ['Orbital strike: ' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area', 'Charges ' + CONST.STRIKE_CHARGE + ' turns, ' + CONST.STRIKE_ENERGY + ' energy to fire', 'Cannot be intercepted; Shields absorb it', 'Max 1'],
     counter: 'Strikes are always detected — spread out, shield and repair'
