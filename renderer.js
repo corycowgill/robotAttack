@@ -1018,7 +1018,7 @@ window.Renderer = (function () {
     window.addEventListener('mouseup', () => { cam.drag = null; });
     el.addEventListener('wheel', e => {
       e.preventDefault();
-      cam.gdist = Math.max(120, Math.min(780, cam.gdist * (e.deltaY > 0 ? 1.12 : 0.89)));
+      cam.gdist = Math.max(120, Math.min(Math.max(780, framedDist * 1.15), cam.gdist * (e.deltaY > 0 ? 1.12 : 0.89)));
       cam.userPanAt = time;
     }, { passive: false });
 
@@ -1043,7 +1043,7 @@ window.Renderer = (function () {
       if (pinch && touches.size >= 2) {
         const [a, b] = [...touches.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-        cam.gdist = Math.max(120, Math.min(780, pinch.dist * pinch.d / d));
+        cam.gdist = Math.max(120, Math.min(Math.max(780, framedDist * 1.15), pinch.dist * pinch.d / d));
         cam.userPanAt = time;
       } else if (cam.drag && cam.drag.touch && Math.hypot(e.clientX - cam.drag.x, e.clientY - cam.drag.y) > 8) {
         const k = cam.gdist / window.innerHeight * 1.1;
@@ -1109,7 +1109,7 @@ window.Renderer = (function () {
     let gx = MAP_W / 2, gz = MAP_H / 2, d = 400;
     for (let iter = 0; iter < 3; iter++) {
       // closest distance at which the map fits the free area
-      let lo = 150, hi = 1400;
+      let lo = 150, hi = 1800;
       for (let k = 0; k < 24; k++) {
         const mid = (lo + hi) / 2, bx = screenBox(gx, gz, mid);
         if (bx.x1 - bx.x0 <= ax1 - ax0 && bx.y1 - bx.y0 <= ay1 - ay0) hi = mid; else lo = mid;
@@ -1121,7 +1121,7 @@ window.Renderer = (function () {
       gx -= ((ax0 + ax1) / 2 - (bx.x0 + bx.x1) / 2) * worldPerPx;
       gz -= ((ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2) * worldPerPx / Math.sin(cam.pitch);
     }
-    cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(760, d);
+    cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(1500, d);
     framedDist = cam.gdist;
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
@@ -1190,7 +1190,7 @@ window.Renderer = (function () {
   // ── Graphics quality (auto-detected, overridable with G) ──
   const QUALITY = [
     { name: 'Low', ratio: 1, shadows: false, shadowSize: 512 },
-    { name: 'Medium', ratio: 1, shadows: true, shadowSize: 1024 },
+    { name: 'Medium', ratio: 1.5, shadows: true, shadowSize: 1024 },
     { name: 'High', ratio: 2, shadows: true, shadowSize: 2048 }
   ];
   let quality = 2, qualityLocked = false;
@@ -1199,6 +1199,8 @@ window.Renderer = (function () {
     try {
       const q = localStorage.getItem('ra_quality');
       if (q !== null && QUALITY[+q]) { quality = +q; qualityLocked = true; }
+      // phones and tablets start at Medium; auto-detection can still step down
+      else if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) quality = 1;
     } catch (e) { /* storage unavailable */ }
     applyQuality();
   }
@@ -1235,6 +1237,8 @@ window.Renderer = (function () {
     autoQuality(dt);
     updateCamera(dt, keyboardEnabled);
     fogMat.uniforms.time.value = time;
+    // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
+    scene.fog.density = 0.0012 * 420 / Math.max(420, cam.dist);
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {
