@@ -231,6 +231,13 @@ window.UI = (function () {
   .speaker .say { font-size: 15px; line-height: 1.4; color: #d3dee9; }
   .speaker.enemy .say { color: #ffb4a6; font-style: italic; }
   #gameover .menu-box { width: min(660px, 94vw); padding: 28px; }
+  .opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin: 0 0 12px; }
+  .opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-dim); letter-spacing: .06em; }
+  .opt .seg { display: flex; border: 1px solid var(--c-line); border-radius: 6px; overflow: hidden; }
+  .opt button { background: var(--c-bg2); color: var(--c-text); border: 0; border-right: 1px solid var(--c-line); padding: 5px 10px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .opt button:last-child { border-right: 0; }
+  .opt button.on { background: rgba(46,196,255,.22); color: #fff; }
+  body.compact .opts { gap: 6px 10px; margin-bottom: 8px; } body.compact .opt { font-size: 11px; } body.compact .opt button { padding: 4px 7px; font-size: 11px; }
   .hotseat { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding: 12px 16px; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
   .hotseat:hover { transform: translateY(-3px); border-color: rgba(46,196,255,.7); }
   .hotseat h3 { margin: 0 0 2px; font-size: 18px; letter-spacing: .12em; } .hotseat p { margin: 0; font-size: 13px; color: var(--c-dim); }
@@ -416,7 +423,8 @@ window.UI = (function () {
         <div id="m-warn" class="warnline"></div>
         <div class="sect">Campaign</div>
         <div class="missions" id="m-missions"></div>
-        <div class="sect">Skirmish &mdash; random islands</div>
+        <div class="sect">Skirmish &amp; two players &mdash; random islands</div>
+        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span>${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}">${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
         <div class="diffs">${diffs}</div>
         <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
         <div class="menu-foot">
@@ -460,6 +468,13 @@ window.UI = (function () {
     });
     $('m-help').addEventListener('click', () => showHelp(true));
     $('m-hotseat').addEventListener('click', () => H.onHotseat());
+    root.querySelectorAll('#m-opts button').forEach(b => b.addEventListener('click', () => {
+      skirmishOpts[b.dataset.k] = +b.dataset.v;
+      try { localStorage.setItem('ra_skirmish', JSON.stringify(skirmishOpts)); } catch (e) { /* storage blocked */ }
+      paintOpts();
+      H.onHover && H.onHover();
+    }));
+    paintOpts();
     $('ho-go').addEventListener('click', () => H.onHandoffReady());
     $('m-continue').addEventListener('click', () => H.onContinue());
     $('m-music').addEventListener('change', e => H.onMusic && H.onMusic(e.target.checked));
@@ -509,7 +524,7 @@ window.UI = (function () {
     }).join('');
     return `<div class="menu-box panel">
       <h2>How to play</h2>
-      <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive ${CONST.MAX_TURNS} turns, the healthier HQ wins.</p>
+      <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive the turn limit (${CONST.MAX_TURNS} by default), the healthier HQ wins.</p>
       <h4>Each turn</h4>
       <ol>
         <li><b>Plan.</b> Spend <span style="color:var(--c-credit)">credits</span> on buildings and repairs, and <span style="color:var(--c-energy)">energy</span> on missiles and mech drops. You can only build within ${CONST.BUILD_RADIUS} cells of your existing buildings.</li>
@@ -633,6 +648,21 @@ window.UI = (function () {
     box.scrollTop = box.scrollHeight;
   }
   function clearLog() { $('log').innerHTML = ''; }
+
+  // Skirmish / two-player battle options, remembered per browser
+  const skirmishOpts = (() => {
+    const o = {};
+    for (const k in SKIRMISH_OPTIONS) o[k] = SKIRMISH_OPTIONS[k].def;
+    try {
+      const saved = JSON.parse(localStorage.getItem('ra_skirmish')) || {};
+      for (const k in o) if (SKIRMISH_OPTIONS[k].choices.some(c => c[0] === saved[k])) o[k] = saved[k];
+    } catch (e) { /* defaults */ }
+    return o;
+  })();
+  function paintOpts() {
+    document.querySelectorAll('#m-opts button').forEach(b => b.classList.toggle('on', skirmishOpts[b.dataset.k] === +b.dataset.v));
+  }
+  function getSkirmishOptions() { return Object.assign({}, skirmishOpts); }
   function getLog() { return $('log').innerHTML; }
   function setLog(html) { const box = $('log'); box.innerHTML = html; box.scrollTop = box.scrollHeight; }
 
@@ -841,7 +871,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    getLog, setLog, showHandoff, hideHandoff, isHandoffOpen,
+    getLog, setLog, getSkirmishOptions, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

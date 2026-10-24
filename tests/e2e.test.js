@@ -218,3 +218,20 @@ test('two players: hand-off screens, separate views and logs, battle after both 
   assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'ai', 'depot').length), 1);
   assert.deepStrictEqual(errors, []);
 });
+
+test('battle options apply to the skirmish and are remembered', async t => {
+  const { page, errors } = await open(t);
+  for (const [k, v] of [['land', 150], ['credits', 600], ['turns', 20], ['uplink', 0]]) await page.click(`#m-opts button[data-k="${k}"][data-v="${v}"]`);
+  await startSkirmish(page);
+  const s = await page.evaluate(() => {
+    const st = __game.state;
+    return { land: st.land.filter((v, i) => v && Rules.ownerOfCell(i) === 'player').length, credits: st.sides.player.credits, aiCredits: st.sides.ai.credits, maxTurns: st.maxTurns, locked: st.locked };
+  });
+  assert.deepStrictEqual(s, { land: 150, credits: 600, aiCredits: 600, maxTurns: 20, locked: ['uplink'] });
+  assert.strictEqual(await page.locator('.card[data-type="uplink"]').count(), 0, 'no superweapon card');
+  assert.match(await page.textContent('#hud'), /1 \/ 20/);
+  await page.reload();
+  await page.waitForFunction(() => window.__game && document.querySelector('#m-opts'));
+  assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0');
+  assert.deepStrictEqual(errors, []);
+});

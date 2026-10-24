@@ -299,3 +299,15 @@ test('hot-seat games give neither side an income bonus', () => {
   const ai = R.newGame('warlord', 3);
   assert.ok(R.income(ai, A).credits > R.income(ai, P).credits, 'single-player Warlord keeps its bonus');
 });
+
+test('battle options: island size, start credits, turn limit', () => {
+  const s = R.newGame('commander', 11, { landTarget: 150, credits: { player: 600, ai: 600 }, maxTurns: 20, locked: ['uplink'] });
+  assert.equal(landCount(s.land, P), 150);
+  assert.equal(s.sides[P].credits, 600);
+  assert.equal(s.sides[A].credits, 600);
+  assert.equal(s.maxTurns, 20);
+  s.turn = 20;
+  R.resolveTurn(s);
+  assert.ok(s.winner, 'decided at the custom turn limit');
+  assert.match(s.endReason, /Turn limit/);
+});

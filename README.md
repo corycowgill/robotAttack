@@ -102,7 +102,13 @@ Seven missions, each on a fixed island map against a named enemy commander. Each
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
 
-**Skirmish** plays a random island map against any of the three opponents.
+**Skirmish** plays a random island map against any of the three opponents. The options row above the opponent cards sets:
+- island size: small (95 cells), normal (120) or large (150);
+- starting credits: 250, 350 or 600;
+- turn limit: 20, 30 or 45;
+- whether the Strike Uplink is allowed.
+
+The browser remembers your choices, and they also apply to Two Players.
 
 **Two players** is a pass-and-play mode on one device:
 - Player 1 (blue, left) plans first.

@@ -149,6 +149,14 @@ const UPGRADES = {
   hangar: { name: 'Heavy Mechs',     desc: 'Mechs get 75 HP and hit for 30', mechHp: 75, mechDmg: 30 },
   radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 }
 };
+// Skirmish / two-player battle options: [value, label] choices and the default value
+const SKIRMISH_OPTIONS = {
+  land:    { label: 'Islands',       choices: [[95, 'Small'], [120, 'Normal'], [150, 'Large']], def: 120 },
+  credits: { label: 'Start credits', choices: [[250, 'Lean'], [350, 'Standard'], [600, 'Rich']], def: 350 },
+  turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 30 },
+  uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 }
+};
+
 const UPGRADE_COST = 0.75;    // fraction of the structure's price
 const UPGRADE_HP = 1.5;       // max HP multiplier
 
@@ -221,4 +229,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS };
