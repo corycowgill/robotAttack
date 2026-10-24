@@ -168,7 +168,7 @@ const COMMANDERS = {
   vey:   { name: 'Capt. Vey',      title: 'Reef fortress warden',    look: { color: '#ffb000', visor: '#fff0b0', gear: 'patch' } },
   kord:  { name: 'Marshal Kord',   title: 'Strait fleet command',    look: { color: '#ff4422', visor: '#ffb3a3', gear: 'antenna' } },
   nyx:   { name: 'Overseer NYX',   title: 'Autonomous war AI',       look: { color: '#c04dff', visor: '#f0c2ff', gear: 'crown' } },
-  sol:   { name: 'Director Sol',   title: 'Orbital network command', look: { color: '#3dffc8', visor: '#c8fff0', gear: 'antenna' } }
+  sol:   { name: 'Director Sol',   title: 'Orbital network command', look: { color: '#ff3d7f', visor: '#ffc2d6', gear: 'antenna' } }
 };
 
 const CAMPAIGN = [

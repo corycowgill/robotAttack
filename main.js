@@ -24,6 +24,11 @@
   let handoffNext = null;     // what to do when the next player taps Ready on the hand-off screen
   let logs = {};              // hot-seat: each player's battle log, swapped with the seat
   let lastReportP2 = null;    // hot-seat: last combat report, from Player 2's side
+  // Hot-seat fairness: Player 2 plans on a copy of the board where Player 1's island is shown as it
+  // was at round start (Player 1's same-turn builds, sells and repairs stay hidden, just as the AI's
+  // moves are hidden from a single player). Player 2's half is merged back when they end their turn.
+  let roundStart = null;      // JSON snapshot taken when Player 1's planning begins
+  let realState = null;       // the live game while Player 2 plans on the copy
   let mode = 'select';          // select | build | fire | drop
   let buildType = null;
   let selectedCell = -1;
@@ -129,7 +134,7 @@
     const s = loadSave();
     if (!s || pendingOverwrite === key) { pendingOverwrite = null; UI.warnOverwrite(null); return true; }
     pendingOverwrite = key;
-    UI.warnOverwrite('This replaces your saved game (' + (s.state.mission ? 'Mission ' + s.state.mission + ', ' : '') + 'turn ' + s.state.turn + '). Click again to confirm — or use Continue.');
+    UI.warnOverwrite('This replaces your saved game (' + (s.state.hotseat ? 'two players, ' : s.state.mission ? 'Mission ' + s.state.mission + ', ' : '') + 'turn ' + s.state.turn + '). Click again to confirm — or use Continue.');
     SND.play('error');
     return false;
   }
@@ -176,6 +181,7 @@
     handoffNext = null;
     UI.hideHandoff();
     logs = {};
+    lastReportP2 = null; roundStart = null; realState = null;
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     Renderer.reset();
@@ -204,6 +210,13 @@
       if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
       UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
     }
+    if (saved && hotseat) {
+      // a resumed two-player game opens on Player 1's turn: don't show their base to whoever holds the device
+      phase = 'handoff';
+      UI.showHandoff({ side: P1, title: 'Player 1 — your turn', sub: 'Resuming turn ' + state.turn + '. Pass the device to Player 1. Player 2, no peeking!', button: 'I\'m ready' });
+      handoffNext = () => beginPlanning(false);
+      return;
+    }
     beginPlanning(!saved);
   }
 
@@ -212,6 +225,7 @@
     phase = 'menu';
     handoffNext = null;
     UI.hideHandoff();
+    lastReportP2 = null; roundStart = null; realState = null;
     setActive(P1);
     UI.hideGameOver();
     UI.showGameUI(false);
@@ -254,6 +268,7 @@
     }
     UI.log('Turn ' + state.turn, 'turn');
     if (P === P1) saveGame(); // hot-seat saves at the start of a round, before either side has planned
+    if (hotseat && P === P1) roundStart = JSON.stringify(state.cells);
     refreshAll();
     if (first) frameView(false);
   }
@@ -409,7 +424,7 @@
       }
       if (own) info.upgrade = R.upgradeInfo(state, P, c);
       if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + R.stat(b, 'pool');
-      if (b.type === 'uplink') info.extra = b.charge >= CONST.STRIKE_CHARGE ? 'Strike READY — press R' : 'Charging ' + b.charge + '/' + CONST.STRIKE_CHARGE;
+      if (b.type === 'uplink') info.extra = b.charge >= CONST.STRIKE_CHARGE ? (own ? 'Strike READY — press R' : 'Fully charged — a strike can come any turn') : 'Charging ' + b.charge + '/' + CONST.STRIKE_CHARGE;
       // decoys disguised as AA show what a fresh AA would
       if (a.type === 'aa' || a.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + (b.type === 'decoy' ? 1 : b.shots);
       if (own) {
@@ -734,7 +749,7 @@
         if (r.kind === 'upgrade') Renderer.setBuildingLevel(r.building.id, 1);
         if (r.kind === 'sell') { Renderer.addBuilding(r.building, true); if (r.building.type === 'radar') syncWorld(false); }
         UI.toast('Undone', 'good');
-        UI.log('Undid ' + (r.kind === 'order' ? (r.order && r.order.kind === 'drop' ? 'mech drop' : 'missile order') : r.kind + ' of ' + BUILDINGS[r.building.type].name), 'sys');
+        UI.log('Undid ' + (r.kind === 'order' ? ({ drop: 'mech drop', strike: 'orbital strike' }[r.order && r.order.kind] || 'missile order') : r.kind + ' of ' + BUILDINGS[r.building.type].name), 'sys');
         break;
       }
       case 'cancel': {
@@ -830,8 +845,8 @@
 
     if (hotseat) {
       // Player 1 done: Player 2 plans next. Player 2 done: back to Player 1, who watches the battle.
-      if (P === P1) handoff(P2, () => { if (lastReportP2) { UI.showReport(lastReportP2); reportTimer = 8; } beginPlanning(false); });
-      else handoff(P1, startResolution);
+      if (P === P1) handoff(P2, () => { seatCopyForP2(); syncWorld(true); if (lastReportP2) { UI.showReport(lastReportP2); reportTimer = 8; } beginPlanning(false); });
+      else { mergeP2(); handoff(P1, startResolution); }
       return;
     }
     AI.planTurn(state, A);
@@ -856,6 +871,23 @@
       frameView(true);
       then();
     };
+  }
+
+  function seatCopyForP2() {
+    realState = state;
+    state = JSON.parse(JSON.stringify(realState));
+    if (roundStart) {
+      const before = JSON.parse(roundStart);
+      for (let c = 0; c < R.N; c++) if (R.ownerOfCell(c) === P1) state.cells[c] = before[c];
+    }
+  }
+  function mergeP2() {
+    if (!realState) return;
+    for (let c = 0; c < R.N; c++) if (R.ownerOfCell(c) === P2) realState.cells[c] = state.cells[c];
+    realState.sides[P2] = state.sides[P2];
+    realState.nextId = state.nextId;
+    state = realState;
+    realState = null;
   }
 
   function setActive(side) {
@@ -1314,12 +1346,19 @@
     UI.setCombatHint(false);
     combatHud = null;
     syncWorld(true);
+    lastReportP2 = null;
     if (state.winner) return gameOver();
     const report = buildReport(events, turn);
     const eventful = events.some(e => /descend|gunfire|robotHit|drop/.test(e.type));
     if (eventful) { UI.showReport(report); reportTimer = 6; }
     // Player 2 didn't watch: they get the same report from their side when their turn starts
     lastReportP2 = hotseat && eventful ? Object.assign({}, report, { player: report.ai, ai: report.player, income: R.income(state, P2), swap: true }) : null;
+    if (hotseat) {
+      // Player 2 didn't watch the battle: give their log a one-line summary
+      const lost = report.ai.lostNames.length ? ' Lost: ' + report.ai.lostNames.join(', ') + '.' : '';
+      const line = eventful ? 'Turn ' + turn + ' battle: you dealt ' + report.ai.dealt + ' damage and took ' + report.player.dealt + '.' + lost : 'Turn ' + turn + ': a quiet turn.';
+      logs[P2] = (logs[P2] || '') + '<div class="' + (report.ai.lostNames.length ? 'bad' : 'sys') + '">' + UI.esc(line) + '</div>';
+    }
     beginPlanning(false);
   }
 

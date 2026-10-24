@@ -98,7 +98,7 @@ Seven missions, each on a fixed island map against a named enemy commander. Each
 **Medals:** each mission awards up to three stars:
 - one for winning;
 - one for winning within the mission's par turn count (12, 18, 14, 14, 15, 17 and 15 turns);
-- one for finishing with your HQ above 50% health.
+- one for finishing with your HQ at 50% health or more.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
 
