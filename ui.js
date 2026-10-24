@@ -99,7 +99,7 @@ window.UI = (function () {
   .abtn:hover { transform: translateY(-3px); }
   .abtn.fire .ico { color: var(--c-warn); } .abtn.fire.sel { border-color: var(--c-warn); background: rgba(255,176,0,.15); }
   .abtn.drop .ico { color: var(--c-player); } .abtn.drop.sel { border-color: var(--c-player); background: rgba(46,196,255,.15); }
-  .abtn.strike .ico { color: #3dffc8; } .abtn.strike.sel { border-color: #3dffc8; background: rgba(61,255,200,.14); }
+  .abtn.strike .ico { color: #3dffc8; } .abtn.strike .badge { top: 4px; right: 5px; font-size: 10px; letter-spacing: .06em; padding: 1px 4px; border-radius: 3px; background: rgba(5,10,16,.7); } .abtn.strike.sel { border-color: #3dffc8; background: rgba(61,255,200,.14); }
   .abtn.strike.ready:not(.off) { border-color: rgba(61,255,200,.7); animation: glowStrike 1.2s infinite; }
   @keyframes glowStrike { 50% { box-shadow: 0 0 18px rgba(61,255,200,.55); } }
   .order.strike .ico, .order.incoming.strike .ico { color: #3dffc8; }
@@ -659,6 +659,7 @@ window.UI = (function () {
       d.classList.toggle('sel', !!c.selected);
       d.classList.toggle('off', !c.enabled);
       d.querySelector('.cnt').textContent = c.count ? 'x' + c.count : '';
+      d.querySelector('.cost').textContent = c.cost;   // depots get pricier as you build them
     });
   }
 

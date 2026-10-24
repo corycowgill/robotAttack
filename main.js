@@ -479,9 +479,10 @@
       const def = BUILDINGS[t];
       const count = R.buildingsOf(state, P, t).length;
       let reason = null;
-      if (s.credits < def.cost) reason = 'Need ' + def.cost + ' credits';
+      const cost = R.buildCost(state, P, t);
+      if (s.credits < cost) reason = 'Need ' + cost + ' credits';
       else if (def.max && count >= def.max) reason = 'Max ' + def.max;
-      return { type: t, key: def.key, name: def.name, cost: def.cost, enabled: !reason, reason, selected: mode === 'build' && buildType === t, count };
+      return { type: t, key: def.key, name: def.name, cost, enabled: !reason, reason, selected: mode === 'build' && buildType === t, count };
     });
     UI.setCards(cards);
     const silos = R.buildingsOf(state, P, 'silo').length, freeSilos = R.freeLaunchers(state, P, 'silo').length;
@@ -507,7 +508,10 @@
     const p = R.xy(c);
     return String.fromCharCode(65 + p.y) + (p.x + 1);
   }
+  // During combat playback the board has already been resolved: name cells as they were before it
+  let preNames = null;
   function describeCell(c) {
+    if (preNames && c in preNames) return preNames[c];
     const b = R.buildingAt(state, c);
     if (b && playerSees(c)) return (b.side === A ? 'enemy ' + BUILDINGS[R.apparent(b).type].name : BUILDINGS[b.type].name) + ' ' + cellName(c);
     const g = state.sides[P].intel.seen[c];
@@ -544,7 +548,7 @@
       if (own) {
         const rep = R.repairInfo(state, P, c);
         info.repair = rep;
-        info.sellValue = R.sellValue(b);
+        info.sellValue = R.sellValue(b, state);
       }
       return info;
     }
@@ -582,7 +586,7 @@
   function refreshZone() {
     if (phase !== 'planning') { Renderer.setZone(null); Renderer.setGridEmphasis(false); return; }
     if (mode === 'build') {
-      const can = state.sides[P].credits >= BUILDINGS[buildType].cost;
+      const can = state.sides[P].credits >= R.buildCost(state, P, buildType);
       Renderer.setZone(c => R.inBuildZone(state, P, c) ? (can ? [60, 255, 130, 70] : [255, 200, 60, 50]) : (R.ownerOfCell(c) === P ? [0, 0, 0, 40] : null));
       Renderer.setGridEmphasis(true);
     } else if (mode === 'fire' || mode === 'drop' || mode === 'strike') {
@@ -647,9 +651,11 @@
   function cardTooltip(type, e) {
     const d = BUILDINGS[type];
     const s = state ? state.sides[P] : null;
-    const reason = s && s.credits < d.cost ? 'Need ' + d.cost + ' credits' : null;
+    const cost = state ? R.buildCost(state, P, type) : d.cost;
+    const reason = s && s.credits < cost ? 'Need ' + cost + ' credits' : null;
+    const step = d.costStep ? ' <span class="k">(+' + d.costStep + ' per depot owned)</span>' : '';
     const r = e.currentTarget.getBoundingClientRect();
-    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${d.cost} credits</span> · ${d.hp} HP<br>${UI.esc(d.desc)}<br><span class="k">${d.stats().map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
+    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(d.desc)}<br><span class="k">${d.stats().map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
   }
 
   function cellTooltip() {
@@ -724,7 +730,7 @@
       SND.play('build', { pan: panAt(c) });
       Renderer.addBuilding(r.building, true);
       Fx.buildDust(Renderer.cellCenter(c));
-      floatAt(c, '-' + BUILDINGS[buildType].cost + 'c', 'info');
+      floatAt(c, '-' + r.building.paid + 'c', 'info');
       UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
       if (buildType === 'radar') UI.toast('Radar comes online next turn', 'warn');
       if (!keepMode) { mode = 'select'; buildType = null; selectedCell = c; }
@@ -772,11 +778,12 @@
     if (!state || phase !== 'planning') return;
     const def = BUILDINGS[type];
     if ((state.locked || []).includes(type)) return fail(def.name + ' is not available in this mission');
-    if (state.sides[P].credits < def.cost) return fail('Need ' + def.cost + ' credits for ' + def.name);
+    const cost = R.buildCost(state, P, type);
+    if (state.sides[P].credits < cost) return fail('Need ' + cost + ' credits for ' + def.name);
     if (def.max && R.buildingsOf(state, P, type).length >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
     SND.play('uiClick');
     pendingTap = -1;
-    if (UI.isCompact() && !(mode === 'build' && buildType === type)) UI.toast(def.name + ' · ' + def.cost + 'c — ' + def.stats()[0], 'good');
+    if (UI.isCompact() && !(mode === 'build' && buildType === type)) UI.toast(def.name + ' · ' + cost + 'c — ' + def.stats()[0], 'good');
     if (mode === 'build' && buildType === type) { mode = 'select'; buildType = null; }
     else { mode = 'build'; buildType = type; selectedCell = -1; }
     refreshAll();
@@ -850,6 +857,7 @@
         Renderer.removeBuilding(r.building.id, false);
         floatAt(selectedCell, '+' + r.value + 'c', 'heal');
         UI.log('Sold ' + BUILDINGS[r.building.type].name + ' (+' + r.value + 'c)', 'player');
+        UI.toast('Sold ' + BUILDINGS[r.building.type].name + ' for ' + r.value + 'c — Z to undo', 'warn');
         selectedCell = -1;
         if (r.building.type === 'radar') syncWorld(false);
         break;
@@ -1020,6 +1028,8 @@
     const turn = state.turn;
     combatHud = hudData();   // HUD stays on this turn's values during playback
     UI.setHUD(combatHud);
+    preNames = {};
+    for (let c = 0; c < R.N; c++) if (state.cells[c].building || state.sides[P].intel.seen[c]) preNames[c] = describeCell(c);
     const events = R.resolveTurn(state);
     SND.setMode('combat');
     UI.setCombatHint(true, speed);
@@ -1098,7 +1108,7 @@
   }
 
   function logCancelled(e) {
-    UI.log((e.side === P ? 'Your ' : 'Enemy ') + (e.kind === 'drop' ? 'drop' : e.kind === 'strike' ? 'orbital strike' : 'launch') + ' cancelled — launcher destroyed', e.side === P ? 'bad' : 'good');
+    UI.log((e.side === P ? 'Your ' : 'Enemy ') + (e.kind === 'drop' ? 'drop' : e.kind === 'strike' ? 'orbital strike' : 'launch') + ' cancelled — launcher destroyed' + (e.side === P && e.refund ? ' (' + e.refund + ' energy refunded)' : ''), e.side === P ? 'bad' : 'good');
   }
 
   function arcPoint(a, b, h, t, out) {
@@ -1260,12 +1270,14 @@
     else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit || big }); }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
-    let total = 0;
-    for (const h of ev.hits) total += applyHit(h, idAt);
+    // the target's own damage, with splash on its neighbours reported separately
+    let direct = 0, splash = 0;
+    for (const h of ev.hits) { const d = applyHit(h, idAt); if (h.cell === ev.cell) direct += d; else splash += d; }
     const name = describeCell(ev.cell);
-    if (big) UI.log((own ? 'ORBITAL STRIKE on ' : 'ENEMY ORBITAL STRIKE on ') + name + ': ' + total + ' damage', own ? 'good' : 'bad');
+    const dmgText = (ev.hits.some(h => h.cell === ev.cell) ? direct + ' damage' : 'missed the structure') + (splash ? ' (+' + splash + ' splash)' : '');
+    if (big) UI.log((own ? 'ORBITAL STRIKE on ' : 'ENEMY ORBITAL STRIKE on ') + name + ': ' + dmgText, own ? 'good' : 'bad');
     else if (!ev.hits.length) UI.log((own ? 'Your missile ' : 'Enemy missile ') + (wet ? 'splashed into the sea at ' : 'hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
-    else UI.log((own ? 'Missile impact on ' : 'Enemy missile hit ') + name + ': ' + total + ' damage', own ? 'good' : 'bad');
+    else UI.log((own ? 'Missile impact on ' : 'Enemy missile hit ') + name + ': ' + dmgText, own ? 'good' : 'bad');
     // the impact reveals the area — lift fog right away for the attacker
     if (own) {
       for (const c of ev.reveal) visible.add(c);
@@ -1456,6 +1468,7 @@
   }
 
   function finishTurn(events, turn) {
+    preNames = null;
     frameView(false);
     UI.setCombatHint(false);
     combatHud = null;
@@ -1513,7 +1526,9 @@
     UI.banner(title, hotseat ? seatReason : state.endReason, !hotseat && w !== P);
     refreshHUD();
     const ps = state.sides[P].stats, as = state.sides[A].stats;
-    const acc = s => s.missilesFired ? Math.round(100 * s.missilesHit / Math.max(1, s.missilesFired)) + '%' : '—';
+    // missiles still in the air when the game ended never had a chance to land
+    const landed = side => state.sides[side].stats.missilesFired - state.missiles.filter(m => m.side === side && !m.strike).length;
+    const acc = (s, side) => landed(side) > 0 ? Math.round(100 * s.missilesHit / landed(side)) + '%' : '—';
     setTimeout(() => {
       if (phase !== 'gameover') return;
       UI.showGameOver({
@@ -1530,7 +1545,7 @@
           ['Structures built', ps.built, as.built],
           ['Structures destroyed', ps.destroyed, as.destroyed],
           ['Missiles fired', ps.missilesFired, as.missilesFired],
-          ['Missiles past defenses', acc(ps), acc(as)],
+          ['Missiles past defenses', acc(ps, P), acc(as, A)],
           ['Enemy missiles shot down', ps.intercepts, as.intercepts],
           ['Mechs deployed', ps.robotsDeployed, as.robotsDeployed],
           ['Enemy mechs destroyed', ps.robotsKilled, as.robotsKilled]

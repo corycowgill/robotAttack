@@ -32,6 +32,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
    - Spend **credits** on structures and repairs, and **energy** on missiles and mech drops.
    - You can only build on your side (the blue zone) within 3 cells of one of your existing structures.
    - Missile and drop orders can be cancelled for a full refund until you end the turn. `Z` undoes your last action.
+   - If a silo, hangar or uplink is destroyed before its order goes off, the order is cancelled and its energy refunded.
 2. **Resolve.** Both sides' orders play out at once, in this order:
    1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
    2. Missiles hit. Shields absorb damage first; each missile does 45 damage to its target and 15 to adjacent cells.
@@ -44,27 +45,27 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
    - Enemy missiles are in flight for a full turn.
    - **Red reticles** mark incoming missiles your Radar (or the area around your HQ) has detected. Build AA or shields, or repair, before they land.
 
-**Winning:** destroy the enemy Command Center. If both HQs fall in the same turn it's a draw. After 30 turns, the side whose HQ has more HP left (as a percentage) wins.
+**Winning:** destroy the enemy Command Center. If both HQs fall in the same turn it's a draw. After 30 turns, the side whose HQ has more HP left (as a percentage) wins. If that's a tie, the side with more invested in surviving structures (including upgrades) wins.
 
-**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts. Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible.
+**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for your next planning phase). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible.
 
 ## Structures
 
 | Key | Structure | Cost | HP | Effect |
 |---|---|---|---|---|
 | — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense shot (40% hit) within radius 2; close-defense gun (15 damage to a mech within 2); no enemy drops within 2 cells |
-| 1 | Supply Depot | 100 | 40 | +30 credits per turn |
+| 1 | Supply Depot | 100 (+25 per depot you own) | 40 | +30 credits per turn |
 | 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 12; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 45 damage + 15 splash; maximum 5 |
 | 5 | AA Battery | 110 | 45 | 1 shot per turn (70% hit) at a missile aimed within radius 4; if it misses, other batteries in range get a shot |
-| 6 | Shield Generator | 120 | 35 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
+| 6 | Shield Generator | 120 | 50 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
 | 0 | Strike Uplink | 260 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
-- **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
+- **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling a structure in the turn you built it refunds it in full. Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
 
 ## Upgrades
@@ -98,7 +99,7 @@ Seven missions, each on a fixed island map against a named enemy commander. Each
 
 **Medals:** each mission awards up to three stars:
 - one for winning;
-- one for winning within the mission's par turn count (12, 18, 17, 18, 17, 22 and 20 turns);
+- one for winning within the mission's par turn count (12, 18, 19, 17, 16, 26 and 16 turns);
 - one for finishing with your HQ at 50% health or more.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.
