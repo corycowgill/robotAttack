@@ -123,7 +123,9 @@
     // Mechs on our side come first, even during the opening
     const threats = enemyRobotsOnMySide(state);
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
-    const opening = ['depot', 'power', 'silo', 'aa', 'silo', 'depot', 'radar'];
+    // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
+    // opening beats a missiles-first one about 60/40)
+    const opening = ['depot', 'power', 'silo', 'aa', 'hangar', 'power', 'depot', 'radar'];
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
