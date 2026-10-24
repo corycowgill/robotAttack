@@ -291,3 +291,11 @@ test('missions can lock structures; preset uplink charge', () => {
   const up = R.buildingsOf(s, A, 'uplink')[0];
   assert.ok(up && up.charge === 3);
 });
+
+test('hot-seat games give neither side an income bonus', () => {
+  const s = R.newGame('warlord', 3, { hotseat: true });
+  assert.equal(s.hotseat, true);
+  assert.deepEqual(R.income(s, A), R.income(s, P));
+  const ai = R.newGame('warlord', 3);
+  assert.ok(R.income(ai, A).credits > R.income(ai, P).credits, 'single-player Warlord keeps its bonus');
+});

@@ -9,13 +9,21 @@
 (function () {
   'use strict';
 
-  const R = Rules, P = CONST.SIDE_PLAYER, A = CONST.SIDE_AI;
+  const R = Rules;
+  // The side being played from the controls. Hot-seat swaps it between the two humans.
+  let P = CONST.SIDE_PLAYER, A = CONST.SIDE_AI;
+  const P1 = CONST.SIDE_PLAYER, P2 = CONST.SIDE_AI;
+  const seatName = side => side === P1 ? 'Player 1' : 'Player 2';
   const SND = window.GameAudio;
 
   let state = null;
   let phase = 'menu';           // menu | planning | resolving | gameover
   let difficulty = 'commander';
   let tutorial = true;
+  let hotseat = false;        // two humans sharing the device
+  let handoffNext = null;     // what to do when the next player taps Ready on the hand-off screen
+  let logs = {};              // hot-seat: each player's battle log, swapped with the seat
+  let lastReportP2 = null;    // hot-seat: last combat report, from Player 2's side
   let mode = 'select';          // select | build | fire | drop
   let buildType = null;
   let selectedCell = -1;
@@ -31,12 +39,14 @@
 
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
-    window.__game = { get state() { return state; }, get phase() { return phase; }, setSpeed(v) { speed = v; } }; // debug handle
+    window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; } }; // debug handle
     Renderer.init();
     UI.init({
       onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut),
+      onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true),
+      onHandoffReady: () => { SND.play('uiClick'); const go = handoffNext; handoffNext = null; UI.hideHandoff(); if (go) go(); },
       onContinue: continueGame,
-      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial),
+      onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat)),
       onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
@@ -126,7 +136,7 @@
 
   function refreshContinue() {
     const s = loadSave();
-    UI.setContinue(s ? (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name) : null);
+    UI.setContinue(s ? (s.state.hotseat ? 'Two players · Turn ' + s.state.turn : (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name)) : null);
     refreshCampaign();
     pendingOverwrite = null;
     UI.warnOverwrite(null);
@@ -138,11 +148,16 @@
     startGame(s.state.difficulty, s.tutorial, s);
   }
 
-  function startGame(diff, tut, saved, mission) {
+  function startGame(diff, tut, saved, mission, twoPlayer) {
     SND.unlock();
     SND.play('uiClick');
     difficulty = diff;
-    tutorial = tut !== false;
+    hotseat = saved ? !!saved.state.hotseat : !!twoPlayer;
+    tutorial = !hotseat && tut !== false;
+    setActive(P1);
+    handoffNext = null;
+    UI.hideHandoff();
+    logs = {};
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     Renderer.reset();
@@ -150,13 +165,17 @@
     UI.hideGameOver();
     UI.showMenu(false);
     UI.showGameUI(true);
-    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : {});
+    state = saved ? saved.state : R.newGame(diff, undefined, mission ? { mapSeed: mission.mapSeed, landTarget: mission.land, start: mission.start, credits: mission.credits, locked: mission.locked } : { hotseat });
     if (mission) state.mission = mission.id;
     Renderer.setMap(state.land);
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
     const m = state.mission ? CAMPAIGN[state.mission - 1] : null;
-    if (saved) UI.log('Resumed operation — turn ' + state.turn + ' vs ' + (m ? COMMANDERS[m.enemy].name : CONST.DIFFICULTY[diff].name), 'sys');
+    if (saved) UI.log('Resumed operation — turn ' + state.turn + (hotseat ? ' · two players' : ' vs ' + (m ? COMMANDERS[m.enemy].name : CONST.DIFFICULTY[diff].name)), 'sys');
+    else if (hotseat) {
+      UI.log('Two-player battle. Player 1 is blue (left), Player 2 is red (right).', 'sys');
+      UI.log('Pass the device when prompted — the hand-off screen hides each base from the other player.', 'sys');
+    }
     else if (m) {
       UI.log('Mission ' + m.id + ': ' + m.name, 'sys');
       UI.log(COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', 'enemy');
@@ -170,6 +189,9 @@
   function toMenu() {
     Timeline.cancel();
     phase = 'menu';
+    handoffNext = null;
+    UI.hideHandoff();
+    setActive(P1);
     UI.hideGameOver();
     UI.showGameUI(false);
     UI.setCombatHint(false);
@@ -200,7 +222,7 @@
     SND.setMode('planning');
     const hq = R.buildingsOf(state, P, 'hq')[0];
     SND.setTension(hq && hq.hp < hq.maxHp * 0.5);
-    UI.banner('TURN ' + state.turn, first ? 'Plan your opening' : 'Planning phase');
+    UI.banner(hotseat ? seatName(P).toUpperCase() : 'TURN ' + state.turn, hotseat ? 'Turn ' + state.turn + ' · planning' : first ? 'Plan your opening' : 'Planning phase');
     SND.play('turnStart');
     const inc = R.detectedIncoming(state, P);
     if (inc.length) {
@@ -210,7 +232,7 @@
       for (const m of strikes) UI.toast('ORBITAL STRIKE inbound on ' + describeCell(m.to) + ' — AA cannot stop it. Shield, repair or move out!', 'bad');
     }
     UI.log('Turn ' + state.turn, 'turn');
-    saveGame();
+    if (P === P1) saveGame(); // hot-seat saves at the start of a round, before either side has planned
     refreshAll();
     if (first) frameView(false);
   }
@@ -292,6 +314,7 @@
     const hq = R.buildingsOf(state, P, 'hq')[0];
     const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over' }[phase] || '';
     return ({
+      red: P === CONST.SIDE_AI,
       credits: s.credits, creditInc: inc.credits,
       energy: s.energy, energyCap: R.energyCap(state, P), energyInc: inc.energy,
       turn: state.turn, maxTurns: CONST.MAX_TURNS, phase: phaseName,
@@ -616,7 +639,7 @@
     if (!state) return;
     if (name === 'menu') {
       if (phase === 'resolving') return UI.toast('Wait for combat to finish', 'warn');
-      if (phase === 'planning') saveGame();
+      if (phase === 'planning' && P === P1) saveGame(); // hot-seat: mid-round, the round-start autosave stands
       toMenu();
       return;
     }
@@ -784,7 +807,43 @@
     Renderer.setMarkers([], []);
     UI.setOrders([], []);
 
+    if (hotseat) {
+      // Player 1 done: Player 2 plans next. Player 2 done: back to Player 1, who watches the battle.
+      if (P === P1) handoff(P2, () => { if (lastReportP2) { UI.showReport(lastReportP2); reportTimer = 8; } beginPlanning(false); });
+      else handoff(P1, startResolution);
+      return;
+    }
     AI.planTurn(state, A);
+    startResolution();
+  }
+
+  // Hide the board behind the hand-off screen, then switch seats once the next player is ready
+  function handoff(next, then) {
+    phase = 'handoff';
+    logs[P] = UI.getLog();
+    const resolving = next === P1;
+    UI.showHandoff({
+      side: next, title: seatName(next) + (resolving ? ' — battle' : ' — your turn'),
+      sub: 'Pass the device to ' + seatName(next) + '. ' + seatName(R.enemyOf(next)) + ', no peeking!',
+      button: resolving ? 'Watch the battle' : 'I\'m ready'
+    });
+    handoffNext = () => {
+      setActive(next);
+      Renderer.reset();
+      UI.setLog(logs[P] || '');
+      syncWorld(true);
+      frameView(true);
+      then();
+    };
+  }
+
+  function setActive(side) {
+    P = side; A = R.enemyOf(side);
+    Renderer.setViewer(side);
+  }
+
+  function startResolution() {
+    phase = 'resolving';
     syncWorld(true); // show AI construction (if visible) before combat
     for (const b of R.buildingsOf(state, A)) if (b.builtTurn === state.turn && b.type !== 'hq' && playerSees(b.cell)) UI.log('Enemy built ' + BUILDINGS[R.apparent(b).type].name + ' at ' + cellName(b.cell), 'enemy');
 
@@ -1236,7 +1295,10 @@
     syncWorld(true);
     if (state.winner) return gameOver();
     const report = buildReport(events, turn);
-    if (events.some(e => /descend|gunfire|robotHit|drop/.test(e.type))) { UI.showReport(report); reportTimer = 6; }
+    const eventful = events.some(e => /descend|gunfire|robotHit|drop/.test(e.type));
+    if (eventful) { UI.showReport(report); reportTimer = 6; }
+    // Player 2 didn't watch: they get the same report from their side when their turn starts
+    lastReportP2 = hotseat && eventful ? Object.assign({}, report, { player: report.ai, ai: report.player, income: R.income(state, P2), swap: true }) : null;
     beginPlanning(false);
   }
 
@@ -1271,17 +1333,20 @@
     SND.setMode('off');
     SND.setTension(false);
     const w = state.winner;
-    SND.play(w === P ? 'victory' : 'defeat');
-    UI.banner(w === P ? 'VICTORY' : w === A ? 'DEFEAT' : 'DRAW', state.endReason, w !== P);
+    const title = hotseat ? (w === 'draw' ? 'DRAW' : seatName(w).toUpperCase() + ' WINS') : w === P ? 'VICTORY' : w === A ? 'DEFEAT' : 'DRAW';
+    SND.play(w === P || (hotseat && w !== 'draw') ? 'victory' : 'defeat');
+    const seatReason = w === 'draw' || /Turn limit/.test(state.endReason) ? state.endReason : seatName(R.enemyOf(w)) + '\'s Command Center destroyed';
+    UI.banner(title, hotseat ? seatReason : state.endReason, !hotseat && w !== P);
     refreshHUD();
     const ps = state.sides[P].stats, as = state.sides[A].stats;
     const acc = s => s.missilesFired ? Math.round(100 * s.missilesHit / Math.max(1, s.missilesFired)) + '%' : '—';
     setTimeout(() => {
       if (phase !== 'gameover') return;
       UI.showGameOver({
-        title: w === P ? 'VICTORY' : w === A ? 'DEFEAT' : 'DRAW',
-        kind: w === P ? 'win' : w === A ? 'lose' : 'draw',
-        reason: state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : CONST.DIFFICULTY[state.difficulty].name),
+        title,
+        kind: hotseat ? (w === 'draw' ? 'draw' : 'win') : w === P ? 'win' : w === A ? 'lose' : 'draw',
+        cols: hotseat ? ['Player 1', 'Player 2'] : null,
+        reason: (hotseat ? seatReason + ' — turn ' + state.turn + ' · two players' : state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : CONST.DIFFICULTY[state.difficulty].name)),
         next: !!(mission && w === P && CAMPAIGN[mission.id]),
         again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : 'Rematch',
         medals: medals ? { got: medals, labels: UI.medalLabels(mission), newBest } : null,

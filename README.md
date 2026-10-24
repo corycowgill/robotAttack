@@ -104,6 +104,12 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 
 **Skirmish** plays a random island map against any of the three opponents.
 
+**Two players** is a pass-and-play mode on one device:
+- Player 1 (blue, left) plans first.
+- A full-screen hand-off screen hides the board while you pass the device. Then Player 2 (red, right) plans, seeing only their own island and their own battle log.
+- After a second hand-off the battle plays out for Player 1, who plans next. Player 2 gets the same turn report from their side when their turn starts.
+- Neither side gets an income bonus. The game autosaves at the start of each round.
+
 ## Opponents
 
 - **Patrol:**

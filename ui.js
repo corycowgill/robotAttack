@@ -231,6 +231,15 @@ window.UI = (function () {
   .speaker .say { font-size: 15px; line-height: 1.4; color: #d3dee9; }
   .speaker.enemy .say { color: #ffb4a6; font-style: italic; }
   #gameover .menu-box { width: min(660px, 94vw); padding: 28px; }
+  .hotseat { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding: 12px 16px; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
+  .hotseat:hover { transform: translateY(-3px); border-color: rgba(46,196,255,.7); }
+  .hotseat h3 { margin: 0 0 2px; font-size: 18px; letter-spacing: .12em; } .hotseat p { margin: 0; font-size: 13px; color: var(--c-dim); }
+  .hotseat .vs { font-size: 20px; font-weight: 700; white-space: nowrap; } .hotseat .vs b:first-child { color: var(--c-player); } .hotseat .vs b:last-child { color: var(--c-ai); }
+  /* hot-seat hand-off: fully opaque and above everything, so the next player can't see the last one's base */
+  #handoff { background: #05080c; z-index: 30; }
+  #handoff .menu-box { text-align: center; padding: 34px 30px; width: min(520px, 92vw); }
+  #handoff h2 { font-size: 34px; letter-spacing: .14em; margin: 0 0 10px; }
+  #handoff p { color: var(--c-dim); margin: 0 0 22px; font-size: 16px; }
   #go-quote { display: none; gap: 12px; align-items: center; text-align: left; margin: 0 auto 16px; max-width: 440px; }
   #go-quote svg { width: 64px; height: 64px; flex: none; }
   #go-quote div { font-size: 15px; color: #d3dee9; line-height: 1.35; }
@@ -359,8 +368,8 @@ window.UI = (function () {
       <div class="cell"><div class="lbl" style="color:var(--c-credit)">${icon('credits')} Credits</div><div class="val" style="color:var(--c-credit)"><span id="h-cr">0</span><span class="inc" id="h-cri"></span></div></div>
       <div class="cell"><div class="lbl" style="color:var(--c-energy)">${icon('energy')} Energy</div><div class="val" style="color:var(--c-energy)"><span id="h-en">0</span><span class="inc" id="h-eni"></span></div><div class="bar"><i id="h-enb" style="background:var(--c-energy)"></i></div></div>
       <div class="cell" id="hud-turn"><div class="val" id="h-turn">TURN 1</div><div id="hud-phase">Planning</div></div>
-      <div class="cell hq-cell"><div class="lbl" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div></div>
-      <div class="cell hq-cell"><div class="lbl" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-hql" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-ehql" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div></div>
     `));
 
     root.appendChild(el('div', { id: 'sysbtns', class: 'pi' }, `
@@ -409,6 +418,7 @@ window.UI = (function () {
         <div class="missions" id="m-missions"></div>
         <div class="sect">Skirmish &mdash; random islands</div>
         <div class="diffs">${diffs}</div>
+        <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
           <label class="chk"><input type="checkbox" id="m-tut" checked> Show tutorial objectives</label>
@@ -440,12 +450,17 @@ window.UI = (function () {
 
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
 
+    root.appendChild(el('div', { id: 'handoff', class: 'screen' }, `
+      <div class="menu-box panel"><h2 id="ho-title"></h2><p id="ho-sub"></p><button class="bigbtn" id="ho-go">I'm ready</button></div>`));
+
     // Wire events (stopPropagation is not needed: input lives on the canvas only)
     root.querySelectorAll('.diff').forEach(d => {
       d.addEventListener('click', () => H.onStart(d.dataset.diff, $('m-tut').checked));
       d.addEventListener('mouseenter', () => H.onHover && H.onHover());
     });
     $('m-help').addEventListener('click', () => showHelp(true));
+    $('m-hotseat').addEventListener('click', () => H.onHotseat());
+    $('ho-go').addEventListener('click', () => H.onHandoffReady());
     $('m-continue').addEventListener('click', () => H.onContinue());
     $('m-music').addEventListener('change', e => H.onMusic && H.onMusic(e.target.checked));
     $('help').addEventListener('click', e => { if (e.target.id === 'help' || e.target.classList.contains('close')) showHelp(false); });
@@ -542,6 +557,10 @@ window.UI = (function () {
     $('hud-phase').textContent = h.phase;
     $('h-hq').textContent = h.hq.hp + ' / ' + h.hq.max;
     $('h-hqb').style.width = (100 * h.hq.hp / h.hq.max) + '%';
+    // hot-seat Player 2 plays red: "your" colours follow the seat
+    const mine = h.red ? 'var(--c-ai)' : 'var(--c-player)', theirs = h.red ? 'var(--c-player)' : 'var(--c-ai)';
+    $('h-hql').style.color = $('h-hqb').style.background = mine;
+    $('h-ehql').style.color = $('h-ehqb').style.background = theirs;
     $('h-ehq').textContent = h.enemyHq.known ? (h.enemyHq.hp + ' / ' + h.enemyHq.max) : ('~' + h.enemyHq.hp + ' / ' + h.enemyHq.max);
     $('h-ehqb').style.width = (100 * h.enemyHq.hp / h.enemyHq.max) + '%';
   }
@@ -614,6 +633,20 @@ window.UI = (function () {
     box.scrollTop = box.scrollHeight;
   }
   function clearLog() { $('log').innerHTML = ''; }
+  function getLog() { return $('log').innerHTML; }
+  function setLog(html) { const box = $('log'); box.innerHTML = html; box.scrollTop = box.scrollHeight; }
+
+  function showHandoff(o) {
+    const t = $('ho-title');
+    t.textContent = o.title;
+    t.style.color = o.side === CONST.SIDE_PLAYER ? 'var(--c-player)' : 'var(--c-ai)';
+    $('ho-sub').textContent = o.sub;
+    $('ho-go').textContent = o.button || 'I\'m ready';
+    hideTip(); hideReport();
+    $('handoff').classList.add('show');
+  }
+  function hideHandoff() { $('handoff').classList.remove('show'); }
+  function isHandoffOpen() { return $('handoff').classList.contains('show'); }
 
   function showSelected(info) {
     const p = $('selected');
@@ -709,7 +742,7 @@ window.UI = (function () {
       <div class="row"><span>Enemy missiles shot down</span><b>${s.intercepts}</b></div>
       <div class="row"><span>Mechs lost</span><b>${s.robotsLost}</b></div>
       <div class="lost">${s.lostNames.length ? 'Lost: ' + esc(s.lostNames.join(', ')) : 'No structures lost'}</div></div>`;
-    p.innerHTML = `<h2>Turn ${r.turn} report</h2><div class="cols">${col('You', 'var(--c-player)', r.player)}${col('Enemy', 'var(--c-ai)', r.ai)}</div>
+    p.innerHTML = `<h2>Turn ${r.turn} report</h2><div class="cols">${col('You', r.swap ? 'var(--c-ai)' : 'var(--c-player)', r.player)}${col('Enemy', r.swap ? 'var(--c-player)' : 'var(--c-ai)', r.ai)}</div>
       <div class="foot"><span>Next turn: <b style="color:var(--c-credit)">+${r.income.credits}c</b> <b style="color:var(--c-energy)">+${r.income.energy}e</b></span><span>&nbsp;</span></div>`;
     p.classList.add('show');
   }
@@ -793,7 +826,8 @@ window.UI = (function () {
     $('go-reason').textContent = g.reason;
     $('go-medals').innerHTML = g.medals ? medalRow(g.medals.got, g.medals.labels) + (g.medals.newBest ? '<div class="newbest">NEW MEDAL</div>' : '') : '';
     $('go-medals').style.display = g.medals ? '' : 'none';
-    $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">You</span><span class="h" style="color:var(--c-ai)">Enemy</span>' +
+    const cols = g.cols || ['You', 'Enemy'];
+    $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">' + esc(cols[0]) + '</span><span class="h" style="color:var(--c-ai)">' + esc(cols[1]) + '</span>' +
       g.rows.map(r => `<span>${esc(r[0])}</span><b>${r[1]}</b><b>${r[2]}</b>`).join('');
     $('gameover').classList.add('show');
   }
@@ -807,6 +841,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    getLog, setLog, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

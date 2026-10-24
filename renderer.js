@@ -809,7 +809,7 @@ window.Renderer = (function () {
     const bar = makeHpBar(b.type === 'hq' ? 12 : 8);
     bar.position.set(p.x, height + 3, p.z);
     scene.add(bar);
-    const badge = makeBadge(b.type === 'decoy' && b.side === CONST.SIDE_PLAYER ? 'decoy' : modelType, b.side);
+    const badge = makeBadge(b.type === 'decoy' && b.side === viewer ? 'decoy' : modelType, b.side);
     badge.position.set(p.x, height + 9, p.z);
     scene.add(badge);
     const rec = { id: b.id, b: { type: b.type, side: b.side, cell: b.cell }, group: g, bar, badge, hp: b.hp, maxHp: b.maxHp, rise: rise ? 0 : 1, collapse: -1, hatch: 0, hatchT: 0, smoke: null, dome: null, forceBar: false };
@@ -827,6 +827,10 @@ window.Renderer = (function () {
     if (rise) g.scale.y = 0.01;
     return rec;
   }
+
+  // Whose eyes the board is drawn through (hot-seat swaps it): only the owner sees a decoy's badge
+  let viewer = CONST.SIDE_PLAYER;
+  function setViewer(side) { viewer = side; }
 
   function setBuildingCharge(id, n) {
     const rec = buildings[id];
@@ -1400,7 +1404,7 @@ window.Renderer = (function () {
   return {
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
-    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
