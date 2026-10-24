@@ -455,10 +455,24 @@
     return { ok: true, order };
   }
 
+  // Can this side launch a drop at all this turn? (hangar free, mech cap, energy)
+  function dropReadyReason(state, side) {
+    if (!freeLaunchers(state, side, 'hangar').length) {
+      return buildingsOf(state, side, 'hangar').length ? 'All hangars already tasked' : 'Build a Robot Hangar first';
+    }
+    const queued = state.sides[side].orders.filter(o => o.kind === 'drop').length;
+    if (robotsOf(state, side).length + queued >= C.MAX_ROBOTS) return 'Max ' + C.MAX_ROBOTS + ' mechs in the field';
+    if (state.sides[side].energy < C.DROP_ENERGY) return 'Need ' + C.DROP_ENERGY + ' energy';
+    return null;
+  }
+
   function dropReason(state, side, to) {
-    if (ownerOfCell(to) !== enemyOf(side)) return 'Drop zone must be in enemy territory';
+    const owner = ownerOfCell(to);
+    if (owner === null) return 'Drop zone must be on an island';
     if (!isLand(state, to)) return 'Drop zone must be on land';
-    if (cheb(to, hqCell(enemyOf(side))) <= C.DROP_HQ_EXCLUSION) return 'Too close to the enemy HQ (air defense zone)';
+    // own island = garrison drop (defends against enemy mechs)
+    if (owner === side && (state.cells[to].building || robotAt(state, to))) return 'Garrison drop needs a free cell';
+    if (owner !== side && cheb(to, hqCell(enemyOf(side))) <= C.DROP_HQ_EXCLUSION) return 'Too close to the enemy HQ (air defense zone)';
     if (!freeLaunchers(state, side, 'hangar').length) {
       return buildingsOf(state, side, 'hangar').length ? 'All hangars already tasked' : 'Build a Robot Hangar first';
     }
@@ -739,6 +753,34 @@
     for (const r of actors) {
       if (r.hp <= 0) continue;
       const foe = enemyOf(r.side);
+      const guard = ownerOfCell(r.cell) === r.side;
+      // Enemy mech next to us? Garrison mechs always engage; raiders only when no structure is in reach
+      let duel = null;
+      for (const o of state.robots) {
+        if (o.side === r.side || o.hp <= 0 || cheb(o.cell, r.cell) > 1) continue;
+        if (!duel || o.hp < duel.hp) duel = o;
+      }
+      const fight = o => {
+        const dmg = r.dmg || C.ROBOT_DAMAGE;
+        o.hp = Math.max(0, o.hp - dmg);
+        const killed = o.hp <= 0;
+        if (killed) { sideOf(r.side).stats.robotsKilled++; sideOf(o.side).stats.robotsLost++; }
+        ev(BEAT.ROBOTS, { type: 'robotFight', id: r.id, side: r.side, cell: r.cell, targetId: o.id, targetCell: o.cell, dmg, hpAfter: o.hp, killed });
+      };
+      if (duel && guard) { fight(duel); continue; }
+      if (guard) {
+        // hunt the nearest invader on our island; hold position otherwise
+        const prey = state.robots.filter(o => o.side === foe && o.hp > 0 && ownerOfCell(o.cell) === r.side)
+          .sort((a, b) => dist(a.cell, r.cell) - dist(b.cell, r.cell))[0];
+        if (!prey) continue;
+        const path = bfsPath(state, r, c => cheb(c, prey.cell) <= 1);
+        if (path && path.length) {
+          const steps = path.slice(0, C.ROBOT_MOVE), fromCell = r.cell;
+          r.cell = steps[steps.length - 1];
+          ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: steps, facing: prey.cell });
+        }
+        continue;
+      }
       // Adjacent target? HQ first, then lowest HP
       let adj = null;
       for (const n of neighbors(r.cell, 1)) {
@@ -751,6 +793,7 @@
         ev(BEAT.ROBOTS, { type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
         continue;
       }
+      if (duel) { fight(duel); continue; }
       const tgt = robotTarget(state, r);
       if (!tgt) continue;
       let path = bfsPath(state, r, c => cheb(c, tgt.cell) <= 1);
@@ -777,10 +820,10 @@
         hangar.deployed = true;
         let cell = o.to;
         if (!passable(state, cell, null)) {
-          // scatter to nearest free cell in enemy territory
+          // scatter to the nearest free cell on the island that was aimed at
           let best = -1, bd = Infinity;
           for (let i = 0; i < N; i++) {
-            if (ownerOfCell(i) !== enemyOf(side) || !passable(state, i, null)) continue;
+            if (ownerOfCell(i) !== ownerOfCell(o.to) || !passable(state, i, null)) continue;
             const d = dist(i, o.to);
             if (d < bd) { bd = d; best = i; }
           }
@@ -867,7 +910,7 @@
     newGame, generateIslands, isLand, apparent, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
-    freeLaunchers, missileReason, queueMissile, dropReason, queueDrop, cancelOrder, undo,
+    freeLaunchers, missileReason, queueMissile, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
     resolveTurn, targetValue
   };
 

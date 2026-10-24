@@ -27,7 +27,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
    1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
    2. Missiles hit. Shields absorb damage first; each missile does 45 damage to its target and 15 to adjacent cells.
    3. Gun Pods fire at mechs.
-   4. Mechs move (2 cells) or smash an adjacent structure.
+   4. Mechs move (2 cells) or smash an adjacent structure. Raiders fight enemy mechs when no structure is in reach. **Garrison** mechs, dropped on your own island, hunt down invaders.
    5. Drop pods land. New mechs wait one turn before they act.
    6. New missiles launch. They are in the air until next turn.
 3. **React.**

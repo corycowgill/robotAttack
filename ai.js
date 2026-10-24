@@ -289,6 +289,20 @@
     }
   }
 
+  // Garrison drop next to invaders that our guns don't already cover
+  function planGarrison(state) {
+    const s = state.sides[ME];
+    const threats = enemyRobotsOnMySide(state).filter(r => R.ownerOfCell(r.cell) === ME);
+    for (const t of threats) {
+      if (s.energy < C.DROP_ENERGY || !R.freeLaunchers(state, ME, 'hangar').length) return;
+      const guns = R.buildingsOf(state, ME, 'gunpod').filter(g => R.dist(g.cell, t.cell) <= B.gunpod.range).length;
+      const guards = R.robotsOf(state, ME).filter(r => R.dist(r.cell, t.cell) <= 3).length;
+      if (guns >= 2 || guards >= 1) continue;
+      const spot = R.neighbors(t.cell, 1).find(c => !R.dropReason(state, ME, c));
+      if (spot !== undefined) R.queueDrop(state, ME, spot);
+    }
+  }
+
   function planDrops(state, smart) {
     const s = state.sides[ME];
     const targets = knownTargets(state);
@@ -333,6 +347,7 @@
     mem.lastTaken = s.stats.damageTaken;
 
     planRepairs(state, diff);
+    if (smart) planGarrison(state);
 
     // Alternate priority between drops and missiles so energy is shared
     const robotsFirst = state.turn % 2 === 0 && R.freeLaunchers(state, ME, 'hangar').length > 0;
