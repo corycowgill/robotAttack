@@ -32,11 +32,11 @@
   function boot() {
     Renderer.init();
     UI.init({
-      onStart: startGame,
+      onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut),
       onContinue: continueGame,
       onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial),
       onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1]); },
-      onLaunchMission: id => startMission(id),
+      onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1]); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
       onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n); } },
       onMenu: toMenu,
@@ -96,10 +96,23 @@
     startGame(m.difficulty, id === 1 && (!tutBox || tutBox.checked), null, m);   // checklist on the first mission
   }
 
+  // Starting a new game replaces the autosave: the first click warns, a second confirms
+  let pendingOverwrite = null;
+  function confirmOverwrite(key) {
+    const s = loadSave();
+    if (!s || pendingOverwrite === key) { pendingOverwrite = null; UI.warnOverwrite(null); return true; }
+    pendingOverwrite = key;
+    UI.warnOverwrite('This replaces your saved game (' + (s.state.mission ? 'Mission ' + s.state.mission + ', ' : '') + 'turn ' + s.state.turn + '). Click again to confirm — or use Continue.');
+    SND.play('error');
+    return false;
+  }
+
   function refreshContinue() {
     const s = loadSave();
     UI.setContinue(s ? (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name) : null);
     refreshCampaign();
+    pendingOverwrite = null;
+    UI.warnOverwrite(null);
   }
 
   function continueGame() {

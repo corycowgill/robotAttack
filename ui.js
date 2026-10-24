@@ -189,6 +189,8 @@ window.UI = (function () {
   .menu-foot { margin-top: 22px; display: flex; gap: 12px; justify-content: center; align-items: center; color: var(--c-dim); font-size: 14px; flex-wrap: wrap; }
   .lnk { cursor: pointer; color: #8fdcff; text-decoration: underline; text-underline-offset: 3px; }
   .chk { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .warnline { display: none; margin: 0 auto 14px; max-width: 560px; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,176,0,.6); background: rgba(255,176,0,.1); color: #ffd98a; font-size: 15px; text-align: center; }
+  .warnline.show { display: block; }
   .sect { margin: 4px 0 10px; font-size: 13px; letter-spacing: .28em; text-transform: uppercase; color: var(--c-dim); display: flex; align-items: center; gap: 12px; }
   .sect::before, .sect::after { content: ''; flex: 1; height: 1px; background: var(--c-line); }
   .missions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 22px; }
@@ -306,6 +308,7 @@ window.UI = (function () {
         <div class="title">ROBOT ATTACK<span>STRATEGY 2026</span></div>
         <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war in the spirit of Metal Marines</div>
         <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
+        <div id="m-warn" class="warnline"></div>
         <div class="sect">Campaign</div>
         <div class="missions" id="m-missions"></div>
         <div class="sect">Skirmish &mdash; random islands</div>
@@ -333,6 +336,7 @@ window.UI = (function () {
           <div class="speaker" id="br-co"></div>
           <div class="speaker enemy" id="br-foe"></div>
         </div>
+        <div id="br-warn" class="warnline"></div>
         <div style="text-align:center"><button class="bigbtn" id="br-go">Launch Mission</button><button class="bigbtn alt" id="br-back">Back</button></div>
       </div>`));
 
@@ -397,7 +401,7 @@ window.UI = (function () {
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
-        <div><kbd>Esc</kbd> cancel</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
+        <div><kbd>Esc</kbd> cancel &nbsp; Touch: tap, drag to pan, pinch to zoom</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
     </div>`;
@@ -631,6 +635,9 @@ window.UI = (function () {
     }
   }
 
+  function warnOverwrite(text) {
+    for (const id of ['m-warn', 'br-warn']) { $(id).textContent = text || ''; $(id).classList.toggle('show', !!text); }
+  }
   let briefingId = 0;
   function closeBriefing() { $('briefing').classList.remove('show'); H.onBriefingBack(); }
   function isBriefingOpen() { return $('briefing').classList.contains('show'); }
@@ -668,7 +675,7 @@ window.UI = (function () {
   function setVolume(v) { $('vol').value = v; }
 
   return {
-    init, icon, esc, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
