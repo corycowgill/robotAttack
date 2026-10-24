@@ -133,16 +133,17 @@ window.UI = (function () {
   .sbtn .ico { width: 16px; height: 16px; }
   .sbtn.up { border-color: rgba(255,200,60,.5); color: #ffe39a; }
 
-  #objectives { position: absolute; left: 12px; top: 74px; width: 250px; padding: 8px 10px; }
-  #objectives h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-warn); display: flex; justify-content: space-between; }
-  #objectives h4 span { cursor: pointer; color: var(--c-dim); }
+  #objectives { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 560px)); padding: 6px 12px; display: flex; align-items: center; gap: 10px; }
+  #objectives h4 { margin: 0; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-warn); white-space: nowrap; }
+  #objectives .x { cursor: pointer; color: var(--c-dim); font-size: 16px; padding-left: 4px; }
+  #objectives .obj { padding: 0; }
   .obj { font-size: 13px; padding: 2px 0; display: flex; gap: 8px; color: #c5d2de; line-height: 1.25; }
   .obj b { color: var(--c-player); width: 16px; flex: none; }
   .obj.done { color: var(--c-dim); text-decoration: line-through; } .obj.done b { color: var(--c-credit); }
   .obj.cur { color: #fff; }
 
   /* Toast, tooltip, banner, floating text */
-  #toasts { position: absolute; left: 50%; top: 84px; z-index: 2; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #toasts { position: absolute; left: 50%; top: 132px; z-index: 2; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .toast { padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: 700; background: var(--c-bg2); border: 1px solid var(--c-line); animation: tin .2s ease-out, tout .4s ease-in 1.8s forwards; }
   .toast.bad { border-color: rgba(255,74,61,.6); color: #ffb1a8; } .toast.good { border-color: rgba(102,255,153,.5); color: #b6ffd0; } .toast.warn { border-color: rgba(255,176,0,.6); color: #ffd98a; }
   @keyframes tin { from { opacity: 0; transform: translateY(-8px); } } @keyframes tout { to { opacity: 0; transform: translateY(-8px); } }
@@ -238,7 +239,7 @@ window.UI = (function () {
   }
   @media (max-width: 1240px) {
     .card { width: 70px; height: 78px; } .card .nm { font-size: 11px; } .abtn { min-width: 84px; height: 78px; }
-    #orders { width: 220px; } #objectives { width: 230px; }
+    #orders { width: 220px; }
   }
   @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: calc(100vh - 360px); } }
   @media (max-height: 700px) { #orders { display: none; } }
@@ -349,7 +350,7 @@ window.UI = (function () {
     $('go-again').addEventListener('click', () => H.onRematch());
     $('go-next').addEventListener('click', () => H.onNextMission());
     $('br-go').addEventListener('click', () => { $('briefing').classList.remove('show'); H.onLaunchMission(briefingId); });
-    $('br-back').addEventListener('click', () => { $('briefing').classList.remove('show'); showMenu(true); });
+    $('br-back').addEventListener('click', () => closeBriefing());
     $('go-menu').addEventListener('click', () => H.onMenu());
     $('b-fire').addEventListener('click', () => H.onAction('fire'));
     $('b-drop').addEventListener('click', () => H.onAction('drop'));
@@ -384,7 +385,7 @@ window.UI = (function () {
       <h4>Defenses</h4>
       <p>Every Command Center has a point-defense gun that hits 40% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit 70%; if one misses, another battery in range gets a shot. One missile at a time rarely gets through — <b>fire several in the same turn</b> to overwhelm the defenses.</p>
       <h4>Upgrades</h4>
-      <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
+      <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (about 75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
       <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods, or by <b>garrison mechs</b>: drop a mech on your own island and it hunts invaders. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
       <h4>Structures</h4>
@@ -523,10 +524,11 @@ window.UI = (function () {
     const box = $('objectives');
     if (!list) { box.style.display = 'none'; return; }
     box.style.display = '';
+    // one slim line over the strait: progress + the current objective
     const done = list.filter(o => o.done).length;
-    const open = list.filter(o => !o.done).slice(0, 3);
-    box.innerHTML = `<h4>Briefing ${done}/${list.length} <span id="obj-x" title="Hide">&times;</span></h4>` +
-      open.map((o, i) => `<div class="obj ${i === 0 ? 'cur' : ''}"><b>${i === 0 ? '▸' : '·'}</b><span>${o.text}</span></div>`).join('');
+    const cur = list.find(o => !o.done);
+    box.innerHTML = `<h4>Briefing ${done}/${list.length}</h4>` +
+      (cur ? `<div class="obj cur"><b>▸</b><span>${cur.text}</span></div>` : '') + `<span class="x" id="obj-x" title="Hide briefing">&times;</span>`;
     $('obj-x').addEventListener('click', () => H.onAction('hideObjectives'));
   }
 
@@ -630,6 +632,8 @@ window.UI = (function () {
   }
 
   let briefingId = 0;
+  function closeBriefing() { $('briefing').classList.remove('show'); H.onBriefingBack(); }
+  function isBriefingOpen() { return $('briefing').classList.contains('show'); }
   function showBriefing(m) {
     briefingId = m.id;
     const co = COMMANDERS.hale, foe = COMMANDERS[m.enemy];
@@ -664,7 +668,7 @@ window.UI = (function () {
   function setVolume(v) { $('vol').value = v; }
 
   return {
-    init, icon, esc, portrait, setCampaign, showBriefing, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

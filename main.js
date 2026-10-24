@@ -37,6 +37,7 @@
       onRematch: () => state && state.mission ? startMission(state.mission) : startGame(difficulty, tutorial),
       onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1]); },
       onLaunchMission: id => startMission(id),
+      onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
       onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n); } },
       onMenu: toMenu,
       onBuildSelect: selectBuild,
@@ -91,7 +92,8 @@
   function startMission(id) {
     const m = CAMPAIGN[id - 1];
     if (!m) return;
-    startGame(m.difficulty, id === 1, null, m);   // the briefing checklist runs on the first mission
+    const tutBox = document.getElementById('m-tut');
+    startGame(m.difficulty, id === 1 && (!tutBox || tutBox.checked), null, m);   // checklist on the first mission
   }
 
   function refreshContinue() {
@@ -314,10 +316,15 @@
       const def = BUILDINGS[a.type];
       const info = { type: a.type, name: def.name, own, hp: a.hp, maxHp: a.maxHp, desc: def.desc, stats: def.stats(), ghost: false };
       if (own && b.type === 'decoy') info.extra = 'Disguised as ' + BUILDINGS[b.disguise].name;
-      if ((a.level || 1) > 1 && UPGRADES[a.type]) { info.level = 2; info.stats = info.stats.concat(['Level II — ' + UPGRADES[a.type].name + ': ' + UPGRADES[a.type].desc]); }
+      if ((a.level || 1) > 1 && UPGRADES[a.type]) {
+        // the upgrade supersedes the structure's headline stat (always the first line)
+        info.level = 2;
+        info.stats = ['★ ' + UPGRADES[a.type].name + ': ' + UPGRADES[a.type].desc].concat(info.stats.slice(1));
+      }
       if (own) info.upgrade = R.upgradeInfo(state, P, c);
-      if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + BUILDINGS.shield.pool;
-      if (b.type === 'aa' || b.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + b.shots;
+      if (b.type === 'shield') info.extra = 'Shield ' + b.pool + '/' + R.stat(b, 'pool');
+      // decoys disguised as AA show what a fresh AA would
+      if (a.type === 'aa' || a.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + (b.type === 'decoy' ? 1 : b.shots);
       if (own) {
         const rep = R.repairInfo(state, P, c);
         info.repair = rep;
@@ -340,18 +347,19 @@
       Renderer.hideRange();
     }
     UI.showSelected(info);
-    if (info) showRangeFor(info.type, selectedCell, info.own);
+    if (info) showRangeFor(info.type, selectedCell, info.own, info.level);
     Renderer.setBarsForced(selectedCell >= 0 && R.buildingAt(state, selectedCell) ? [R.buildingAt(state, selectedCell).id] : null);
   }
 
-  function showRangeFor(type, cell, own) {
-    const def = BUILDINGS[type];
+  function showRangeFor(type, cell, own, level) {
+    const up = level > 1 && UPGRADES[type] && UPGRADES[type].range;
+    const range = up || BUILDINGS[type].range;
     const color = own ? 0x2ec4ff : 0xff4422;
-    if (type === 'aa') Renderer.showRange(cell, def.range, color);
-    else if (type === 'gunpod') Renderer.showRange(cell, def.range, 0xffb000);
-    else if (type === 'radar') Renderer.showRange(cell, def.range, 0x66ff99);
-    else if (type === 'shield') Renderer.showRange(cell, def.range, 0x9d7cff, true);
-    else if (type === 'hq') Renderer.showRange(cell, def.range, color);
+    if (type === 'aa') Renderer.showRange(cell, range, color);
+    else if (type === 'gunpod') Renderer.showRange(cell, range, 0xffb000);
+    else if (type === 'radar') Renderer.showRange(cell, range, 0x66ff99);
+    else if (type === 'shield') Renderer.showRange(cell, range, 0x9d7cff, true);
+    else if (type === 'hq') Renderer.showRange(cell, range, color);
     else Renderer.hideRange();
   }
 
@@ -431,7 +439,9 @@
       if (reason) html = '<span class="bad">' + UI.esc(reason) + '</span>';
     } else if (mode === 'fire') {
       const reason = R.missileReason(state, P, hoverCell);
-      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>' : 'Fire at <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">Lands at the start of next turn\'s combat</span>';
+      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
+        : !R.isLand(state, hoverCell) ? '<span class="bad">Open water</span> — a missile here would be wasted'
+          : 'Fire at <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">Lands at the start of next turn\'s combat</span>';
     } else if (mode === 'drop') {
       const reason = R.dropReason(state, P, hoverCell);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>' : 'Drop mech at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">Lands this turn, attacks from next turn</span>';
@@ -599,6 +609,7 @@
         if (r.kind === 'upgrade') Renderer.setBuildingLevel(r.building.id, 1);
         if (r.kind === 'sell') { Renderer.addBuilding(r.building, true); if (r.building.type === 'radar') syncWorld(false); }
         UI.toast('Undone', 'good');
+        UI.log('Undid ' + (r.kind === 'order' ? (r.order && r.order.kind === 'drop' ? 'mech drop' : 'missile order') : r.kind + ' of ' + BUILDINGS[r.building.type].name), 'sys');
         break;
       }
       case 'cancel': {
@@ -615,6 +626,10 @@
   function onKey(e) {
     if (!/Tab|Shift|Control|Alt/.test(e.key)) reportTimer = Math.min(reportTimer, 0.01);
     if (e.repeat && e.code !== 'Tab') return;
+    if (UI.isBriefingOpen()) {
+      if (e.code === 'Escape') UI.closeBriefing();
+      return;
+    }
     if (UI.isHelpOpen()) {
       if (e.code === 'Escape' || e.key === '?' || e.code === 'Slash') UI.showHelp(false);
       e.preventDefault();
@@ -628,6 +643,7 @@
       e.preventDefault();
       speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
       UI.setCombatHint(phase === 'resolving', speed);
+      if (phase !== 'resolving') UI.toast('Combat playback speed: ' + speed + 'x', 'good');
       return;
     }
     if (e.code === 'KeyH') { Renderer.focusCell(R.hqCell(P), 250, true); return; }
@@ -898,7 +914,14 @@
     }
   }
 
-  // Apply a damage record from the rules to the view. Returns damage dealt.
+  // Damage as the player perceives it: hits on an enemy decoy are scaled to its disguise
+  function shownDmg(h, amount) {
+    if (!h.disguise || h.side === P || h.destroyed) return amount;
+    return Math.round(amount * BUILDINGS[h.disguise].hp / BUILDINGS.decoy.hp);
+  }
+  function shownType(h) { return h.disguise && h.side !== P && !h.destroyed ? h.disguise : h.type; }
+
+  // Apply a damage record from the rules to the view. Returns damage as shown to the player.
   function applyHit(h, idAt) {
     const vis = playerSees(h.cell);
     if (h.absorbed > 0 && h.shieldCell >= 0) {
@@ -910,7 +933,7 @@
       if (vis) floatAt(h.cell, '◈' + h.absorbed, 'shield', 16);
     }
     Renderer.setBuildingHp(h.id, h.hpAfter, h.maxHp);
-    if (h.dmg > 0 && vis) floatAt(h.cell, '-' + h.dmg, h.type === 'hq' ? 'dmg big' : 'dmg');
+    if (h.dmg > 0 && vis) floatAt(h.cell, '-' + shownDmg(h, h.dmg), h.type === 'hq' ? 'dmg big' : 'dmg');
     if (h.destroyed) {
       const pos = Renderer.cellCenter(h.cell);
       Renderer.setBuildingVisible(h.id, true);
@@ -924,7 +947,7 @@
       else UI.log((h.side === P ? 'LOST: your ' : 'DESTROYED: enemy ') + BUILDINGS[h.type].name + ' at ' + cellName(h.cell), h.side === P ? 'bad' : 'good');
     }
     if (h.type === 'hq') refreshHQFromHit(h);
-    return h.dmg;
+    return shownDmg(h, h.dmg);
   }
 
   let combatHud = null;
@@ -1000,8 +1023,8 @@
       Fx.smallBlast(p, 0xffaa33);
       SND.play('robotPunch', { pan: panAtPos(p) });
       Renderer.addTrauma(e.hit.type === 'hq' ? 0.3 : 0.15, p);
-      const what = (e.side === P ? 'Your mech smashes enemy ' : 'Enemy mech smashes your ') + BUILDINGS[e.hit.type].name;
-      UI.log(what + (e.hit.dmg > 0 ? ' (-' + e.hit.dmg + (e.hit.absorbed ? ', ' + e.hit.absorbed + ' absorbed by shield' : '') + ')' : ' — absorbed by shield'), e.side === P ? 'good' : 'bad');
+      const what = (e.side === P ? 'Your mech smashes enemy ' : 'Enemy mech smashes your ') + BUILDINGS[shownType(e.hit)].name;
+      UI.log(what + (e.hit.dmg > 0 ? ' (-' + shownDmg(e.hit, e.hit.dmg) + (e.hit.absorbed ? ', ' + e.hit.absorbed + ' absorbed by shield' : '') + ')' : ' — absorbed by shield'), e.side === P ? 'good' : 'bad');
       applyHit(e.hit, idAt);
     });
   }
