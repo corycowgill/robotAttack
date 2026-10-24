@@ -67,6 +67,7 @@ window.UI = (function () {
   #hud .bar > i { display: block; height: 100%; border-radius: 3px; transition: width .35s; }
   #hud-turn { text-align: center; min-width: 150px !important; }
   #hud-turn .val { font-size: 20px; letter-spacing: .08em; }
+  #hud-turn.late .val { color: var(--c-warn); text-shadow: 0 0 10px rgba(255,176,0,.5); }   /* last turns before the limit */
   #hud-phase { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--c-warn); }
   .hq-cell { min-width: 150px !important; }
   #hud .full { animation: pulse 1s infinite; }
@@ -368,7 +369,8 @@ window.UI = (function () {
   body.compact .abtn { min-width: 58px !important; height: 56px; font-size: 10px; gap: 1px; border-radius: 6px; }
   body.compact .abtn .ico { width: 20px; height: 20px; }
   body.compact .abtn small, body.compact .abtn .badge { display: none; }
-  body.compact #selected { right: calc(var(--safe-r) + 6px); bottom: 70px; width: min(250px, 42vw); max-height: calc(100% - 120px); padding: 8px 10px; }
+  body.compact #selected .uphint { display: none; }
+  body.compact #selected { right: calc(var(--safe-r) + 6px); bottom: 70px; width: min(226px, 36vw); max-height: calc(100% - 120px); padding: 8px 10px; }
   body.compact #selected .desc, body.compact #selected ul, body.compact #selected .side { display: none; }
   body.compact #selected h3 { font-size: 15px; } body.compact #selected ul { font-size: 11px; }
   body.compact .sbtn { padding: 6px; font-size: 12px; } body.compact .sbtn kbd { display: none; }
@@ -629,6 +631,8 @@ window.UI = (function () {
     eb.style.width = (100 * h.energy / h.energyCap) + '%';
     eb.parentElement.classList.toggle('full', h.energy >= h.energyCap);
     $('h-turn').textContent = 'TURN ' + h.turn + ' / ' + h.maxTurns;
+    $('hud-turn').classList.toggle('late', h.maxTurns - h.turn < 5);
+    $('hud-turn').title = h.maxTurns - h.turn < 5 ? 'Turn limit close: the healthier HQ wins at turn ' + h.maxTurns : '';
     $('hud-phase').textContent = h.phase;
     $('h-hq').textContent = h.hq.hp + ' / ' + h.hq.max;
     $('h-hqb').style.width = (100 * h.hq.hp / h.hq.max) + '%';
@@ -649,7 +653,7 @@ window.UI = (function () {
       for (const c of list) {
         const d = el('div', { class: 'card', 'data-type': c.type }, `<span class="key">${c.key}</span><span class="cnt"></span>${icon(c.type)}<span class="nm">${esc(c.name)}</span><span class="cost">${c.cost}</span>`);
         d.addEventListener('click', () => H.onBuildSelect(c.type));
-        d.addEventListener('mouseenter', e => H.onCardHover && H.onCardHover(c.type, e));
+        d.addEventListener('mouseenter', e => { if (canHover()) H.onCardHover && H.onCardHover(c.type, e); });
         d.addEventListener('mouseleave', () => hideTip());
         box.appendChild(d);
       }
@@ -709,6 +713,8 @@ window.UI = (function () {
     box.scrollTop = box.scrollHeight;
   }
   function clearLog() { $('log').innerHTML = ''; }
+  // touch screens fire mouseenter on tap, which would leave hover-only tooltips stuck open
+  const canHover = () => matchMedia('(hover: hover)').matches;
 
   // Skirmish / two-player battle options, remembered per browser
   const skirmishOpts = (() => {
@@ -754,7 +760,7 @@ window.UI = (function () {
     if (up) {
       const u = UPGRADES[info.type];
       btns += `<div class="btns"><button class="sbtn up ${up.reason ? 'off' : ''}" id="s-up" title="${esc(u.desc + (up.reason ? ' — ' + up.reason : ''))}">★ ${esc(u.name)} (${up.cost}c) <kbd>U</kbd></button></div>
-        <div style="font-size:12px;color:var(--c-dim);margin-top:4px">Upgrade: ${esc(u.desc)}, +50% HP</div>`;
+        <div class="uphint" style="font-size:12px;color:var(--c-dim);margin-top:4px">Upgrade: ${esc(u.desc)}, +50% HP</div>`;
     }
     if (info.own && info.type === 'hq') {
       btns = `<div class="btns"><button class="sbtn ${info.repair.reason ? 'off' : ''}" id="s-rep" title="${esc(info.repair.reason || '')}">${icon('repair')} Repair ${info.repair.reason ? '— ' + esc(info.repair.reason) : '+' + info.repair.amount + ' (' + info.repair.cost + 'c)'} <kbd>T</kbd></button></div>`;

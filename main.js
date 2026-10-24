@@ -21,7 +21,8 @@
   let difficulty = 'commander';
   let tutorial = true;
   let hotseat = false;        // two humans sharing the device
-  let mechHintShown = false;  // one-time tip the first time enemy mechs reach your island
+  let mechHintShown = false;
+  let tapTipTimer = 0;  // one-time tip the first time enemy mechs reach your island
   let handoffNext = null;     // what to do when the next player taps Ready on the hand-off screen
   let logs = {};              // hot-seat: each player's battle log, swapped with the seat
   let lastReportP2 = null;    // hot-seat: last combat report, from Player 2's side
@@ -632,8 +633,8 @@
   const OBJECTIVES = [
     { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> next to your HQ for credits', done: s => has(s, 'depot') },
     { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => has(s, 'power') },
-    { text: 'You start with a <b>Missile Silo</b>. Press <kbd>Q</kbd> and click the red <b>enemy HQ</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
-    { text: 'Press <kbd>Space</kbd> to end the turn and watch the battle', done: s => s.turn > 1 },
+    { text: 'You start with a <b>Missile Silo</b>. Press <kbd>Q</kbd> and click the red <b>enemy HQ</b>', touch: 'You start with a <b>Missile Silo</b>. Tap <b>Fire Missile</b>, then the red <b>enemy HQ</b> (twice to confirm)', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
+    { text: 'Press <kbd>Space</kbd> to end the turn and watch the battle', touch: 'Tap <b>End Turn</b> and watch the battle', done: s => s.turn > 1 },
     { text: 'HQs and AA shoot missiles down (40% / 70%). Fire <b>several at once</b> to break through — build more silos', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> — reveals targets and incoming missiles', done: s => has(s, 'radar') },
     { text: 'Protect your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
@@ -642,7 +643,8 @@
   function has(s, t) { return R.buildingsOf(s, P, t).length > 0; }
   function refreshObjectives() {
     if (objectivesHidden || !state) { UI.setObjectives(null); return; }
-    const list = OBJECTIVES.map(o => ({ text: o.text, done: o.done(state) }));
+    const touch = lastPointer === 'touch' || matchMedia('(hover: none)').matches;
+    const list = OBJECTIVES.map(o => ({ text: touch && o.touch ? o.touch : o.text, done: o.done(state) }));
     if (list.every(o => o.done)) { objectivesHidden = true; UI.setObjectives(null); UI.toast('Briefing complete — good luck, Commander', 'good'); return; }
     UI.setObjectives(list);
   }
@@ -679,7 +681,8 @@
     } else {
       const info = selectionInfo(hoverCell);
       const rob = R.robotAt(state, hoverCell);
-      if (info) html = `<b>${UI.esc(info.name)}</b>${info.ghost ? ' <span class="k">(last known)</span>' : ''}<br>HP ${info.hp}/${info.maxHp}${info.extra ? '<br><span class="k">' + UI.esc(info.extra) + '</span>' : ''}`;
+      if (info && hoverCell === selectedCell) html = null; // the selection panel already shows it
+      else if (info) html = `<b>${UI.esc(info.name)}</b>${info.ghost ? ' <span class="k">(last known)</span>' : ''}<br>HP ${info.hp}/${info.maxHp}${info.extra ? '<br><span class="k">' + UI.esc(info.extra) + '</span>' : ''}`;
       else if (rob && playerSees(hoverCell)) html = `<b>${rob.side === P ? 'Your' : 'Enemy'} mech</b><br>HP ${rob.hp}/${rob.maxHp}<br><span class="k">${UI.esc(intentText(rob))}</span>`;
       else if (R.ownerOfCell(hoverCell) === A && !visible.has(hoverCell)) html = '<span class="k">Unknown — fogged.<br>Radar or missile impacts reveal it.</span>';
     }
@@ -756,6 +759,15 @@
       if (R.dropReadyReason(state, P)) cancelMode();
     } else {
       selectedCell = (selectionInfo(c) ? c : -1);
+      // touch has no hover: tapping a mech shows its card (and where it's headed) for a moment
+      const rob = R.robotAt(state, c);
+      if (selectedCell < 0 && rob && playerSees(c) && lastPointer === 'touch') {
+        const p = Renderer.project(Renderer.cellCenter(c));
+        const html = `<b>${rob.side === P ? 'Your' : 'Enemy'} mech</b><br>HP ${rob.hp}/${rob.maxHp}<br><span class="k">${UI.esc(intentText(rob))}</span>`;
+        setTimeout(() => UI.showTip(html, p.x, p.y - 30), 0); // after the tap handler clears tooltips
+        clearTimeout(tapTipTimer);
+        tapTipTimer = setTimeout(() => UI.hideTip(), 2600);
+      }
       if (selectedCell >= 0) SND.play('uiClick');
     }
     refreshAll();
