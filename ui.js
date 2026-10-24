@@ -35,6 +35,8 @@ window.UI = (function () {
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
+    uplink: '<path d="M7 21l3-9h4l3 9"/><path d="M8.5 17h7"/><ellipse cx="12" cy="7" rx="6" ry="2"/><circle cx="12" cy="7" r="1"/><path d="M12 5V2"/>',
+    strike: '<path d="M12 2v7"/><path d="M9 4l3 5 3-5"/><circle cx="12" cy="16" r="5"/><circle cx="12" cy="16" r="1.5"/><path d="M12 9v2M5 16h2M17 16h2"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     credits: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18"/>',
     energy: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>'
@@ -77,10 +79,10 @@ window.UI = (function () {
   #vol { width: 90px; accent-color: var(--c-player); }
 
   /* Build bar */
-  #dock { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; transition: transform .35s, opacity .35s; }
+  #dock { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; transition: transform .35s, opacity .35s; max-width: calc(100vw - 16px); }
   #dock.hidden { transform: translate(-50%, 140%); opacity: 0; }
-  #cards { display: flex; gap: 6px; padding: 8px; }
-  .card { width: 92px; height: 92px; border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: transform .12s, border-color .12s, background .12s; }
+  #cards { display: flex; gap: 6px; padding: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .card { flex: none; width: clamp(64px, 5.7vw, 92px); height: clamp(76px, 5.9vw, 92px); border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: transform .12s, border-color .12s, background .12s; }
   .card .ico { width: 30px; height: 30px; color: var(--c-player); }
   .card .nm { font-size: 13px; font-weight: 700; letter-spacing: .02em; text-align: center; line-height: 1; }
   .card .cost { font-size: 13px; color: var(--c-credit); font-weight: 700; }
@@ -91,13 +93,17 @@ window.UI = (function () {
   .card.off { opacity: .42; }
   .card.off .cost { color: var(--c-bad); }
   #actions { display: flex; gap: 8px; padding: 8px; }
-  .abtn { min-width: 112px; height: 92px; border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); color: var(--c-text); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-family: inherit; font-size: 14px; font-weight: 700; letter-spacing: .04em; position: relative; transition: transform .12s, background .12s, border-color .12s; }
+  .abtn { min-width: clamp(80px, 7.2vw, 112px); height: 92px; border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); color: var(--c-text); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-family: inherit; font-size: 14px; font-weight: 700; letter-spacing: .04em; position: relative; transition: transform .12s, background .12s, border-color .12s; }
   .abtn .ico { width: 28px; height: 28px; }
   .abtn small { font-size: 12px; font-weight: 600; color: var(--c-dim); }
   .abtn:hover { transform: translateY(-3px); }
   .abtn.fire .ico { color: var(--c-warn); } .abtn.fire.sel { border-color: var(--c-warn); background: rgba(255,176,0,.15); }
   .abtn.drop .ico { color: var(--c-player); } .abtn.drop.sel { border-color: var(--c-player); background: rgba(46,196,255,.15); }
-  .abtn.end { background: linear-gradient(180deg, rgba(46,196,255,.28), rgba(46,196,255,.12)); border-color: rgba(46,196,255,.6); min-width: 128px; }
+  .abtn.strike .ico { color: #3dffc8; } .abtn.strike.sel { border-color: #3dffc8; background: rgba(61,255,200,.14); }
+  .abtn.strike.ready:not(.off) { border-color: rgba(61,255,200,.7); animation: glowStrike 1.2s infinite; }
+  @keyframes glowStrike { 50% { box-shadow: 0 0 18px rgba(61,255,200,.55); } }
+  .order.strike .ico, .order.incoming.strike .ico { color: #3dffc8; }
+  .abtn.end { background: linear-gradient(180deg, rgba(46,196,255,.28), rgba(46,196,255,.12)); border-color: rgba(46,196,255,.6); min-width: clamp(92px, 8vw, 128px); }
   .abtn.end .ico { color: #fff; }
   .abtn.end.ready { animation: glow 1.4s infinite; }
   @keyframes glow { 50% { box-shadow: 0 0 22px rgba(46,196,255,.65); } }
@@ -247,11 +253,11 @@ window.UI = (function () {
   #help .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 20px; font-size: 14px; }
 
   @media (max-width: 1500px) {
-    .card { width: 80px; height: 84px; } .card .nm { font-size: 12px; } .card .ico { width: 26px; height: 26px; }
-    .abtn { min-width: 96px; height: 84px; } .abtn.end { min-width: 108px; }
+    .card .nm { font-size: 12px; } .card .ico { width: 26px; height: 26px; }
+    .abtn { height: 84px; }
   }
   @media (max-width: 1240px) {
-    .card { width: 70px; height: 78px; } .card .nm { font-size: 11px; } .abtn { min-width: 84px; height: 78px; }
+    .card .nm { font-size: 11px; } .abtn { height: 78px; }
     #orders { width: 220px; }
   }
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
@@ -314,6 +320,12 @@ window.UI = (function () {
   body.compact #briefing h2 { font-size: 18px; } body.compact .speaker svg { width: 56px; height: 56px; } body.compact .speaker .say { font-size: 13px; }
   body.compact #go-title { font-size: 34px; } body.compact #go-stats { font-size: 12px; margin-bottom: 10px; }
   body.compact .float { font-size: 14px; } body.compact .float.big { font-size: 18px; }
+  /* small phones in landscape (iPhone SE/mini): left-align a slimmer HUD so the icon buttons fit */
+  @media (max-width: 720px) {
+    body.compact #hud { left: calc(var(--safe-l) + 4px); transform: none; }
+    body.compact #hud .inc { display: none; }
+    body.compact #hud .cell { padding: 3px 6px; } body.compact .hq-cell { min-width: 0 !important; }
+  }
   /* narrow portrait ("play anyway") */
   @media (max-width: 600px) {
     body.compact #hud { left: calc(var(--safe-l) + 4px); transform: none; max-width: calc(100vw - 8px); }
@@ -373,6 +385,7 @@ window.UI = (function () {
       <div id="actions" class="panel">
         <button class="abtn fire" id="b-fire">${icon('missile')}<span>Fire Missile</span><small><kbd>Q</kbd> <span id="fire-sub"></span></small><span class="badge" id="fire-badge"></span></button>
         <button class="abtn drop" id="b-drop">${icon('drop')}<span>Drop Mech</span><small><kbd>E</kbd> <span id="drop-sub"></span></small><span class="badge" id="drop-badge"></span></button>
+        <button class="abtn strike" id="b-strike" style="display:none">${icon('strike')}<span>Orbital Strike</span><small><kbd>R</kbd> <span id="strike-sub"></span></small><span class="badge" id="strike-badge"></span></button>
         <button class="abtn end" id="b-end">${icon('end')}<span>End Turn</span><small><kbd>Space</kbd></small></button>
       </div>
     `));
@@ -443,6 +456,7 @@ window.UI = (function () {
     $('go-menu').addEventListener('click', () => H.onMenu());
     $('b-fire').addEventListener('click', () => H.onAction('fire'));
     $('b-drop').addEventListener('click', () => H.onAction('drop'));
+    $('b-strike').addEventListener('click', () => H.onAction('strike'));
     $('b-end').addEventListener('click', () => H.onAction('end'));
     $('b-undo').addEventListener('click', () => H.onAction('undo'));
     $('b-mute').addEventListener('click', () => H.onAction('mute'));
@@ -489,6 +503,8 @@ window.UI = (function () {
       </ol>
       <h4>Defenses</h4>
       <p>Every Command Center has a point-defense gun that hits 40% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit 70%; if one misses, another battery in range gets a shot. One missile at a time rarely gets through — <b>fire several in the same turn</b> to overwhelm the defenses.</p>
+      <h4>Orbital strikes</h4>
+      <p>A <b>Strike Uplink</b> charges for ${CONST.STRIKE_CHARGE} turns, then press <kbd>R</kbd> to call down a strike: ${CONST.STRIKE_DAMAGE} damage to the target and ${CONST.STRIKE_SPLASH} to everything around it. AA cannot touch it, but Shields absorb it — and every strike is detected, so the target gets a turn to spread out, shield or repair. Not available in missions 1–5.</p>
       <h4>Upgrades</h4>
       <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (about 75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
@@ -497,8 +513,8 @@ window.UI = (function () {
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
       <div class="keys">
-        <div><kbd>1</kbd>–<kbd>9</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
-        <div><kbd>Q</kbd> fire missile</div><div><kbd>E</kbd> drop mech</div>
+        <div><kbd>1</kbd>–<kbd>0</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
+        <div><kbd>Q</kbd> fire missile &nbsp; <kbd>E</kbd> drop mech</div><div><kbd>R</kbd> orbital strike</div>
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
@@ -564,6 +580,13 @@ window.UI = (function () {
     $('drop-sub').textContent = a.drop.sub || '';
     $('fire-badge').textContent = a.fire.badge || '';
     $('drop-badge').textContent = a.drop.badge || '';
+    $('b-strike').style.display = a.strike && a.strike.visible ? '' : 'none';
+    if (a.strike && a.strike.visible) {
+      set('b-strike', a.strike);
+      $('b-strike').classList.toggle('ready', !!a.strike.ready);
+      $('strike-sub').textContent = a.strike.sub || '';
+      $('strike-badge').textContent = a.strike.badge || '';
+    }
     $('b-end').classList.toggle('ready', !!a.endReady);
   }
 
@@ -572,10 +595,10 @@ window.UI = (function () {
     box.innerHTML = '';
     if (!orders.length && !incoming.length) { box.appendChild(el('div', { class: 'empty' }, 'No orders queued.')); return; }
     for (const m of incoming) {
-      box.appendChild(el('div', { class: 'order incoming' }, `${icon('missile')}<span>${esc(m.text)}</span>`));
+      box.appendChild(el('div', { class: 'order incoming' + (m.strike ? ' strike' : '') }, `${icon(m.strike ? 'strike' : 'missile')}<span>${esc(m.text)}</span>`));
     }
     for (const o of orders) {
-      const d = el('div', { class: 'order ' + o.kind }, `${icon(o.kind === 'missile' ? 'missile' : 'drop')}<span>${esc(o.text)}</span><span class="x" title="Cancel (refund)">&times;</span>`);
+      const d = el('div', { class: 'order ' + o.kind }, `${icon(o.kind === 'drop' ? 'drop' : o.kind)}<span>${esc(o.text)}</span><span class="x" title="Cancel (refund)">&times;</span>`);
       d.querySelector('.x').addEventListener('click', () => H.onAction('cancel', o.id));
       d.addEventListener('mouseenter', () => H.onOrderHover && H.onOrderHover(o.id));
       d.addEventListener('mouseleave', () => H.onOrderHover && H.onOrderHover(null));

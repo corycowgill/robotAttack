@@ -18,6 +18,7 @@
   const TARGET_SCORE = { hq: 10, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, shield: 4, radar: 3, gunpod: 2 };
 
   function count(state, type) { return R.buildingsOf(state, ME, type).length; }
+  function unlocked(state, type) { return !(state.locked || []).includes(type); }
 
   // ── Placement scoring ─────────────────────────────────────
   function candidateCells(state, type) {
@@ -77,6 +78,9 @@
         // out front and away from real structures, so the fire it draws is wasted
         score -= depth(cell) * 0.2;
         for (const b of own) if (R.cheb(b.cell, cell) <= 1) score -= 1.5;
+        break;
+      case 'uplink':
+        score += depth(cell) * 0.2 + aaCover * 1.5; // deep in the base, under cover
         break;
       case 'depot': case 'power':
         score += depth(cell) * 0.15 + aaCover * 1.2; // toward the back, under cover
@@ -138,6 +142,7 @@
     if (basic('silo') && state.turn >= 5) return 'up:silo';
     if (n('depot') >= 3 && basic('depot')) return 'up:depot';
     if (n('hangar') < 1) return 'hangar';
+    if (state.turn >= 7 && n('uplink') < 1 && unlocked(state, 'uplink')) return 'uplink';
     if (state.turn >= 6 && n('shield') < 1) return 'shield';
     if (n('silo') < 5 && n('silo') <= n('hangar') * 2 + 1) return 'silo';
     if (n('hangar') < 3) return 'hangar';
@@ -159,7 +164,7 @@
         return R.rand(state) < 0.2 ? PATROL_ORDER[Math.min(PATROL_ORDER.length - 1, PATROL_ORDER.indexOf(t) + 1)] : t;
       }
     }
-    const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield', 'decoy'];
+    const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield', 'decoy', 'uplink'].filter(t => unlocked(state, t));
     return pool[Math.floor(R.rand(state) * pool.length)];
   }
 
@@ -289,6 +294,29 @@
     }
   }
 
+  // Orbital strike: the 3x3 that hurts the most known structures (Patrol just aims at the HQ)
+  function planStrike(state, smart) {
+    if (R.strikeReadyReason(state, ME)) return;
+    let best = R.hqCell(FOE);
+    if (smart) {
+      const targets = knownTargets(state);
+      let bs = -Infinity;
+      const cands = new Set();
+      for (const t of targets) for (const c of [t.cell].concat(R.neighbors(t.cell, 1))) if (R.ownerOfCell(c) === FOE) cands.add(c);
+      for (const c of cands) {
+        let sc = 0;
+        for (const t of targets) {
+          if (R.cheb(t.cell, c) > 1) continue;
+          const dmg = t.cell === c ? C.STRIKE_DAMAGE : C.STRIKE_SPLASH;
+          const w = (TARGET_SCORE[t.type] || 1) * (t.type === 'hq' ? 1.5 : 1);
+          sc += w * Math.min(1, dmg / Math.max(1, t.hp)) + (t.type === 'hq' ? dmg / 40 : 0);
+        }
+        if (sc > bs) { bs = sc; best = c; }
+      }
+    }
+    R.queueStrike(state, ME, best);
+  }
+
   // Garrison drop next to invaders that our guns don't already cover
   function planGarrison(state) {
     const s = state.sides[ME];
@@ -348,6 +376,7 @@
 
     planRepairs(state, diff);
     if (smart) planGarrison(state);
+    planStrike(state, smart);
 
     // Alternate priority between drops and missiles so energy is shared
     const robotsFirst = state.turn % 2 === 0 && R.freeLaunchers(state, ME, 'hangar').length > 0;

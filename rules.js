@@ -86,7 +86,7 @@
   function newStats() {
     return {
       damageDealt: 0, damageTaken: 0, built: 0, destroyed: 0, lost: 0,
-      missilesFired: 0, missilesHit: 0, intercepts: 0,
+      missilesFired: 0, missilesHit: 0, intercepts: 0, strikes: 0,
       robotsDeployed: 0, robotsLost: 0, robotsKilled: 0
     };
   }
@@ -253,7 +253,8 @@
       cells: [],
       robots: [],
       missiles: [],           // in flight, launched last turn
-      sides: { player: newSide(P), ai: newSide(A) }
+      sides: { player: newSide(P), ai: newSide(A) },
+      locked: (opts.locked || []).slice()   // structure types not available in this game
     };
     state.mapSeed = (opts.mapSeed >>> 0) || ((state.rng * 7919 + 17) >>> 0);
     state.land = generateIslands(state.mapSeed, opts.landTarget || C.LAND_TARGET);
@@ -266,7 +267,11 @@
         const h = xy(hqCell(side));
         const want = idx(Math.max(0, Math.min(W - 1, h.x + (side === P ? sb.dx : -sb.dx))), Math.max(0, Math.min(H - 1, h.y + sb.dy)));
         const cell = state.land[want] && !state.cells[want].building ? want : nearestFreeLand(state, side, want);
-        if (cell >= 0) placeBuilding(state, side, sb.type, cell).builtTurn = 0;
+        if (cell >= 0) {
+          const b = placeBuilding(state, side, sb.type, cell);
+          b.builtTurn = 0;
+          if (sb.charge !== undefined) b.charge = sb.charge;
+        }
       }
       if (opts.credits && opts.credits[side] !== undefined) state.sides[side].credits = opts.credits[side];
     }
@@ -287,6 +292,7 @@
     };
     if (type === 'aa') b.shots = def.shots;
     if (type === 'hq') b.shots = 1;
+    if (type === 'uplink') b.charge = 0;
     if (type === 'decoy') b.disguise = def.disguises[Math.floor(rand(state) * def.disguises.length)];
     state.cells[cell].building = b;
     return b;
@@ -386,6 +392,7 @@
     const hq = hqCell(side);
     return state.missiles.filter(m => {
       if (m.side === side) return false;
+      if (m.strike) return true; // orbital strikes light up every sensor
       if (dist(m.to, hq) <= C.INCOMING_HQ_RADIUS + 0.01) return true;
       return radars.some(r => dist(r.cell, m.to) <= stat(r, 'range') + 0.01);
     });
@@ -395,6 +402,7 @@
   function buildableReason(state, side, type, cell) {
     const def = B[type];
     if (!def || type === 'hq') return 'Unknown structure';
+    if (state.locked && state.locked.includes(type)) return 'Not available in this mission';
     if (cell < 0 || cell >= N) return 'Out of bounds';
     const owner = ownerOfCell(cell);
     if (owner === null) return 'Open sea';
@@ -527,6 +535,33 @@
     return { ok: true, order };
   }
 
+  // Orbital strike from a fully charged Strike Uplink
+  function strikeReadyReason(state, side) {
+    const up = buildingsOf(state, side, 'uplink')[0];
+    if (!up) return 'Build a Strike Uplink first';
+    if (state.sides[side].orders.some(o => o.kind === 'strike')) return 'Strike already ordered';
+    if (up.charge < C.STRIKE_CHARGE) return 'Charging (' + up.charge + '/' + C.STRIKE_CHARGE + ')';
+    if (state.sides[side].energy < C.STRIKE_ENERGY) return 'Need ' + C.STRIKE_ENERGY + ' energy';
+    return null;
+  }
+
+  function strikeReason(state, side, to) {
+    if (ownerOfCell(to) !== enemyOf(side)) return 'Target must be in enemy territory';
+    return strikeReadyReason(state, side);
+  }
+
+  function queueStrike(state, side, to) {
+    const reason = strikeReason(state, side, to);
+    if (reason) return { ok: false, reason };
+    const up = buildingsOf(state, side, 'uplink')[0];
+    const s = state.sides[side];
+    s.energy -= C.STRIKE_ENERGY;
+    const order = { id: state.nextId++, kind: 'strike', from: up.cell, to, cost: C.STRIKE_ENERGY };
+    s.orders.push(order);
+    s.undo.push({ kind: 'order', id: order.id });
+    return { ok: true, order };
+  }
+
   // Can this side launch a drop at all this turn? (hangar free, mech cap, energy)
   function dropReadyReason(state, side) {
     if (!freeLaunchers(state, side, 'hangar').length) {
@@ -641,6 +676,7 @@
       if (c.crater > 0) c.crater--;
       const b = c.building;
       if (b && b.type === 'shield') b.pool = Math.min(stat(b, 'pool'), b.pool + stat(b, 'regen'));
+      if (b && b.type === 'uplink' && b.builtTurn < state.turn) b.charge = Math.min(C.STRIKE_CHARGE, b.charge + 1);
     }
     refreshTurnState(state);
     for (const side of [P, A]) {
@@ -739,7 +775,10 @@
     const incoming = state.missiles;
     state.missiles = [];
     for (const def of [P, A]) {
-      const ms = incoming.filter(m => ownerOfCell(m.to) === def)
+      for (const m of incoming.filter(m => m.strike && ownerOfCell(m.to) === def)) {
+        ev(BEAT.DESCEND, { type: 'descend', id: m.id, side: m.side, from: m.from, to: m.to, shots: [], interceptedBy: -1, strike: true });
+      }
+      const ms = incoming.filter(m => !m.strike && ownerOfCell(m.to) === def)
         .sort((a, b) => targetValue(state, b.to) - targetValue(state, a.to) || a.id - b.id);
       const batteries = buildingsOf(state, def).filter(b => b.type === 'aa' || b.type === 'hq');
       const covers = (bat, m) => dist(bat.cell, m.to) <= stat(bat, 'range') + 0.01;
@@ -779,7 +818,7 @@
     for (const m of incoming) {
       if (m.interceptedBy !== undefined) continue;
       const atk = m.side;
-      sideOf(atk).stats.missilesHit++;
+      if (!m.strike) sideOf(atk).stats.missilesHit++;
       const hits = [];
       const direct = buildingAt(state, m.to);
       if (direct) hits.push(damageBuilding(state, direct, m.dmg || C.MISSILE_DAMAGE, atk, events));
@@ -791,7 +830,7 @@
       // Impact reveals the area for the attacker next planning phase
       const reveal = [m.to].concat(neighbors(m.to, C.IMPACT_REVEAL_RADIUS)).filter(c => ownerOfCell(c) === enemyOf(atk));
       sideOf(atk).intel.nextReveal = (sideOf(atk).intel.nextReveal || []).concat(reveal);
-      ev(BEAT.IMPACT, { type: 'impact', id: m.id, side: atk, cell: m.to, hits, reveal });
+      ev(BEAT.IMPACT, { type: 'impact', id: m.id, side: atk, cell: m.to, hits, reveal, strike: !!m.strike });
     }
 
     // 3. GUN PODS fire at enemy robots
@@ -921,6 +960,15 @@
         sideOf(side).stats.missilesFired++;
         ev(BEAT.LAUNCH, { type: 'launch', id: m.id, side, from: o.from, to: o.to });
       }
+      for (const o of sideOf(side).orders.filter(o => o.kind === 'strike')) {
+        const up = buildingAt(state, o.from);
+        if (!up || up.type !== 'uplink') { ev(BEAT.LAUNCH, { type: 'cancelled', kind: 'strike', side, from: o.from }); continue; }
+        up.charge = 0;
+        const m = { id: state.nextId++, side, from: o.from, to: o.to, dmg: C.STRIKE_DAMAGE, splash: C.STRIKE_SPLASH, strike: true };
+        state.missiles.push(m);
+        sideOf(side).stats.strikes = (sideOf(side).stats.strikes || 0) + 1; // saves from before strikes lack the field
+        ev(BEAT.LAUNCH, { type: 'launch', id: m.id, side, from: o.from, to: o.to, strike: true });
+      }
     }
 
     // 7. CLEANUP
@@ -982,7 +1030,7 @@
     newGame, generateIslands, isLand, apparent, missionMedals, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
-    freeLaunchers, missileReason, queueMissile, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
+    freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
     resolveTurn, targetValue
   };
 

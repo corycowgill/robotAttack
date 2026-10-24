@@ -159,3 +159,29 @@ test('phone: compact layout and tap-to-confirm building', async t => {
   assert.strictEqual(await page.evaluate(c => Rules.buildingAt(__game.state, c)?.type, cell), 'depot');
   assert.deepStrictEqual(errors, []);
 });
+
+test('orbital strike: build an uplink, charge, target with R, strike lands', async t => {
+  const { page, errors } = await open(t);
+  await startSkirmish(page);
+  assert.ok(!(await page.isVisible('#b-strike')), 'no strike button without an uplink');
+  await page.evaluate(() => { __game.state.sides.player.credits += 600; });
+  await page.click('.card[data-type="uplink"]');
+  await clickCell(page, await freeCell(page, 'uplink'));
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#b-strike', { state: 'visible' });
+  assert.match(await page.textContent('#strike-badge'), /0\/4/);
+  await page.keyboard.press('KeyR'); // still charging: refused
+  assert.strictEqual(await page.evaluate(() => __game.state.sides.player.orders.length), 0);
+
+  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'player', 'uplink')[0].charge = CONST.STRIKE_CHARGE; __game.state.sides.player.energy = 30; });
+  await page.keyboard.press('KeyR');
+  await clickCell(page, await page.evaluate(() => Rules.hqCell('ai')));
+  assert.deepStrictEqual(await page.evaluate(() => __game.state.sides.player.orders.map(o => o.kind)), ['strike']);
+  const before = await page.evaluate(() => Rules.buildingsOf(__game.state, 'ai', 'hq')[0].hp);
+  await endTurn(page);
+  assert.ok(await page.evaluate(() => __game.state.missiles.some(m => m.strike && m.side === 'player')));
+  await endTurn(page);
+  const after = await page.evaluate(() => Rules.buildingsOf(__game.state, 'ai', 'hq')[0].hp);
+  assert.ok(before - after >= 40, `strike hit the HQ (${before} -> ${after})`);
+  assert.deepStrictEqual(errors, []);
+});

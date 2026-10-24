@@ -43,7 +43,7 @@ test('commander mirror is roughly balanced', () => {
 test('every campaign mission plays to completion', () => {
   for (const m of CAMPAIGN) {
     for (let g = 0; g < 10; g++) {
-      const s = R.newGame(m.difficulty, 100 + g, { mapSeed: m.mapSeed, landTarget: m.land, start: m.start, credits: m.credits });
+      const s = R.newGame(m.difficulty, 100 + g, { mapSeed: m.mapSeed, landTarget: m.land, start: m.start, credits: m.credits, locked: m.locked });
       play(s, 'commander');
     }
   }

@@ -232,3 +232,62 @@ test('campaign medals: win, par and HQ health', () => {
   s.winner = 'ai';
   assert.deepStrictEqual(R.missionMedals(s, m), [false, false, false]);
 });
+
+test('strike uplink: charges, fires through AA, shields absorb, always detected', () => {
+  const s = R.newGame('commander', 77);
+  rich(s, P);
+  const upCell = buildable(s, P, 'uplink');
+  assert.ok(R.build(s, P, 'uplink', upCell).ok);
+  assert.equal(R.buildableReason(s, P, 'uplink', buildable(s, P, 'depot')), 'Max 1 Strike Uplinks');
+  const ehq = R.hqCell(A);
+  assert.match(R.strikeReason(s, P, ehq), /Charging \(0\/4\)/);
+  // ring the enemy HQ with AA: a strike ignores them all
+  rich(s, A);
+  for (let k = 0; k < 3; k++) assert.ok(R.build(s, A, 'aa', buildable(s, A, 'aa')).ok);
+  for (let t = 0; t < CONST.STRIKE_CHARGE; t++) {
+    assert.ok(R.strikeReadyReason(s, P), 'not ready during charge');
+    R.resolveTurn(s); rich(s, P);
+  }
+  assert.equal(R.strikeReadyReason(s, P), null);
+  assert.equal(R.strikeReason(s, P, R.hqCell(P)), 'Target must be in enemy territory');
+  const e0 = s.sides[P].energy;
+  const q = R.queueStrike(s, P, ehq);
+  assert.ok(q.ok);
+  assert.equal(s.sides[P].energy, e0 - CONST.STRIKE_ENERGY);
+  assert.equal(R.strikeReadyReason(s, P), 'Strike already ordered');
+  // undo refunds, re-queue
+  assert.ok(R.undo(s, P).ok);
+  assert.equal(s.sides[P].energy, e0);
+  assert.ok(R.queueStrike(s, P, ehq).ok);
+  R.resolveTurn(s);
+  assert.equal(R.buildingsOf(s, P, 'uplink')[0].charge, 1, 'charge restarts on launch (one turn already regained)');
+  assert.equal(R.detectedIncoming(s, A).length, 1, 'enemy always sees the strike coming');
+  const hq = R.buildingsOf(s, A, 'hq')[0], hp0 = hq.hp;
+  const ev = R.resolveTurn(s);
+  const d = ev.find(e => e.type === 'descend' && e.strike);
+  assert.ok(d && d.shots.length === 0 && d.interceptedBy === -1, 'no AA shots at a strike');
+  assert.equal(hp0 - hq.hp, CONST.STRIKE_DAMAGE);
+  assert.ok(ev.find(e => e.type === 'impact' && e.strike));
+  assert.equal(s.sides[P].stats.missilesHit, 0, 'strikes do not count as missile hits');
+
+  // a shield takes the edge off
+  const s2 = R.newGame('commander', 78);
+  rich(s2, P); rich(s2, A);
+  R.build(s2, P, 'uplink', buildable(s2, P, 'uplink'));
+  R.buildingsOf(s2, P, 'uplink')[0].charge = CONST.STRIKE_CHARGE;
+  const shCell = R.neighbors(R.hqCell(A), 1).find(c => !R.buildableReason(s2, A, 'shield', c));
+  R.build(s2, A, 'shield', shCell);
+  s2.sides[A].undo = [];
+  R.queueStrike(s2, P, R.hqCell(A));
+  R.resolveTurn(s2); R.resolveTurn(s2);
+  const hq2 = R.buildingsOf(s2, A, 'hq')[0];
+  assert.equal(hq2.maxHp - hq2.hp, CONST.STRIKE_DAMAGE - BUILDINGS.shield.pool, 'shield absorbed its pool');
+});
+
+test('missions can lock structures; preset uplink charge', () => {
+  const s = R.newGame('commander', 5, { locked: ['uplink'], start: { player: [], ai: [{ type: 'uplink', dx: 3, dy: 2, charge: 3 }] } });
+  rich(s, P);
+  assert.equal(R.buildableReason(s, P, 'uplink', buildable(s, P, 'depot')), 'Not available in this mission');
+  const up = R.buildingsOf(s, A, 'uplink')[0];
+  assert.ok(up && up.charge === 3);
+});

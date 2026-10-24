@@ -585,16 +585,20 @@ window.Renderer = (function () {
   function setMarkers(orders, incoming) {
     clearMarkers();
     for (const o of orders) {
-      const color = o.kind === 'missile' ? 0xffb000 : 0x2ec4ff;
+      const strike = o.kind === 'strike';
+      const color = o.kind === 'missile' ? 0xffb000 : strike ? 0x3dffc8 : 0x2ec4ff;
       const a = cellCenter(o.from), b = cellCenter(o.to);
       a.y = 5;
-      const ret = new THREE.Mesh(new THREE.PlaneGeometry(CELL * 1.1, CELL * 1.1),
+      // a strike's reticle covers its whole 3x3 blast area, and it comes from orbit: no arc
+      const size = strike ? CELL * 3.1 : CELL * 1.1;
+      const ret = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
         new THREE.MeshBasicMaterial({ map: getReticleTex(), color, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
       ret.rotation.x = -Math.PI / 2;
       ret.position.set(b.x, 1.2, b.z);
       ret.renderOrder = 9;
       scene.add(ret);
       markers.push({ obj: ret, spin: o.kind === 'missile' ? 1.2 : -0.8 });
+      if (strike) continue;
       const geo = new THREE.BufferGeometry().setFromPoints(arcPoints(a, b, missileArcHeight(a, b), 48));
       const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color, dashSize: 4, gapSize: 3, transparent: true, opacity: 0.75 }));
       line.computeLineDistances();
@@ -604,7 +608,8 @@ window.Renderer = (function () {
     }
     for (const m of incoming) {
       const b = cellCenter(m.to);
-      const ret = new THREE.Mesh(new THREE.PlaneGeometry(CELL * 1.6, CELL * 1.6),
+      const rs = m.strike ? CELL * 3.2 : CELL * 1.6;
+      const ret = new THREE.Mesh(new THREE.PlaneGeometry(rs, rs),
         new THREE.MeshBasicMaterial({ map: getReticleTex(), color: 0xff2222, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
       ret.rotation.x = -Math.PI / 2;
       ret.position.set(b.x, 1.25, b.z);
@@ -818,8 +823,45 @@ window.Renderer = (function () {
     setBuildingHp(b.id, b.hp, b.maxHp);
     rec.level = 1;
     if (b.level > 1 && b.type !== 'decoy') setBuildingLevel(b.id, b.level);
+    if (b.type === 'uplink') Models.setCharge(g, b.charge || 0, CONST.STRIKE_CHARGE);
     if (rise) g.scale.y = 0.01;
     return rec;
+  }
+
+  function setBuildingCharge(id, n) {
+    const rec = buildings[id];
+    if (rec) Models.setCharge(rec.group, n, CONST.STRIKE_CHARGE);
+  }
+
+  // Orbital strike visuals: a vertical additive light column that swells then fades.
+  // `up` sends it from the ground into the sky (the uplink firing), otherwise it comes down.
+  function strikeBeam(pos, color, dur, up) {
+    const h = 260;
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, 20, 1, true), mat);
+    const glow = new THREE.Mesh(core.geometry, mat.clone());
+    glow.scale.set(3, 1, 3);
+    const g = new THREE.Group();
+    g.add(core, glow);
+    g.position.set(pos.x, h / 2, pos.z);
+    g.renderOrder = 15;
+    scene.add(g);
+    return {
+      update(k) { // 0..1
+        const grow = up ? Math.min(1, k * 3) : Math.min(1, k * 4);
+        const fade = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+        const w = (up ? 1.4 : 2.6 + 3 * Math.sin(Math.min(1, k * 1.6) * Math.PI / 2)) * (0.6 + 0.4 * grow);
+        core.scale.set(w, 1, w);
+        glow.scale.set(w * 3, 1, w * 3);
+        // the column extends from its source end
+        const len = Math.max(0.01, grow);
+        g.scale.y = len;
+        g.position.y = up ? h * len / 2 : h - h * len / 2;
+        mat.opacity = 0.9 * fade;
+        glow.material.opacity = 0.28 * fade;
+      },
+      dispose() { scene.remove(g); core.geometry.dispose(); mat.dispose(); glow.material.dispose(); }
+    };
   }
 
   // Upgraded structures are a little larger and get a gold ground frame
@@ -1358,7 +1400,7 @@ window.Renderer = (function () {
   return {
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
-    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
