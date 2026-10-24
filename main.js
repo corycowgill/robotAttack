@@ -21,6 +21,7 @@
   let difficulty = 'commander';
   let tutorial = true;
   let hotseat = false;        // two humans sharing the device
+  let mechHintShown = false;  // one-time tip the first time enemy mechs reach your island
   let handoffNext = null;     // what to do when the next player taps Ready on the hand-off screen
   let logs = {};              // hot-seat: each player's battle log, swapped with the seat
   let lastReportP2 = null;    // hot-seat: last combat report, from Player 2's side
@@ -182,6 +183,7 @@
     UI.hideHandoff();
     logs = {};
     lastReportP2 = null; roundStart = null; realState = null;
+    mechHintShown = false;
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     Renderer.reset();
@@ -267,6 +269,11 @@
       for (const m of strikes) UI.toast('ORBITAL STRIKE inbound on ' + describeCell(m.to) + ' — AA cannot stop it. Shield, repair or move out!', 'bad');
     }
     UI.log('Turn ' + state.turn, 'turn');
+    const raiders = R.robotsOf(state, A).filter(r => R.ownerOfCell(r.cell) === P && playerSees(r.cell));
+    if (raiders.length && !mechHintShown) {
+      mechHintShown = true;
+      UI.toast('Enemy mechs on your island! Arrows show where they go next. Gun Pods [8] shred them — or drop a garrison mech [E] on your own island.', 'warn');
+    }
     if (P === P1) saveGame(); // hot-seat saves at the start of a round, before either side has planned
     if (hotseat && P === P1) roundStart = JSON.stringify(state.cells);
     refreshAll();
@@ -320,9 +327,31 @@
     Renderer.setGhosts(ghosts);
   }
 
+  // What every mech the player can see will do next resolution, for the planning overlay
+  function mechIntents() {
+    const out = [];
+    for (const r of state.robots) {
+      if (r.hp <= 0 || !playerSees(r.cell)) continue;
+      const a = R.robotIntent(state, r);
+      if (a.kind === 'hold') continue;
+      const target = a.kind === 'hit' ? a.building.cell : a.kind === 'fight' ? a.robot.cell : a.goal;
+      // don't point at things the player can't see
+      out.push({ side: r.side, from: r.cell, kind: a.kind, path: a.path, target: playerSees(target) ? target : -1 });
+    }
+    return out;
+  }
+  function intentText(r) {
+    const a = R.robotIntent(state, r);
+    if (a.kind === 'hold') return 'Holding position';
+    const what = c => { const b = R.buildingAt(state, c); return b && playerSees(c) ? (b.side === P ? 'your ' : 'enemy ') + BUILDINGS[b.side === P ? b.type : R.apparent(b).type].name : R.robotAt(state, c) ? 'a mech' : cellName(c); };
+    if (a.kind === 'hit') return 'Next turn: smashes ' + what(a.building.cell);
+    if (a.kind === 'fight') return 'Next turn: attacks ' + (a.robot.side === P ? 'your' : 'an enemy') + ' mech';
+    return 'Next turn: walks toward ' + what(a.goal);
+  }
+
   function refreshMarkers() {
     if (!state || phase !== 'planning') { Renderer.setMarkers([], []); return; }
-    Renderer.setMarkers(state.sides[P].orders, R.detectedIncoming(state, P));
+    Renderer.setMarkers(state.sides[P].orders, R.detectedIncoming(state, P), mechIntents());
   }
 
   // ── Planning-phase UI refresh ─────────────────────────────
@@ -560,7 +589,7 @@
       const info = selectionInfo(hoverCell);
       const rob = R.robotAt(state, hoverCell);
       if (info) html = `<b>${UI.esc(info.name)}</b>${info.ghost ? ' <span class="k">(last known)</span>' : ''}<br>HP ${info.hp}/${info.maxHp}${info.extra ? '<br><span class="k">' + UI.esc(info.extra) + '</span>' : ''}`;
-      else if (rob && playerSees(hoverCell)) html = `<b>${rob.side === P ? 'Your' : 'Enemy'} mech</b><br>HP ${rob.hp}/${rob.maxHp}${rob.fresh ? '<br><span class="k">Just landed</span>' : ''}`;
+      else if (rob && playerSees(hoverCell)) html = `<b>${rob.side === P ? 'Your' : 'Enemy'} mech</b><br>HP ${rob.hp}/${rob.maxHp}<br><span class="k">${UI.esc(intentText(rob))}</span>`;
       else if (R.ownerOfCell(hoverCell) === A && !visible.has(hoverCell)) html = '<span class="k">Unknown — fogged.<br>Radar or missile impacts reveal it.</span>';
     }
     if (html) UI.showTip(html, mouse.x, mouse.y); else UI.hideTip();

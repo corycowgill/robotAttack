@@ -768,6 +768,52 @@
   }
 
   // ── Turn resolution ──────────────────────────────────────
+  // What a mech will do when robots act this turn, given the board as it stands:
+  //   { kind: 'fight', robot }        melee an adjacent enemy mech
+  //   { kind: 'hit', building }       smash an adjacent enemy structure
+  //   { kind: 'move', path, facing, goal }  walk up to ROBOT_MOVE cells toward `goal`
+  //   { kind: 'hold' }
+  // resolveTurn uses this for every mech, so the planning preview shows exactly the same logic.
+  function robotIntent(state, r) {
+    const foe = enemyOf(r.side);
+    const guard = ownerOfCell(r.cell) === r.side;
+    // Enemy mech next to us? Garrison mechs always engage; raiders only when no structure is in reach
+    let duel = null;
+    for (const o of state.robots) {
+      if (o.side === r.side || o.hp <= 0 || cheb(o.cell, r.cell) > 1) continue;
+      if (!duel || o.hp < duel.hp) duel = o;
+    }
+    if (duel && guard) return { kind: 'fight', robot: duel };
+    if (guard) {
+      // hunt the nearest invader on our island; hold position otherwise
+      const prey = state.robots.filter(o => o.side === foe && o.hp > 0 && ownerOfCell(o.cell) === r.side)
+        .sort((a, b) => dist(a.cell, r.cell) - dist(b.cell, r.cell))[0];
+      if (!prey) return { kind: 'hold' };
+      const path = bfsPath(state, r, c => cheb(c, prey.cell) <= 1);
+      return path && path.length ? { kind: 'move', path: path.slice(0, C.ROBOT_MOVE), facing: prey.cell, goal: prey.cell } : { kind: 'hold' };
+    }
+    // Adjacent target? HQ first, then lowest HP
+    let adj = null;
+    for (const n of neighbors(r.cell, 1)) {
+      const b = buildingAt(state, n);
+      if (!b || b.side !== foe || b.dead) continue;
+      if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp / b.maxHp < adj.hp / adj.maxHp)) adj = b;
+    }
+    if (adj) return { kind: 'hit', building: adj };
+    if (duel) return { kind: 'fight', robot: duel };
+    const tgt = robotTarget(state, r);
+    if (!tgt) return { kind: 'hold' };
+    let path = bfsPath(state, r, c => cheb(c, tgt.cell) <= 1);
+    if (!path) {
+      // Unreachable: approach as close as possible
+      let best = r.cell, bd = dist(r.cell, tgt.cell);
+      const reach = bfsReach(state, r);
+      for (const c of reach) { const d = dist(c, tgt.cell); if (d < bd) { bd = d; best = c; } }
+      path = best === r.cell ? [] : bfsPath(state, r, c => c === best);
+    }
+    return path && path.length ? { kind: 'move', path: path.slice(0, C.ROBOT_MOVE), facing: tgt.cell, goal: tgt.cell } : { kind: 'hold' };
+  }
+
   function resolveTurn(state) {
     const events = [];
     const ev = (beat, e) => { e.beat = beat; events.push(e); return e; };
@@ -865,63 +911,20 @@
     const actors = state.robots.filter(r => r.hp > 0 && !r.fresh).sort((a, b) => a.id - b.id);
     for (const r of actors) {
       if (r.hp <= 0) continue;
-      const foe = enemyOf(r.side);
-      const guard = ownerOfCell(r.cell) === r.side;
-      // Enemy mech next to us? Garrison mechs always engage; raiders only when no structure is in reach
-      let duel = null;
-      for (const o of state.robots) {
-        if (o.side === r.side || o.hp <= 0 || cheb(o.cell, r.cell) > 1) continue;
-        if (!duel || o.hp < duel.hp) duel = o;
-      }
-      const fight = o => {
-        const dmg = r.dmg || C.ROBOT_DAMAGE;
+      const act = robotIntent(state, r);
+      if (act.kind === 'fight') {
+        const o = act.robot, dmg = r.dmg || C.ROBOT_DAMAGE;
         o.hp = Math.max(0, o.hp - dmg);
         const killed = o.hp <= 0;
         if (killed) { sideOf(r.side).stats.robotsKilled++; sideOf(o.side).stats.robotsLost++; }
         ev(BEAT.ROBOTS, { type: 'robotFight', id: r.id, side: r.side, cell: r.cell, targetId: o.id, targetCell: o.cell, dmg, hpAfter: o.hp, killed });
-      };
-      if (duel && guard) { fight(duel); continue; }
-      if (guard) {
-        // hunt the nearest invader on our island; hold position otherwise
-        const prey = state.robots.filter(o => o.side === foe && o.hp > 0 && ownerOfCell(o.cell) === r.side)
-          .sort((a, b) => dist(a.cell, r.cell) - dist(b.cell, r.cell))[0];
-        if (!prey) continue;
-        const path = bfsPath(state, r, c => cheb(c, prey.cell) <= 1);
-        if (path && path.length) {
-          const steps = path.slice(0, C.ROBOT_MOVE), fromCell = r.cell;
-          r.cell = steps[steps.length - 1];
-          ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: steps, facing: prey.cell });
-        }
-        continue;
-      }
-      // Adjacent target? HQ first, then lowest HP
-      let adj = null;
-      for (const n of neighbors(r.cell, 1)) {
-        const b = buildingAt(state, n);
-        if (!b || b.side !== foe) continue;
-        if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp / b.maxHp < adj.hp / adj.maxHp)) adj = b;
-      }
-      if (adj) {
-        const hit = damageBuilding(state, adj, r.dmg || C.ROBOT_DAMAGE, r.side, events);
+      } else if (act.kind === 'hit') {
+        const hit = damageBuilding(state, act.building, r.dmg || C.ROBOT_DAMAGE, r.side, events);
         ev(BEAT.ROBOTS, { type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
-        continue;
-      }
-      if (duel) { fight(duel); continue; }
-      const tgt = robotTarget(state, r);
-      if (!tgt) continue;
-      let path = bfsPath(state, r, c => cheb(c, tgt.cell) <= 1);
-      if (!path) {
-        // Unreachable: approach as close as possible
-        let best = r.cell, bd = dist(r.cell, tgt.cell);
-        const reach = bfsReach(state, r);
-        for (const c of reach) { const d = dist(c, tgt.cell); if (d < bd) { bd = d; best = c; } }
-        path = best === r.cell ? [] : bfsPath(state, r, c => c === best);
-      }
-      if (path && path.length) {
-        const steps = path.slice(0, C.ROBOT_MOVE);
+      } else if (act.kind === 'move') {
         const fromCell = r.cell;
-        r.cell = steps[steps.length - 1];
-        ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: steps, facing: tgt.cell });
+        r.cell = act.path[act.path.length - 1];
+        ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: act.path, facing: act.facing });
       }
     }
 
@@ -1033,7 +1036,7 @@
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
-    resolveTurn, targetValue
+    resolveTurn, robotIntent, targetValue
   };
 
   root.Rules = Rules;

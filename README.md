@@ -40,6 +40,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
    5. Drop pods land. New mechs wait one turn before they act.
    6. New missiles launch. They are in the air until next turn.
 3. **React.**
+   - During planning, arrows show where every mech you can see will walk next turn. A bracket marks the structure or mech it will attack: solid if the attack happens this turn, faint if it's still walking there. Hovering a mech says the same in words. Build a Gun Pod or drop a garrison mech in its way.
    - Enemy missiles are in flight for a full turn.
    - **Red reticles** mark incoming missiles your Radar (or the area around your HQ) has detected. Build AA or shields, or repair, before they land.
 
