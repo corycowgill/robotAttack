@@ -115,6 +115,7 @@ Five missions, each on a fixed island map against a named enemy commander. Each 
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
 | `?` | Help |
+| Touch | Tap to select / place / target; drag one finger to pan, pinch to zoom |
 
 ## Code layout
 

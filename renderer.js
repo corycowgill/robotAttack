@@ -382,7 +382,7 @@ window.Renderer = (function () {
   }
   function makeBadge(type, side) {
     const s = new THREE.Sprite(badgeMaterial(type, side));
-    s.scale.set(type === 'hq' ? 15 : 12, type === 'hq' ? 15 : 12, 1);
+    s.scale.set(type === 'hq' ? 14 : 10, type === 'hq' ? 14 : 10, 1);
     s.renderOrder = 28;
     return s;
   }
@@ -1018,9 +1018,49 @@ window.Renderer = (function () {
     window.addEventListener('mouseup', () => { cam.drag = null; });
     el.addEventListener('wheel', e => {
       e.preventDefault();
-      cam.gdist = Math.max(120, Math.min(560, cam.gdist * (e.deltaY > 0 ? 1.12 : 0.89)));
+      cam.gdist = Math.max(120, Math.min(780, cam.gdist * (e.deltaY > 0 ? 1.12 : 0.89)));
       cam.userPanAt = time;
     }, { passive: false });
+
+    // Touch: one finger drags the map, two fingers pinch-zoom. Taps still reach
+    // the game as ordinary clicks (browsers only emulate mouse events for taps).
+    el.style.touchAction = 'none';
+    const touches = new Map();
+    let pinch = null;
+    el.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 1) cam.drag = { x: e.clientX, y: e.clientY, gx: cam.gx, gz: cam.gz, touch: true };
+      if (touches.size === 2) {
+        const [a, b] = [...touches.values()];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, dist: cam.gdist };
+        cam.drag = null;
+      }
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && touches.size >= 2) {
+        const [a, b] = [...touches.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        cam.gdist = Math.max(120, Math.min(780, pinch.dist * pinch.d / d));
+        cam.userPanAt = time;
+      } else if (cam.drag && cam.drag.touch && Math.hypot(e.clientX - cam.drag.x, e.clientY - cam.drag.y) > 8) {
+        const k = cam.gdist / window.innerHeight * 1.1;
+        cam.gx = cam.drag.gx - (e.clientX - cam.drag.x) * k;
+        cam.gz = cam.drag.gz - (e.clientY - cam.drag.y) * k / Math.sin(cam.pitch);
+        clampCam();
+        cam.userPanAt = time;
+      }
+    });
+    const endTouch = e => {
+      if (e.pointerType !== 'touch') return;
+      touches.delete(e.pointerId);
+      if (touches.size < 2) pinch = null;
+      if (!touches.size) cam.drag = null;
+    };
+    el.addEventListener('pointerup', endTouch);
+    el.addEventListener('pointercancel', endTouch);
     window.addEventListener('keydown', e => { cam.keys[e.code] = true; });
     window.addEventListener('keyup', e => { cam.keys[e.code] = false; });
     window.addEventListener('blur', () => { cam.keys = {}; });
