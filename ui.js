@@ -183,8 +183,64 @@ window.UI = (function () {
   .screen { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(5,8,12,.55), rgba(5,8,12,.92)); pointer-events: auto; }
   .screen.show { display: flex; }
   .menu-box { width: min(880px, 94vw); text-align: center; }
-  .title { font-size: clamp(42px, 7vw, 86px); font-weight: 700; letter-spacing: .18em; line-height: .95; background: linear-gradient(180deg, #fff, #8fdcff 55%, #2ec4ff); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 24px rgba(46,196,255,.35)); }
-  .title span { display: block; font-size: .32em; letter-spacing: .6em; color: var(--c-ai); -webkit-text-fill-color: var(--c-ai); margin-top: 8px; }
+  /* ── Logo (title screen + menu header) ── */
+  .logo { position: relative; display: inline-block; text-align: center; user-select: none; }
+  .logo-main { position: relative; font-family: 'Russo One', 'Rajdhani', system-ui, sans-serif; font-weight: 400; font-size: clamp(38px, min(8.4vw, 15vh), 132px); letter-spacing: .06em; line-height: 1; white-space: nowrap;
+    filter: drop-shadow(0 2px 0 #06263a) drop-shadow(0 6px 14px rgba(0,0,0,.65)) drop-shadow(0 0 28px rgba(46,196,255,.38)); }
+  .logo-main .ch { display: inline-block; background: linear-gradient(180deg, #ffffff 0%, #d9f3ff 34%, #7fd3f7 49%, #0f5b84 51%, #2a9fd8 72%, #b8ecff 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 1px rgba(210,245,255,.35); }
+  .logo-main .sp { display: inline-block; width: .32em; }
+  .logo-main::after { content: attr(data-text); position: absolute; inset: 0; letter-spacing: inherit; pointer-events: none;
+    background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 50%, transparent 58%) no-repeat; background-size: 260% 100%; background-position: 160% 0;
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .logo.sweep .logo-main::after { animation: logoSweep 4.5s 0.2s ease-in-out infinite; }
+  .logo.reveal.sweep .logo-main::after { animation-delay: 2.7s; }   /* never sweep over letters that haven't landed */
+  .logo.reveal.sweep.skip .logo-main::after { animation-delay: .4s; }
+  @keyframes logoSweep { 0% { background-position: 160% 0; } 45%, 100% { background-position: -60% 0; } }
+  .logo-sub { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: .55em; font-size: clamp(13px, 1.6vw, 22px); font-weight: 700; letter-spacing: .55em; color: #ff5a3a; text-shadow: 0 0 14px rgba(255,90,58,.55); }
+  .logo-sub i { display: block; height: 2px; width: clamp(40px, 9vw, 130px); background: linear-gradient(90deg, transparent, #ff5a3a); }
+  .logo-sub i:last-child { transform: scaleX(-1); }
+  /* reveal animation (title screen) */
+  .logo.reveal .logo-main .ch { opacity: 0; transform: translateY(-.5em) scale(1.35); filter: blur(10px); animation: chIn .55s cubic-bezier(.2,.9,.25,1.15) forwards; animation-delay: calc(1.1s + var(--i) * 55ms); }
+  @keyframes chIn { to { opacity: 1; transform: none; filter: none; } }
+  .logo.reveal .logo-main::before { content: ''; position: absolute; inset: -20% -6%; background: radial-gradient(ellipse at center, rgba(190,240,255,.9), transparent 62%); opacity: 0; animation: logoFlash .7s 1.95s ease-out; pointer-events: none; }
+  @keyframes logoFlash { 0% { opacity: 0; } 15% { opacity: .85; } 100% { opacity: 0; } }
+  .logo.reveal .logo-sub { opacity: 0; animation: fadeIn .6s 2.25s forwards; }
+  .logo.reveal .logo-sub i { transform: scaleX(0); animation: lineOut .7s 2.3s cubic-bezier(.2,.8,.2,1) forwards; }
+  .logo.reveal .logo-sub i:last-child { animation-name: lineOutR; }
+  @keyframes lineOut { from { transform: scaleX(0); transform-origin: right; } to { transform: scaleX(1); transform-origin: right; } }
+  @keyframes lineOutR { from { transform: scaleX(0) scaleX(-1); } to { transform: scaleX(-1); } }
+  @keyframes fadeIn { to { opacity: 1; } }
+  .logo.reveal.skip .logo-main .ch, .logo.reveal.skip .logo-sub, .logo.reveal.skip .logo-sub i { animation-delay: 0s !important; animation-duration: .01s !important; }
+  .logo.reveal.skip .logo-main::before { animation: none; }
+  /* title screen */
+  #splash { background: radial-gradient(ellipse at 50% 42%, rgba(5,8,12,0) 30%, rgba(5,8,12,.7) 100%); flex-direction: column; cursor: pointer; z-index: 25; }
+  #splash .bars::before, #splash .bars::after { content: ''; position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform .8s cubic-bezier(.6,0,.2,1); z-index: 1; }
+  #splash .bars::before { top: 0; } #splash .bars::after { bottom: 0; }
+  #splash.out .bars::before { transform: translateY(-100%); } #splash.out .bars::after { transform: translateY(100%); }
+  #splash .black { position: absolute; inset: 0; background: #000; animation: blackOut 1.4s .1s ease-out forwards; pointer-events: none; z-index: 2; }
+  #splash.skip .black { animation-duration: .2s; animation-delay: 0s; }
+  @keyframes blackOut { to { opacity: 0; visibility: hidden; } }
+  #splash .press { margin-top: clamp(26px, 7vh, 70px); padding: 8px 26px 8px 34px; font-size: clamp(15px, 1.8vw, 22px); font-weight: 700; letter-spacing: .5em; color: #e8f6ff; opacity: 0; animation: fadeIn .6s 3s forwards;
+    text-shadow: 0 0 12px rgba(46,196,255,.6), 0 2px 4px #000; background: radial-gradient(ellipse at center, rgba(3,8,14,.62), transparent 70%); }
+  #splash .press span { display: inline-block; animation: pressPulse 1.6s 3.6s ease-in-out infinite; }
+  #splash.skip .press { animation-delay: .1s; } #splash.skip .press span { animation-delay: .5s; }
+  @keyframes pressPulse { 50% { opacity: .35; } }
+  #splash .foot { position: absolute; bottom: calc(11vh + 14px); left: 0; right: 0; text-align: center; font-size: 12px; letter-spacing: .32em; text-transform: uppercase; color: rgba(200,225,240,.55); opacity: 0; animation: fadeIn 1s 3.4s forwards; z-index: 3; }
+  #splash.skip .foot { animation-delay: .2s; }
+  #splash.out { opacity: 0; transition: opacity .7s .35s; pointer-events: none; }
+  #splash.out .logo { transform: scale(1.06); transition: transform 1s ease-out; }
+  /* menu header + entrance */
+  .title { margin-bottom: 4px; } .title .logo-main { font-size: clamp(40px, 6.4vw, 92px); }
+  #menu.enter .menu-box > * { opacity: 0; transform: translateY(18px); animation: menuIn .55s cubic-bezier(.2,.8,.2,1) forwards; }
+  #menu.enter .menu-box > *:nth-child(1) { animation-delay: .05s; } #menu.enter .menu-box > *:nth-child(2) { animation-delay: .12s; }
+  #menu.enter .menu-box > *:nth-child(3) { animation-delay: .18s; } #menu.enter .menu-box > *:nth-child(4) { animation-delay: .22s; }
+  #menu.enter .menu-box > *:nth-child(5) { animation-delay: .26s; } #menu.enter .menu-box > *:nth-child(6) { animation-delay: .3s; }
+  #menu.enter .menu-box > *:nth-child(7) { animation-delay: .36s; } #menu.enter .menu-box > *:nth-child(n+8) { animation-delay: .42s; }
+  @keyframes menuIn { to { opacity: 1; transform: none; } }
+  #menu { background: linear-gradient(180deg, rgba(5,8,12,.35) 0%, rgba(5,8,12,.55) 35%, rgba(5,8,12,.86) 100%); align-items: flex-start; overflow-y: auto; }
+  #menu .menu-box { margin: auto; padding: 18px 0 22px; }  /* centred when it fits, scrollable (never clipped) when it doesn't */
+  body.splash-on #sysbtns, body.splash-on #hud { visibility: hidden; }
   .tag { color: var(--c-dim); letter-spacing: .3em; text-transform: uppercase; font-size: 13px; margin: 18px 0 28px; }
   .diffs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .diff { padding: 18px 16px; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
@@ -325,7 +381,9 @@ window.UI = (function () {
   body.compact #combathint { bottom: calc(var(--safe-b) + 6px); font-size: 12px; padding: 5px 10px; }
   body.compact #tip { font-size: 12px; max-width: 220px; padding: 6px 8px; }
   body.compact .screen { align-items: flex-start; overflow-y: auto; padding: 12px calc(var(--safe-r) + 12px) 24px calc(var(--safe-l) + 12px); -webkit-overflow-scrolling: touch; }
-  body.compact .title { font-size: 34px; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
+  body.compact .title .logo-main { font-size: 34px; } body.compact .title .logo-sub { font-size: 10px; margin-top: .3em; }
+  body.compact #splash { align-items: center; justify-content: center; padding: 0; overflow: hidden; }
+  body.compact #splash .bars::before, body.compact #splash .bars::after { height: 7vh; } body.compact #splash .foot { bottom: calc(7vh + 8px); font-size: 10px; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
   body.compact .missions { gap: 5px; margin-bottom: 12px; } body.compact .mission { padding: 6px; } body.compact .mission h4 { font-size: 12px; }
   body.compact .mission .vs { font-size: 10px; } body.compact .mission .vs svg { width: 20px; height: 20px; }
   body.compact .diff { padding: 10px; } body.compact .diff h3 { font-size: 16px; } body.compact .diff p { font-size: 11px; }
@@ -417,7 +475,7 @@ window.UI = (function () {
       <div class="panel diff d${i + 1}" data-diff="${k}"><div class="lvl">${'◆'.repeat(i + 1)}${'◇'.repeat(2 - i)}</div><h3>${CONST.DIFFICULTY[k].name}</h3><p>${esc(CONST.DIFFICULTY[k].desc)}</p></div>`).join('');
     root.appendChild(el('div', { id: 'menu', class: 'screen' }, `
       <div class="menu-box">
-        <div class="title">ROBOT ATTACK<span>STRATEGY 2026</span></div>
+        <div class="title">${logoHTML()}</div>
         <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war in the spirit of Metal Marines</div>
         <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
         <div id="m-warn" class="warnline"></div>
@@ -457,6 +515,8 @@ window.UI = (function () {
       </div>`));
 
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
+
+    root.appendChild(el('div', { id: 'splash', class: 'screen' }));
 
     root.appendChild(el('div', { id: 'handoff', class: 'screen' }, `
       <div class="menu-box panel"><h2 id="ho-title"></h2><p id="ho-sub"></p><button class="bigbtn" id="ho-go">I'm ready</button></div>`));
@@ -778,10 +838,48 @@ window.UI = (function () {
   }
   function hideReport() { $('report').classList.remove('show'); }
 
-  function showMenu(on) {
+  function showMenu(on, enter) {
     $('menu').classList.toggle('show', on);
+    $('menu').classList.toggle('enter', !!(on && enter));
     if (on) $('gameover').classList.remove('show');
   }
+
+  // Title screen: cinematic logo reveal over the backdrop battle, then "press start"
+  function logoHTML(cls) {
+    let i = 0;
+    const word = w => [...w].map(c => `<span class="ch" style="--i:${i++}">${c}</span>`).join('');
+    return `<div class="logo ${cls || ''}"><div class="logo-main" data-text="ROBOT ATTACK">${word('ROBOT')}<span class="sp"></span>${word('ATTACK')}</div>
+      <div class="logo-sub"><i></i><span>STRATEGY 2026</span><i></i></div></div>`;
+  }
+  function showSplash(fast, onStart) {
+    const sp = $('splash');
+    const touch = matchMedia('(pointer: coarse)').matches;
+    sp.innerHTML = `<div class="black"></div><div class="bars"></div>${logoHTML('reveal sweep' + (fast ? ' skip' : ''))}
+      <div class="press"><span>${touch ? 'TAP TO START' : 'PRESS START'}</span></div>
+      <div class="foot">An island war in the spirit of Metal Marines</div>`;
+    sp.className = 'screen show' + (fast ? ' skip' : '');
+    document.body.classList.add('splash-on');
+    const t0 = performance.now();
+    const go = e => {
+      if (e && e.type === 'keydown') {
+        if (e.repeat || e.metaKey || e.ctrlKey) return;
+        e.stopPropagation(); e.preventDefault(); // the title screen owns the keyboard
+      }
+      // a click during the reveal skips to its end; the next one starts
+      if (!fast && performance.now() - t0 < 2600 && !sp.classList.contains('skip')) {
+        sp.classList.add('skip'); sp.querySelector('.logo').classList.add('skip'); return;
+      }
+      window.removeEventListener('keydown', go, true);
+      sp.removeEventListener('click', go);
+      sp.classList.add('out');
+      document.body.classList.remove('splash-on');
+      setTimeout(() => { sp.className = 'screen'; sp.innerHTML = ''; }, 1200);
+      onStart();
+    };
+    sp.addEventListener('click', go);
+    window.addEventListener('keydown', go, true);
+  }
+  function isSplashOpen() { return $('splash').classList.contains('show') && !$('splash').classList.contains('out'); }
   function setContinue(label) {
     $('m-cont-wrap').style.display = label ? '' : 'none';
     $('m-cont-sub').textContent = label ? '— ' + label : '';
@@ -872,7 +970,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    getLog, setLog, getSkirmishOptions, showHandoff, hideHandoff, isHandoffOpen,
+    getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

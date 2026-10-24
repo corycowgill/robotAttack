@@ -30,7 +30,18 @@ async function open(t, contextOpts = {}) {
   page.on('console', m => { if (m.type() === 'error' && !/fonts|Failed to load resource/.test(m.text())) errors.push(m.text()); });
   await page.goto(base);
   await page.waitForFunction(() => window.__game && document.querySelector('.diff'));
+  await dismissSplash(page);
   return { ctx, page, errors };
+}
+
+// The title screen: the first key during the logo reveal skips it, the next one starts
+async function dismissSplash(page) {
+  await page.waitForSelector('#splash.show');
+  for (let i = 0; i < 3 && await page.evaluate(() => UI.isSplashOpen()); i++) {
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+  }
+  await page.waitForFunction(() => !document.getElementById('splash').classList.contains('show'));
 }
 
 const waitPlanning = (page, turn) => page.waitForFunction(t => __game.phase === 'planning' && __game.state.turn >= t, turn, { timeout: 60000 });
@@ -146,6 +157,7 @@ test('autosave: Continue after a reload restores the game', async t => {
   await endTurn(page);
   const before = await page.evaluate(() => ({ turn: __game.state.turn, n: Rules.buildingsOf(__game.state, 'player').length }));
   await page.reload();
+  await dismissSplash(page);
   await page.waitForFunction(() => window.__game && __game.phase === 'menu');
   await page.waitForSelector('#m-continue', { state: 'visible' });
   await page.click('#m-continue');
@@ -233,6 +245,7 @@ test('two players: hand-off screens, separate views and logs, battle after both 
 
   // a resumed two-player game opens behind a hand-off screen
   await page.reload();
+  await dismissSplash(page);
   await page.waitForSelector('#m-continue', { state: 'visible' });
   await page.click('#m-continue');
   await page.waitForSelector('#handoff.show');
@@ -255,6 +268,7 @@ test('battle options apply to the skirmish and are remembered', async t => {
   assert.strictEqual(await page.locator('.card[data-type="uplink"]').count(), 0, 'no superweapon card');
   assert.match(await page.textContent('#hud'), /1 \/ 20/);
   await page.reload();
+  await dismissSplash(page);
   await page.waitForFunction(() => window.__game && document.querySelector('#m-opts'));
   assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0');
   assert.deepStrictEqual(errors, []);

@@ -71,8 +71,17 @@
     UI.setMuted(SND.isMuted());
     UI.setMusicChecked(SND.isMusicEnabled());
     refreshContinue();
-    UI.showMenu(true);
-    SND.setMode('menu');
+    // Title screen: cinematic flyover of a battle in progress, logo reveal, then "press start"
+    // (the first user gesture is also what lets the browser play audio)
+    let seen = false;
+    try { seen = !!sessionStorage.getItem('ra_intro'); sessionStorage.setItem('ra_intro', '1'); } catch (e) { /* private mode */ }
+    setupBackdrop(true);
+    UI.showSplash(seen, () => {
+      SND.unlock();
+      SND.play('titleSting');
+      SND.setMode('menu');
+      UI.showMenu(true, true);
+    });
 
     const canvas = document.getElementById('game-canvas');
     canvas.addEventListener('mousemove', onMouseMove);
@@ -186,6 +195,7 @@
     mechHintShown = false;
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
+    leaveBackdrop();
     Renderer.reset();
     UI.clearLog();
     UI.hideGameOver();
@@ -222,6 +232,81 @@
     beginPlanning(!saved);
   }
 
+  // ── Title-screen backdrop: a seeded AI-vs-AI battle, nine turns in, trading missile volleys ──
+  let backdrop = null, backdropFx = [], volleyIn = 0;
+  function setupBackdrop(intro) {
+    Renderer.reset();
+    const s = R.newGame('commander', 20261024, { landTarget: 125 });
+    for (let t = 0; t < 9 && !s.winner; t++) { AI.planTurn(s, P1); AI.planTurn(s, P2); R.resolveTurn(s); }
+    Renderer.setMap(s.land);
+    Renderer.setViewer(P1);
+    for (let c = 0; c < R.N; c++) {
+      const b = s.cells[c].building;
+      if (b) {
+        Renderer.addBuilding(b, false);
+        if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
+        if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
+      }
+      Renderer.setCrater(c, s.cells[c].crater > 0 && !b);
+    }
+    for (const r of s.robots) {
+      const rec = Renderer.addRobot(r), p = Renderer.cellCenter(r.cell);
+      rec.group.position.set(p.x, 0, p.z);
+    }
+    Renderer.setFog(() => false);
+    Renderer.setGhosts([]);
+    Renderer.setDecorHidden(true);
+    Renderer.setCinematic(intro ? 'intro' : 'attract');
+    backdrop = s; backdropFx = []; volleyIn = intro ? 4.5 : 1.5;
+  }
+  function leaveBackdrop() {
+    backdrop = null; backdropFx = [];
+    Renderer.setDecorHidden(false);
+    Renderer.setCinematic(null);
+  }
+  function backdropTick(dt) {
+    if (!backdrop || phase !== 'menu') return;
+    backdropFx = backdropFx.filter(f => {
+      f.e += dt;
+      const k = Math.min(1, f.e / f.dur);
+      f.update(k);
+      if (k >= 1) { f.done(); return false; }
+      return true;
+    });
+    volleyIn -= dt;
+    if (volleyIn > 0) return;
+    volleyIn = 1.8 + Math.random() * 2.4;
+    const side = Math.random() < 0.5 ? P1 : P2;
+    const silos = R.buildingsOf(backdrop, side, 'silo'), targets = R.buildingsOf(backdrop, R.enemyOf(side));
+    if (!silos.length || !targets.length) return;
+    const n = 1 + Math.floor(Math.random() * Math.min(3, silos.length));
+    for (let i = 0; i < n; i++) {
+      const silo = silos[i % silos.length], tgt = targets[Math.floor(Math.random() * targets.length)];
+      setTimeout(() => backdropMissile(side, silo, tgt), i * 260);
+    }
+  }
+  function backdropMissile(side, silo, tgt) {
+    if (!backdrop) return;
+    const a = Renderer.cellCenter(silo.cell); a.y = 6;
+    if (Renderer.getBuilding(silo.id)) { Renderer.openHatch(silo.id); a.copy(Renderer.muzzleWorld(silo.id)); }
+    const b = Renderer.cellCenter(tgt.cell); b.y = 1;
+    const h = Renderer.missileArcHeight(a, b), m = Models.missile(side), p = new THREE.Vector3(), prev = a.clone();
+    m.scale.setScalar(2.4);
+    Renderer.add(m);
+    SND.play('missileLaunch', { gain: 0.12, pan: side === P1 ? -0.5 : 0.5 });
+    const intercept = Math.random() < 0.4, endK = intercept ? 0.8 + Math.random() * 0.12 : 1;
+    backdropFx.push({
+      e: 0, dur: 2.6 * endK,
+      update: k => { arcPoint(a, b, h, k * endK, p); m.position.copy(p); orient(m, p.clone().sub(prev)); Fx.trail(p, 'missile', side === P1 ? 0x66ccff : 0xff6a00); prev.copy(p); },
+      done: () => {
+        Renderer.remove(m); Models.dispose(m);
+        if (!backdrop) return;
+        if (intercept) { Fx.smallBlast(p, 0xffdd88); SND.play('intercept', { gain: 0.12 }); }
+        else { Fx.explosion(b, 0.9); SND.play('explosion', { gain: 0.16 }); }
+      }
+    });
+  }
+
   function toMenu() {
     Timeline.cancel();
     phase = 'menu';
@@ -232,10 +317,10 @@
     UI.hideGameOver();
     UI.showGameUI(false);
     UI.setCombatHint(false);
-    Renderer.reset();
     state = null;
+    setupBackdrop(false);
     refreshContinue();
-    UI.showMenu(true);
+    UI.showMenu(true, true);
     SND.setMode('menu');
     SND.setTension(false);
   }
@@ -1501,6 +1586,7 @@
     const dt = Math.min(0.05, raw);
     lastFrame = now;
     if (phase === 'resolving') Timeline.update(raw * speed);
+    backdropTick(raw);
     if (reportTimer > 0) { reportTimer -= raw; if (reportTimer <= 0) UI.hideReport(); }
     // highlight hovered order's target
     Renderer.render(dt, !UI.isHelpOpen() && phase !== 'menu');

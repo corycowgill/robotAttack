@@ -77,6 +77,7 @@ window.Renderer = (function () {
     createZoneOverlay();
     createFog();
     createWater();
+    createSky();
     setMap(Rules.generateIslands(424242, CONST.LAND_TARGET));   // backdrop for the menu
     createLabels();
     createHover();
@@ -143,6 +144,27 @@ window.Renderer = (function () {
     const out = Math.hypot(Math.max(0, -x, x - MAP_W), Math.max(0, -z, z - MAP_H));
     const seabed = -9 - Math.min(14, out * 0.06) + (n - 0.5) * 3;
     return seabed + (0.15 + (n - 0.5) * 0.5 - seabed) * s;
+  }
+
+  // Sky dome: the fog colour at the horizon (seamless with the fogged sea), deepening to a dark
+  // zenith, with a faint glow band. Only the low title-screen camera really sees it.
+  function createSky() {
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { horizon: { value: new THREE.Color(0x111b24) }, zenith: { value: new THREE.Color(0x03060a) }, glow: { value: new THREE.Color(0x2a6f8f) } },
+      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform vec3 horizon, zenith, glow; varying vec3 vDir;
+        void main() {
+          float h = max(vDir.y, 0.0);
+          vec3 c = mix(horizon, zenith, pow(h, 0.55));
+          c += glow * 0.35 * exp(-h * 18.0);
+          gl_FragColor = vec4(c, 1.0);
+        }`
+    });
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), mat);
+    sky.position.set(MAP_W / 2, 0, MAP_H / 2);
+    sky.renderOrder = -10;
+    scene.add(sky);
   }
 
   function createWater() {
@@ -327,7 +349,9 @@ window.Renderer = (function () {
     mesh.position.set(MAP_W / 2, 0.5, MAP_H / 2);
     mesh.renderOrder = 3;
     scene.add(mesh);
+    labelMesh = mesh;
   }
+  let labelMesh = null;
 
   // Team-coloured ground marking under each structure (readable from far away)
   const footMats = {};
@@ -1264,7 +1288,47 @@ window.Renderer = (function () {
     cam.trauma = Math.min(1, cam.trauma + t * k);
   }
 
+  // Cinematic camera for the title screen: 'intro' flies in low over the sea and sweeps across the
+  // islands into 'attract', a slow orbit. null hands the camera back to the gameplay rig.
+  let cinema = null, cinemaT = 0, cinemaStart = 0;
+  function setCinematic(mode) {
+    cinema = mode; cinemaT = 0; cinemaStart = performance.now();
+    if (!mode) frameAll(true);
+  }
+  const ease = k => k * k * (3 - 2 * k);
+  function cinematicCamera() {
+    cinemaT = (performance.now() - cinemaStart) / 1000; // wall clock: slow devices skip frames, not seconds
+    const cx = MAP_W / 2, cz = MAP_H / 2;
+    let yaw, dist, height, tx = cx, tz = cz;
+    const orbit = t => ({ yaw: -0.55 + t * 0.045, dist: 360, height: 150 });
+    if (cinema === 'intro' && cinemaT < 6.5) {
+      const k = ease(Math.min(1, cinemaT / 6.5));
+      // from low and far over the open sea behind the player's island, to the orbit's start
+      const o = orbit(0);
+      yaw = -2.1 + (o.yaw + 2.1) * k;
+      dist = 760 + (o.dist - 760) * k;
+      height = 34 + (o.height - 34) * k;
+      tx = cx - 120 * (1 - k); tz = cz + 40 * (1 - k);
+    } else {
+      const o = orbit(cinema === 'intro' ? cinemaT - 6.5 : cinemaT + 2);
+      yaw = o.yaw; dist = o.dist; height = o.height + Math.sin(cinemaT * 0.21) * 12;
+    }
+    camera.position.set(tx + Math.sin(yaw) * dist, height, tz + Math.cos(yaw) * dist);
+    camera.lookAt(tx, 55, tz); // aim above the ground: the battle sits low in frame, under the logo
+    cam.dist = Math.hypot(dist, height); // keeps fog density and LOD logic sensible
+  }
+
+  // Title screen: no health bars or badges over the backdrop battle
+  let decorHidden = false;
+  function setDecorHidden(v) {
+    decorHidden = v;
+    // the board furniture (coordinates, grid) reads as a game UI, not a battlefield
+    if (labelMesh) labelMesh.visible = !v;
+    if (gridMat) gridMat.visible = !v;
+  }
+
   function updateCamera(dt, keyboardEnabled) {
+    if (cinema) { cinematicCamera(); return; }
     if (keyboardEnabled) {
       const sp = cam.gdist * 1.1 * dt;
       const k = cam.keys;
@@ -1368,7 +1432,7 @@ window.Renderer = (function () {
     updateCamera(dt, keyboardEnabled);
     fogMat.uniforms.time.value = time;
     // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
-    scene.fog.density = 0.0012 * 420 / Math.max(420, cam.dist);
+    scene.fog.density = cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist);
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {
@@ -1377,7 +1441,7 @@ window.Renderer = (function () {
       if (m.dash) m.obj.material.dashOffset = -time * 8;
     }
     const q = camera.quaternion;
-    const badgeAlpha = Math.max(0, Math.min(1, (cam.dist - 310) / 110));
+    const badgeAlpha = decorHidden ? 0 : Math.max(0, Math.min(1, (cam.dist - 310) / 110));
     for (const k in badgeMats) badgeMats[k].opacity = badgeAlpha;
     for (const id in buildings) {
       const rec = buildings[id];
@@ -1403,6 +1467,7 @@ window.Renderer = (function () {
       rec.hatch += (want - rec.hatch) * Math.min(1, dt * 6);
       g.userData.open = rec.hatch;
       if (g.visible) Models.animate(g, time, dt);
+      if (decorHidden) rec.bar.visible = false;
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
       rec.badge.visible = g.visible && rec.collapse < 0;
       if (rec.dome) {
@@ -1427,6 +1492,7 @@ window.Renderer = (function () {
         }
       }
       rec.bar.position.set(rec.group.position.x, rec.group.position.y + 15, rec.group.position.z);
+      if (decorHidden) rec.bar.visible = false;
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
     }
     Fx.update(dt);
@@ -1449,7 +1515,7 @@ window.Renderer = (function () {
   return {
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
-    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, cellCenter, pickCell, project, missileArcHeight,
+    init, render, reset, cycleQuality, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
     setZone, setFog, setGridEmphasis, setHover, showRange, hideRange, setBuildGhost, setMarkers,
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,

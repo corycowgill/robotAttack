@@ -182,6 +182,31 @@
     chain(saw, lp, rg, o);
   };
 
+  // Title screen "press start": sub boom, a whoosh, a wide detuned chord opening up, a metallic ping
+  R.titleSting = function (o, t) {
+    var sub = O('sine', 90, t, 1.6), sg = G(0);
+    sub.frequency.exponentialRampToValueAtTime(38, t + 1.2);
+    env(sg, t, 0.01, 0.55, 1.5);
+    chain(sub, sg, o);
+    var n = N(t, 1.2), bp = F('bandpass', 300, 0.9), ng = G(0);
+    sweep(bp.frequency, 300, 4200, t, 0.9);
+    env(ng, t, 0.25, 0.12, 0.8);
+    chain(n, bp, ng, o);
+    var lp = F('lowpass', 300, 4), cg = G(0);
+    sweep(lp.frequency, 300, 5200, t + 0.05, 0.7);
+    env(cg, t + 0.03, 0.08, 0.11, 2.6);
+    chain(lp, cg, o);
+    [110, 164.8, 220, 329.6, 440].forEach(function (f, i) {
+      [-7, 7].forEach(function (cents) {
+        var osc = O('sawtooth', f * Math.pow(2, cents / 1200), t, 2.8);
+        osc.connect(lp);
+      });
+    });
+    var ping = O('triangle', 1760, t + 0.04, 1.4), pg = G(0);
+    env(pg, t + 0.04, 0.005, 0.06, 1.3);
+    chain(ping, pg, o);
+  };
+
   // Strike Uplink firing: a rising, shimmering charge-up into the sky
   R.strikeUp = function (o, t, p) {
     var a = O('sine', 220 * p, t, 1.65), b = O('sine', 331 * p, t, 1.65);
@@ -402,6 +427,7 @@
     explosion: ['sfx', 1.8, 0.22, 1], flak: ['sfx', 0.6, 0.2, 1],
     missileLaunch: ['sfx', 1.3, 0.2, 1], incoming: ['sfx', 1.9, 0.15, 1],
     strikeUp: ['sfx', 1.7, 0.05, 1], strikeDown: ['sfx', 1.5, 0.05, 1],
+    titleSting: ['ui', 2.9, 0, 0],
     intercept: ['sfx', 0.3, 0.2, 1], shieldHit: ['sfx', 1.0, 0.6, 1],
     gunfire: ['sfx', 0.4, 0.15, 1], robotStep: ['sfx', 0.25, 0.1, 1],
     robotLand: ['sfx', 0.6, 0.2, 1], robotPunch: ['sfx', 0.3, 0.15, 1],
