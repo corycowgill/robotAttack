@@ -15,6 +15,10 @@
   var musicEnabled = lsGet('ra_music') !== '0';
 
   var MUSIC_LEVEL = 0.32;
+  var SFX_LEVEL = 0.9, UI_LEVEL = 0.8;
+  // per-channel volume (0..1), on top of the master volume
+  var musicVol = lsNum('ra_music_vol', 1), sfxVol = lsNum('ra_sfx_vol', 1);
+  function lsNum(k, d) { try { var v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? Math.max(0, Math.min(1, v)) : d; } catch (e) { return d; } }
   var MAX_VOICES = 24;
   var THROTTLE_MS = 40;
 
@@ -79,9 +83,9 @@
     master = G(muted ? 0 : volume);
     master.connect(comp);
 
-    sfxBus = G(0.9); sfxBus.connect(master);
-    uiBus = G(0.8); uiBus.connect(master);
-    musicBus = G(musicEnabled ? MUSIC_LEVEL : 0); musicBus.connect(master);
+    sfxBus = G(SFX_LEVEL * sfxVol); sfxBus.connect(master);
+    uiBus = G(UI_LEVEL * sfxVol); uiBus.connect(master);
+    musicBus = G(musicEnabled ? MUSIC_LEVEL * musicVol : 0); musicBus.connect(master);
 
     // reverb: generated stereo IR, 2s noise * e^(-3t)
     try {
@@ -756,11 +760,26 @@
     musicEnabled = !!b;
     lsSet('ra_music', musicEnabled ? '1' : '0');
     try {
-      if (ok()) { fadeTo(musicBus.gain, musicEnabled ? MUSIC_LEVEL : 0, 0.8); applyMusic(); }
+      if (ok()) { fadeTo(musicBus.gain, musicEnabled ? MUSIC_LEVEL * musicVol : 0, 0.8); applyMusic(); }
     } catch (e) { /* ignore */ }
   }
 
+  function setMusicVolume(v) {
+    musicVol = clamp(+v || 0, 0, 1);
+    lsSet('ra_music_vol', musicVol);
+    try { if (ok() && musicEnabled) fadeTo(musicBus.gain, MUSIC_LEVEL * musicVol, 0.1); } catch (e) { /* ignore */ }
+  }
+  function setSfxVolume(v) {
+    sfxVol = clamp(+v || 0, 0, 1);
+    lsSet('ra_sfx_vol', sfxVol);
+    try { if (ok()) { fadeTo(sfxBus.gain, SFX_LEVEL * sfxVol, 0.06); fadeTo(uiBus.gain, UI_LEVEL * sfxVol, 0.06); } } catch (e) { /* ignore */ }
+  }
+
   window.GameAudio = {
+    setMusicVolume: setMusicVolume,
+    getMusicVolume: function () { return musicVol; },
+    setSfxVolume: setSfxVolume,
+    getSfxVolume: function () { return sfxVol; },
     unlock: unlock,
     play: play,
     setMode: setMode,
