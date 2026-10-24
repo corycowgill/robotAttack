@@ -420,3 +420,17 @@ test('supply depots get pricier the more you own; refunds use what was paid', ()
   assert.equal(s.sides[P].credits, c0 - BUILDINGS.depot.cost, 'undo refunds the escalated price');
   assert.equal(R.buildCost(s, P, 'silo'), BUILDINGS.silo.cost, 'other structures are flat');
 });
+
+test('mech melee ignores shields (they stop projectiles, not mechs inside the dome)', () => {
+  const s = R.newGame('commander', 51);
+  rich(s, A);
+  const ehq = R.hqCell(A);
+  const shCell = R.neighbors(ehq, 1).find(c => !R.buildableReason(s, A, 'shield', c));
+  R.build(s, A, 'shield', shCell);
+  const near = R.neighbors(ehq, 1).find(c => R.isLand(s, c) && !s.cells[c].building);
+  s.robots.push({ id: 900, side: P, cell: near, hp: 50, maxHp: 50, dmg: 20 });
+  const hq = R.buildingsOf(s, A, 'hq')[0], hp0 = hq.hp, pool0 = R.buildingAt(s, shCell).pool;
+  R.resolveTurn(s);
+  assert.equal(hp0 - hq.hp >= 20, true, 'the HQ took the full blow');
+  assert.ok(R.buildingAt(s, shCell).pool >= pool0, 'the dome was not drained by melee');
+});

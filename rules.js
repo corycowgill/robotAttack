@@ -710,9 +710,10 @@
 
   // ── Damage ───────────────────────────────────────────────
   // Shields of the defending side absorb damage first. Returns hit record.
-  function damageBuilding(state, b, amount, attacker, events) {
+  // melee: a mech already inside the dome — shields stop projectiles, not mechs walking in
+  function damageBuilding(state, b, amount, attacker, events, melee) {
     let absorbed = 0, shieldCell = -1, shieldPool = 0;
-    for (const s of buildingsOf(state, b.side, 'shield')) {
+    for (const s of melee ? [] : buildingsOf(state, b.side, 'shield')) {
       if (s.pool <= 0 || cheb(s.cell, b.cell) > B.shield.range) continue;
       const take = Math.min(s.pool, amount - absorbed);
       s.pool -= take;
@@ -937,7 +938,7 @@
         if (killed) { sideOf(r.side).stats.robotsKilled++; sideOf(o.side).stats.robotsLost++; }
         ev(BEAT.ROBOTS, { type: 'robotFight', id: r.id, side: r.side, cell: r.cell, targetId: o.id, targetCell: o.cell, dmg, hpAfter: o.hp, killed });
       } else if (act.kind === 'hit') {
-        const hit = damageBuilding(state, act.building, r.dmg || C.ROBOT_DAMAGE, r.side, events);
+        const hit = damageBuilding(state, act.building, r.dmg || C.ROBOT_DAMAGE, r.side, events, true);
         ev(BEAT.ROBOTS, { type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
       } else if (act.kind === 'move') {
         const fromCell = r.cell;

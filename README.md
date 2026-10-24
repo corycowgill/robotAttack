@@ -37,7 +37,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
    1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
    2. Missiles hit. Shields absorb damage first; each missile does 45 damage to its target and 15 to adjacent cells.
    3. Gun Pods fire at mechs.
-   4. Mechs move (2 cells) or smash an adjacent structure. Raiders fight enemy mechs when no structure is in reach. **Garrison** mechs, dropped on your own island, hunt down invaders.
+   4. Mechs move (2 cells) or smash an adjacent structure, Shields or not. Mechs raid: they chew through whatever structures are nearest, so they attack your economy and defences rather than the well-guarded HQ. Raiders fight enemy mechs when no structure is in reach. **Garrison** mechs, dropped on your own island, hunt down invaders.
    5. Drop pods land. New mechs wait one turn before they act.
    6. New missiles launch. They are in the air until next turn.
 3. **React.**
@@ -59,11 +59,11 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 12; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 45 damage + 15 splash; maximum 5 |
 | 5 | AA Battery | 110 | 45 | 1 shot per turn (70% hit) at a missile aimed within radius 4; if it misses, other batteries in range get a shot |
-| 6 | Shield Generator | 120 | 50 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
+| 6 | Shield Generator | 120 | 50 | 50-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
-| 0 | Strike Uplink | 260 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
+| 0 | Strike Uplink | 200 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling a structure in the turn you built it refunds it in full. Selling can be undone with `Z` within the same turn.
 - **Craters:** a destroyed structure leaves a crater that blocks building for 2 turns.
@@ -127,7 +127,7 @@ The browser remembers your choices, and they also apply to Two Players.
   - Adapts its builds: AA when you shell it, Gun Pods when your mechs land.
   - Opens with a Robot Hangar and raids your base with mechs on a second front while its missiles pressure your HQ.
   - Fires all its missiles at once to overwhelm your AA, picks off unprotected economy buildings, and repairs its HQ.
-  - Builds a Strike Uplink mid-game where available and aims each strike at the 3×3 area that hurts you most.
+  - Builds a Strike Uplink from turn 10 where available and aims each strike at the 3×3 area that hurts you most.
   - When your strike is inbound, it raises a Shield over the target and repairs whatever wouldn't survive.
 - **Warlord:**
   - Commander tactics plus full map vision and +25% income.
