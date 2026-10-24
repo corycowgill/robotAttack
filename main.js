@@ -737,10 +737,13 @@
 
     at(0, () => UI.banner('COMBAT', 'Turn ' + turn + ' resolution', true));
     let t = 0.6;
+    // camera director: ease toward where each beat's action is, if it's all on one island
+    const direct = (time, cells) => at(Math.max(0, time - 0.1), () => focusAction(cells));
 
     // Descents + intercepts + impacts
     const desc = byBeat(R.BEAT.DESCEND);
     const DESC = 1.7;
+    if (desc.length) direct(t, desc.map(e => e.to));
     desc.forEach((e, i) => {
       const t0 = t + i * 0.22;
       at(t0, () => animateDescent(e, DESC, idAt, impacts[e.id]));
@@ -749,6 +752,8 @@
 
     // Gun pods
     const guns = byBeat(R.BEAT.GUNFIRE);
+    const botsAhead = byBeat(R.BEAT.ROBOTS);
+    if (guns.length || botsAhead.length) direct(t, [].concat(...guns.map(e => e.shots.map(s => s.cell)), botsAhead.map(e => e.cell !== undefined ? e.cell : e.from)));
     guns.forEach((e, i) => at(t + i * 0.4, () => animateGunfire(e, idAt)));
     if (guns.length) t += guns.length * 0.4 + 0.5;
 
@@ -765,11 +770,13 @@
 
     // Drops
     const drops = byBeat(R.BEAT.DROPS);
+    if (drops.length) direct(t, drops.filter(e => e.type === 'drop').map(e => e.to));
     drops.forEach((e, i) => at(t + i * 0.25, () => e.type === 'drop' ? animateDrop(e, idAt) : logCancelled(e)));
     if (drops.length) t += (drops.length - 1) * 0.25 + 2.0;
 
     // Launches
     const launches = byBeat(R.BEAT.LAUNCH);
+    if (launches.length) at(Math.max(0, t - 0.1), () => frameView(false));
     launches.forEach((e, i) => at(t + i * 0.2, () => e.type === 'launch' ? animateLaunch(e, idAt) : logCancelled(e)));
     if (launches.length) t += (launches.length - 1) * 0.2 + 1.5;
 
@@ -779,6 +786,16 @@
     }
     at(t + 0.3, () => {});
     return items;
+  }
+
+  function focusAction(cells) {
+    cells = cells.filter(c => c !== undefined && c >= 0);
+    if (!cells.length) return;
+    const xs = cells.map(c => c % CONST.GRID_W);
+    if (Math.max(...xs) - Math.min(...xs) > 13) { frameView(false); return; }
+    let x = 0, z = 0;
+    for (const c of cells) { const p = Renderer.cellCenter(c); x += p.x; z += p.z; }
+    Renderer.focus(x / cells.length, z / cells.length + 6, Math.max(200, Renderer.framedDist() * 0.68));
   }
 
   function logCancelled(e) {
@@ -1109,6 +1126,7 @@
   }
 
   function finishTurn(events, turn) {
+    frameView(false);
     UI.setCombatHint(false);
     combatHud = null;
     syncWorld(true);
