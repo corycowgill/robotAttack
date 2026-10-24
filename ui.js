@@ -33,6 +33,7 @@ window.UI = (function () {
     mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     credits: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18"/>',
@@ -133,7 +134,7 @@ window.UI = (function () {
   .sbtn .ico { width: 16px; height: 16px; }
   .sbtn.up { border-color: rgba(255,200,60,.5); color: #ffe39a; }
 
-  #objectives { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 560px)); padding: 6px 12px; display: flex; align-items: center; gap: 10px; }
+  #objectives { position: absolute; left: 0; right: 0; margin: 0 auto; width: fit-content; top: 84px; max-width: min(560px, calc(100vw - 560px)); padding: 6px 12px; display: flex; align-items: center; gap: 10px; }
   #objectives h4 { margin: 0; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--c-warn); white-space: nowrap; }
   #objectives .x { cursor: pointer; color: var(--c-dim); font-size: 16px; padding-left: 4px; }
   #objectives .obj { padding: 0; }
@@ -243,6 +244,76 @@ window.UI = (function () {
     .card { width: 70px; height: 78px; } .card .nm { font-size: 11px; } .abtn { min-width: 84px; height: 78px; }
     #orders { width: 220px; }
   }
+  /* ── Compact layout (phones: short landscape or narrow screens) ── */
+  #b-log { display: none; }
+  #rotate { position: absolute; inset: 0; display: none; flex-direction: column; gap: 18px; align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: rgba(5,8,12,.94); pointer-events: auto; z-index: 20; font-size: 18px; }
+  #rotate.show { display: flex; }
+  #rotate .phone { width: 64px; height: 108px; border: 4px solid #8fdcff; border-radius: 12px; animation: rot 2.2s ease-in-out infinite; }
+  @keyframes rot { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+  body.compact #ui { --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+  body.compact #hud { top: 4px; border-radius: 8px; }
+  body.compact #hud .cell { padding: 3px 9px; min-width: 0; }
+  body.compact #hud .lbl { font-size: 9px; letter-spacing: .08em; gap: 3px; }
+  body.compact #hud .lbl .ico { width: 11px; height: 11px; }
+  body.compact #hud .val { font-size: 15px; }
+  body.compact #hud .inc { font-size: 11px; }
+  body.compact #hud-turn { min-width: 0 !important; } body.compact #hud-turn .val { font-size: 14px; } body.compact #hud-phase { font-size: 9px; }
+  body.compact .hq-cell { min-width: 74px !important; }
+  body.compact #hud .bar { height: 3px; margin-top: 2px; }
+  body.compact #sysbtns { top: 4px; right: calc(var(--safe-r) + 6px); gap: 4px; }
+  body.compact #sysbtns .panel:first-child { display: none !important; }
+  body.compact .iconbtn { width: 34px; height: 34px; }
+  body.compact #b-log { display: grid; }
+  body.compact #orders { display: none; top: 44px; right: calc(var(--safe-r) + 6px); width: min(280px, 46vw); max-height: calc(100% - 120px); z-index: 4; }
+  body.compact #orders.open { display: flex; }
+  body.compact #log { max-height: none; }
+  body.compact #dock { bottom: calc(var(--safe-b) + 3px); gap: 4px; max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 8px); }
+  body.compact #cards { padding: 4px; gap: 4px; overflow-x: auto; max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 230px); scrollbar-width: none; }
+  body.compact #cards::-webkit-scrollbar { display: none; }
+  body.compact .card { flex: none; width: 52px; height: 56px; border-radius: 6px; gap: 1px; }
+  body.compact .card .ico { width: 20px; height: 20px; }
+  body.compact .card .nm { font-size: 8.5px; letter-spacing: 0; }
+  body.compact .card .cost { font-size: 10px; }
+  body.compact .card .key, body.compact .card .cnt { display: none; }
+  body.compact #actions { padding: 4px; gap: 4px; }
+  body.compact .abtn { min-width: 58px !important; height: 56px; font-size: 10px; gap: 1px; border-radius: 6px; }
+  body.compact .abtn .ico { width: 20px; height: 20px; }
+  body.compact .abtn small, body.compact .abtn .badge { display: none; }
+  body.compact #selected { right: calc(var(--safe-r) + 6px); bottom: 70px; width: min(250px, 42vw); max-height: calc(100% - 120px); padding: 8px 10px; }
+  body.compact #selected .desc, body.compact #selected ul, body.compact #selected .side { display: none; }
+  body.compact #selected h3 { font-size: 15px; } body.compact #selected ul { font-size: 11px; }
+  body.compact .sbtn { padding: 6px; font-size: 12px; } body.compact .sbtn kbd { display: none; }
+  body.compact #objectives { top: 46px; max-width: 70vw; padding: 3px 8px; }
+  body.compact #objectives .obj { font-size: 11px; } body.compact #objectives kbd { display: none; }
+  body.compact #toasts { top: 76px; } body.compact .toast { font-size: 13px; padding: 6px 12px; }
+  body.compact #report { bottom: 70px; width: min(380px, 70vw); padding: 10px 12px; }
+  body.compact #report h2 { font-size: 15px; margin-bottom: 6px; } body.compact #report .row { font-size: 12px; } body.compact #report .lost, body.compact #report .foot { font-size: 11px; }
+  body.compact #banner .t { font-size: 34px; } body.compact #banner .s { font-size: 12px; }
+  body.compact #combathint { bottom: calc(var(--safe-b) + 6px); font-size: 12px; padding: 5px 10px; }
+  body.compact #tip { font-size: 12px; max-width: 220px; padding: 6px 8px; }
+  body.compact .screen { align-items: flex-start; overflow-y: auto; padding: 12px calc(var(--safe-r) + 12px) 24px calc(var(--safe-l) + 12px); -webkit-overflow-scrolling: touch; }
+  body.compact .title { font-size: 34px; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
+  body.compact .missions { gap: 5px; margin-bottom: 12px; } body.compact .mission { padding: 6px; } body.compact .mission h4 { font-size: 12px; }
+  body.compact .mission .vs { font-size: 10px; } body.compact .mission .vs svg { width: 20px; height: 20px; }
+  body.compact .diff { padding: 10px; } body.compact .diff h3 { font-size: 16px; } body.compact .diff p { font-size: 11px; }
+  body.compact .menu-foot { margin-top: 10px; font-size: 12px; }
+  body.compact .bigbtn { padding: 8px 16px; font-size: 14px; }
+  body.compact #briefing .menu-box, body.compact #gameover .menu-box, body.compact #help .menu-box { padding: 14px 16px; max-height: none; }
+  body.compact #briefing h2 { font-size: 18px; } body.compact .speaker svg { width: 56px; height: 56px; } body.compact .speaker .say { font-size: 13px; }
+  body.compact #go-title { font-size: 34px; } body.compact #go-stats { font-size: 12px; margin-bottom: 10px; }
+  body.compact .float { font-size: 14px; } body.compact .float.big { font-size: 18px; }
+  /* narrow portrait ("play anyway") */
+  @media (max-width: 600px) {
+    body.compact #hud { left: calc(var(--safe-l) + 4px); transform: none; max-width: calc(100vw - 8px); }
+    body.compact #hud .lbl, body.compact #hud .inc, body.compact #hud-phase { display: none; }
+    body.compact #hud .cell { padding: 4px 7px; } body.compact .hq-cell { min-width: 0 !important; }
+    body.compact #sysbtns { top: 46px; }
+    body.compact #objectives { top: 88px; max-width: calc(100vw - 16px); }
+    body.compact #toasts { top: 120px; }
+    body.compact #cards { max-width: calc(100vw - 200px); }
+  }
+
   @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: calc(100vh - 360px); } }
   @media (max-height: 700px) { #orders { display: none; } }
   `;
@@ -272,6 +343,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'sysbtns', class: 'pi' }, `
       <div class="panel" style="display:flex;align-items:center;padding:0 10px;gap:6px" title="Master volume"><input id="vol" type="range" min="0" max="1" step="0.05"></div>
       <div class="panel iconbtn" id="b-mute" title="Mute (M)">${icon('sound')}</div>
+      <div class="panel iconbtn" id="b-log" title="Orders & battle log">${icon('log')}</div>
       <div class="panel iconbtn" id="b-help" title="How to play (?)">${icon('help')}</div>
       <div class="panel iconbtn" id="b-menu" title="Save &amp; return to menu" style="display:none">${icon('menu')}</div>
     `));
@@ -362,6 +434,12 @@ window.UI = (function () {
     $('b-undo').addEventListener('click', () => H.onAction('undo'));
     $('b-mute').addEventListener('click', () => H.onAction('mute'));
     $('b-help').addEventListener('click', () => showHelp(!isHelpOpen()));
+    $('b-log').addEventListener('click', () => $('orders').classList.toggle('open'));
+    root.appendChild(el('div', { id: 'rotate' }, `<div class="phone"></div><div><b>Rotate your phone</b><br><span style="color:var(--c-dim);font-size:15px">Robot Attack plays best in landscape.</span></div><button class="bigbtn alt" id="rot-ok">Play anyway</button>`));
+    $('rot-ok').addEventListener('click', () => { rotateDismissed = true; layout(); });
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', () => setTimeout(layout, 250));
+    layout();
     $('b-menu').addEventListener('click', () => H.onAction('menu'));
     $('vol').addEventListener('input', e => H.onVolume(+e.target.value));
     root.addEventListener('mouseover', e => {
@@ -371,6 +449,16 @@ window.UI = (function () {
     });
   }
   let lastHoverEl = null;
+
+  // Phone layout: compact UI on short or narrow screens; suggest landscape in portrait
+  let rotateDismissed = false;
+  function isCompact() { return window.innerHeight < 560 || window.innerWidth < 900; }
+  function layout() {
+    document.body.classList.toggle('compact', isCompact());
+    const portrait = window.innerHeight > window.innerWidth && window.innerWidth < 700;
+    $('rotate').classList.toggle('show', portrait && !rotateDismissed);
+    if (H.onLayout) H.onLayout();
+  }
 
   function helpHTML() {
     const rows = BUILD_ORDER.map(k => {
@@ -675,7 +763,7 @@ window.UI = (function () {
   function setVolume(v) { $('vol').value = v; }
 
   return {
-    init, icon, esc, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, isCompact, portrait, setCampaign, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

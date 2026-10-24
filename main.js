@@ -27,6 +27,7 @@
   let mouse = { x: 0, y: 0, downX: 0, downY: 0, down: false };
   let hoveredOrder = null;
   let objectivesHidden = false;
+  let lastPointer = 'mouse', pendingTap = -1;
 
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
@@ -40,6 +41,7 @@
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
       onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n); } },
       onMenu: toMenu,
+      onLayout: () => { if (state && phase !== 'menu') frameView(false); },
       onBuildSelect: selectBuild,
       onAction: action,
       onVolume: v => { SND.setVolume(v); },
@@ -58,11 +60,14 @@
     const canvas = document.getElementById('game-canvas');
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mousedown', e => { mouse.down = true; mouse.downX = e.clientX; mouse.downY = e.clientY; });
+    canvas.addEventListener('pointerdown', e => { lastPointer = e.pointerType; });
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('mouseleave', () => { hoverCell = -1; UI.hideTip(); refreshHover(); });
     window.addEventListener('keydown', onKey);
     const unlock = () => SND.unlock();
     window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('touchend', unlock, true);   // iOS only unlocks audio on touchend/click
+    window.addEventListener('click', unlock, true);
     window.addEventListener('keydown', unlock, true);
 
     requestAnimationFrame(frame);
@@ -170,8 +175,9 @@
     const rectOf = id => { const el = document.getElementById(id); if (!el || el.offsetParent === null) return null; return el.getBoundingClientRect(); };
     // Keep the map clear of the orders/log panel, HUD and build dock. The briefing panel is
     // short and closable and only overlaps the player's rear corner, so it doesn't count.
-    const ord = rectOf('orders'), hud = rectOf('hud');
-    Renderer.setOcclusion(0, ord ? window.innerWidth - ord.left : 0, hud ? hud.bottom : 80, 120);
+    const ord = rectOf('orders'), hud = rectOf('hud'), dock = rectOf('dock');
+    const dockH = dock && !document.getElementById('dock').classList.contains('hidden') ? window.innerHeight - dock.top : (UI.isCompact() ? 40 : 120);
+    Renderer.setOcclusion(0, ord ? window.innerWidth - ord.left : 0, hud ? hud.bottom : 80, Math.max(dockH, UI.isCompact() ? 64 : 120));
     Renderer.frameAll(instant);
   }
 
@@ -477,7 +483,8 @@
       hoverCell = c;
       refreshHover();
     }
-    cellTooltip();
+    // taps emulate a mousemove first; don't leave hover tooltips stuck on touch screens
+    if (lastPointer === 'touch' && mode === 'select') UI.hideTip(); else cellTooltip();
   }
 
   function onMouseUp(e) {
@@ -490,8 +497,18 @@
     if (e.button !== 0) return;
     const c = Renderer.pickCell(e.clientX, e.clientY);
     if (c < 0) { cancelMode(); return; }
+    // touch: the first tap previews a placement/target, a second tap on the same cell confirms
+    if (lastPointer === 'touch' && mode !== 'select' && pendingTap !== c) {
+      pendingTap = c;
+      hoverCell = c;
+      refreshHover();
+      cellTooltip();
+      UI.toast('Tap again to confirm', 'warn');
+      return;
+    }
+    pendingTap = -1;
     clickCell(c, e.shiftKey);
-    cellTooltip();
+    if (lastPointer === 'touch') UI.hideTip(); else cellTooltip();
   }
 
   function clickCell(c, keepMode) {
@@ -533,6 +550,7 @@
   }
 
   function cancelMode() {
+    pendingTap = -1;
     if (mode !== 'select') { mode = 'select'; buildType = null; }
     else selectedCell = -1;
     refreshAll();
@@ -544,6 +562,8 @@
     if (state.sides[P].credits < def.cost) return fail('Need ' + def.cost + ' credits for ' + def.name);
     if (def.max && R.buildingsOf(state, P, type).length >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
     SND.play('uiClick');
+    pendingTap = -1;
+    if (UI.isCompact() && !(mode === 'build' && buildType === type)) UI.toast(def.name + ' · ' + def.cost + 'c — ' + def.stats()[0], 'good');
     if (mode === 'build' && buildType === type) { mode = 'select'; buildType = null; }
     else { mode = 'build'; buildType = type; selectedCell = -1; }
     refreshAll();

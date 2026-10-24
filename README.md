@@ -14,6 +14,13 @@ The game is static files with no build step.
 
 Three.js and the fonts load from CDNs, so the game needs an internet connection.
 
+**iPhone / phones:**
+- Landscape is best. In portrait the game asks you to rotate, but you can play anyway.
+- On small screens the interface switches to a compact layout: a slimmer HUD, a scrollable build bar, and the battle log behind a button.
+- Tap to select. Placing a building or picking a missile or drop target takes two taps: one to preview, one to confirm.
+- Drag to pan, pinch to zoom.
+- In Safari, **Share → Add to Home Screen** runs the game fullscreen with its own icon.
+
 ## How a turn works
 
 Each side starts on its own island with a Command Center and one Missile Silo. Island shapes are generated fresh every game (the two islands always have the same area); the strait between them is open sea.

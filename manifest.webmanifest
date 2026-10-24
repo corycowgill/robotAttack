@@ -1,0 +1,14 @@
+{
+  "name": "Robot Attack 2026",
+  "short_name": "Robot Attack",
+  "description": "Island war strategy game inspired by Metal Marines.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0e13",
+  "theme_color": "#0b0e13",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
