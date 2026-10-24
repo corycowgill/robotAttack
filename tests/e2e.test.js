@@ -1,11 +1,9 @@
 // Headless-browser smoke tests of real UI flows (Playwright + software WebGL).
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
 const { chromium } = require('playwright');
 const { start } = require('./serve.js');
 
-const THREE_JS = fs.readFileSync(require.resolve('three/build/three.min.js'));
 let server, browser, base;
 
 test.before(async () => {
@@ -15,7 +13,7 @@ test.before(async () => {
 });
 test.after(async () => { await browser?.close(); server?.close(); });
 
-// Fresh context with an empty localStorage (kept across reloads), the CDN script served locally, low graphics.
+// Fresh context with an empty localStorage (kept across reloads), no web fonts, low graphics.
 async function open(t, contextOpts = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, ...contextOpts });
   t.after(() => ctx.close());
@@ -25,7 +23,6 @@ async function open(t, contextOpts = {}) {
       localStorage.setItem('ra_quality', '0');
     } catch (e) {}
   });
-  await ctx.route('**/three.min.js', r => r.fulfill({ body: THREE_JS, contentType: 'application/javascript' }));
   await ctx.route('https://fonts.**', r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
