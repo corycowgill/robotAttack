@@ -8,6 +8,8 @@ Build an economy, raise missile silos and mech hangars, and destroy the enemy Co
 
 ## Running
 
+**Play online:** https://corycowgill.github.io/robotAttack/ (CI deploys `main` to GitHub Pages after the tests pass).
+
 The game is static files with no build step.
 - **Local:** open `index.html` in a modern browser, or serve the folder (`python3 -m http.server`) and browse to it.
 - **Hosting:** put the folder on any static host.
@@ -172,7 +174,7 @@ npm run test:e2e      # headless-browser smoke tests of real UI flows
 - `tests/sim.test.js`: AI-vs-AI games at every difficulty and on every campaign map must finish within the rules; the Commander mirror must stay roughly balanced.
 - `tests/e2e.test.js`: plays through skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Everything is served locally, so the tests need no internet access.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request.
+GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request. On `main`, a passing run then publishes the game to GitHub Pages.
 
 ### Simulating games headlessly
 
