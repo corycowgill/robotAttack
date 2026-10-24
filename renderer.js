@@ -1234,7 +1234,7 @@ window.Renderer = (function () {
         const u = rec.dome.material.uniforms;
         u.time.value = time;
         u.flash.value = rec.domeFlash;
-        u.strength.value = 0.15 + 0.85 * (rec.pool / BUILDINGS.shield.pool);
+        u.strength.value = 0.15 + 0.85 * Math.min(1, rec.pool / BUILDINGS.shield.pool);
       }
     }
     for (const id in robots) {

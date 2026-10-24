@@ -51,7 +51,6 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 | 6 | Shield Generator | 120 | 35 | 50-point damage-absorbing dome over a 3×3 area; regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
-
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling can be undone with `Z` within the same turn.
@@ -59,7 +58,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 
 ## Upgrades
 
-Select one of your structures and press `U` to upgrade it once. An upgrade costs 75% of the structure's price, adds 50% HP and can be undone in the same turn. Upgraded structures are drawn slightly larger, with a gold frame.
+Select one of your structures and press `U` to upgrade it once. An upgrade costs 75% of the structure's price (rounded to the nearest 10 credits), adds 50% HP and can be undone in the same turn. Upgraded structures are drawn slightly larger, with a gold frame.
 
 | Structure | Upgrade | Effect |
 |---|---|---|

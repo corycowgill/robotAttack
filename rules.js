@@ -153,16 +153,78 @@
         }
         return keep;
       };
-      // binary-search the threshold so both islands have about the same area
+      // binary-search the threshold for an area close to the target...
       let lo = -0.6, hi = 0.8, best = shape(0);
       for (let k = 0; k < 14; k++) {
         const mid = (lo + hi) / 2, s = shape(mid);
-        best = s;
+        if (Math.abs(s.size - landTarget) < Math.abs(best.size - landTarget)) best = s;
         if (s.size < landTarget) lo = mid; else hi = mid;
+      }
+      fillLakes(best, cols);
+      // ...then grow or erode the coastline one cell at a time to hit it exactly
+      const hqc = hqCell(side);
+      const n4 = c => { const p = xy(c), out = []; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (inBounds(p.x + dx, p.y + dy)) out.push(idx(p.x + dx, p.y + dy)); return out; };
+      const colSet = new Set(cols);
+      const score = c => { const p = xy(c); return noise(p.x, p.y) - Math.hypot((p.x - cx) / 7.5, (p.y - cy) / 8.5); };
+      for (let guard = 0; guard < 400 && best.size !== landTarget; guard++) {
+        if (best.size < landTarget) {
+          let pick = -1, ps = -Infinity;
+          for (const c of best) for (const n of n4(c)) if (colSet.has(n) && !best.has(n) && score(n) > ps) { ps = score(n); pick = n; }
+          if (pick < 0) break;
+          best.add(pick);
+        } else {
+          // erode the weakest coastline cell that keeps the island in one piece
+          const coast = [...best].filter(c => cheb(c, hqc) > 2 && n4(c).filter(n => best.has(n)).length <= 2)
+            .sort((a, b) => score(a) - score(b));
+          let pick = -1;
+          for (const c of coast) {
+            best.delete(c);
+            if (connected(best, hqc)) { pick = c; break; }
+            best.add(c);
+          }
+          if (pick < 0) break;
+        }
       }
       best.forEach(i => { land[i] = 1; });
     }
     return land;
+  }
+
+  // every cell reachable from the HQ (4-connected)?
+  function connected(set, start) {
+    const seen = new Set([start]), q = [start];
+    while (q.length) {
+      const c = q.pop(), p = xy(c);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (!inBounds(p.x + dx, p.y + dy)) continue;
+        const n = idx(p.x + dx, p.y + dy);
+        if (set.has(n) && !seen.has(n)) { seen.add(n); q.push(n); }
+      }
+    }
+    return seen.size === set.size;
+  }
+
+  // water pockets fully enclosed by the island become land
+  function fillLakes(set, cols) {
+    const colSet = new Set(cols), seen = new Set();
+    for (const c of cols) {
+      if (set.has(c) || seen.has(c)) continue;
+      const comp = [c], q = [c];
+      seen.add(c);
+      let open = false;
+      while (q.length) {
+        const k = q.pop(), p = xy(k);
+        if (p.x === 0 || p.y === 0 || p.x === W - 1 || p.y === H - 1) open = true;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (!inBounds(p.x + dx, p.y + dy)) continue;
+          const n = idx(p.x + dx, p.y + dy);
+          if (!colSet.has(n)) { open = true; continue; }   // touches the strait
+          if (set.has(n) || seen.has(n)) continue;
+          seen.add(n); comp.push(n); q.push(n);
+        }
+      }
+      if (!open) comp.forEach(k => set.add(k));
+    }
   }
 
   function isLand(state, cell) { return !!(state.land && state.land[cell]); }
@@ -405,7 +467,9 @@
     const b = buildingAt(state, cell), s = state.sides[side];
     const extra = Math.round(b.maxHp * (UP_HP - 1));
     s.credits -= info.cost;
+    const poolBefore = b.type === 'shield' ? stat(b, 'pool') : 0;
     b.level = 2; b.maxHp += extra; b.hp += extra;
+    if (b.type === 'shield') b.pool += stat(b, 'pool') - poolBefore;
     if (b.type === 'aa' && !b.fired) b.shots = stat(b, 'shots');
     s.undo.push({ kind: 'upgrade', id: b.id, cell, cost: info.cost, extra });
     return { ok: true, building: b, cost: info.cost, name: info.name };
@@ -602,7 +666,7 @@
       b.dead = true; destroyed = true;
       sa.destroyed++; sd.lost++;
     }
-    return { cell: b.cell, id: b.id, type: b.type, side: b.side, dmg, absorbed, shieldCell, shieldPool, hpAfter: b.hp, maxHp: b.maxHp, destroyed };
+    return { cell: b.cell, id: b.id, type: b.type, disguise: b.disguise, side: b.side, dmg, absorbed, shieldCell, shieldPool, hpAfter: b.hp, maxHp: b.maxHp, destroyed };
   }
 
   function targetValue(state, cell) {
@@ -786,7 +850,7 @@
       for (const n of neighbors(r.cell, 1)) {
         const b = buildingAt(state, n);
         if (!b || b.side !== foe) continue;
-        if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp < adj.hp)) adj = b;
+        if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp / b.maxHp < adj.hp / adj.maxHp)) adj = b;
       }
       if (adj) {
         const hit = damageBuilding(state, adj, r.dmg || C.ROBOT_DAMAGE, r.side, events);
