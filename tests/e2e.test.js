@@ -34,7 +34,18 @@ async function open(t, contextOpts = {}) {
 }
 
 const waitPlanning = (page, turn) => page.waitForFunction(t => __game.phase === 'planning' && __game.state.turn >= t, turn, { timeout: 60000 });
-const cellXY = (page, cell) => page.evaluate(c => { const p = Renderer.project(Renderer.cellCenter(c)); return [p.x, p.y]; }, cell);
+// Screen position of a cell, once the camera has stopped gliding (it eases into place after a game starts)
+async function cellXY(page, cell) {
+  const at = () => page.evaluate(c => { const p = Renderer.project(Renderer.cellCenter(c)); return [p.x, p.y]; }, cell);
+  let prev = await at();
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(100);
+    const cur = await at();
+    if (Math.abs(cur[0] - prev[0]) < 0.5 && Math.abs(cur[1] - prev[1]) < 0.5) return cur;
+    prev = cur;
+  }
+  return prev;
+}
 async function clickCell(page, cell) {
   const [x, y] = await cellXY(page, cell);
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.up();
