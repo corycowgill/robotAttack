@@ -110,7 +110,7 @@ const BUILDINGS = {
   hangar: {
     name: 'Robot Hangar', short: 'HGR', key: '7', cost: 160, hp: 60,
     desc: 'Drops 1 battle mech per turn into enemy territory. Mechs walk to and smash enemy buildings.',
-    stats: () => ['Mech: ' + CONST.ROBOT_HP + ' HP, ' + CONST.ROBOT_DAMAGE + ' dmg, moves 2', CONST.DROP_ENERGY + ' energy per drop', 'Drop pods cannot be intercepted'],
+    stats: () => ['Mech: ' + CONST.ROBOT_HP + ' HP, ' + CONST.ROBOT_DAMAGE + ' dmg, moves 2', CONST.DROP_ENERGY + ' energy per drop', 'Drop pods cannot be intercepted', 'Drop on your own island to garrison it'],
     counter: 'Countered by Gun Pods'
   },
   gunpod: {

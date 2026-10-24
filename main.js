@@ -278,7 +278,7 @@
     const silos = R.buildingsOf(state, P, 'silo').length, freeSilos = R.freeLaunchers(state, P, 'silo').length;
     const hangars = R.buildingsOf(state, P, 'hangar').length, freeH = R.freeLaunchers(state, P, 'hangar').length;
     const fireReason = !silos ? 'Build a Missile Silo first' : !freeSilos ? 'All silos tasked' : s.energy < CONST.MISSILE_ENERGY ? 'Need ' + CONST.MISSILE_ENERGY + ' energy' : null;
-    const dropReason = !hangars ? 'Build a Robot Hangar first' : R.dropReason(state, P, R.hqCell(A));
+    const dropReason = !hangars ? 'Build a Robot Hangar first' : R.dropReadyReason(state, P);
     const ready = phase === 'planning' && !!fireReason && !!dropReason && s.credits < 80;
     UI.setActions({
       fire: { enabled: !fireReason, selected: mode === 'fire', reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? freeSilos + '/' + silos : '' },
@@ -363,7 +363,8 @@
       Renderer.setGridEmphasis(true);
     } else if (mode === 'fire' || mode === 'drop') {
       const col = mode === 'fire' ? [255, 120, 30, 46] : [46, 196, 255, 46];
-      Renderer.setZone(c => R.ownerOfCell(c) === A ? col : null);
+      // drops may also target your own island (garrison)
+      Renderer.setZone(c => R.ownerOfCell(c) === A ? col : (mode === 'drop' && R.isLand(state, c) && R.ownerOfCell(c) === P ? [120, 255, 170, 26] : null));
       Renderer.setGridEmphasis(true);
     } else {
       Renderer.setZone(null);
@@ -494,7 +495,7 @@
       if (!r.ok) return fail(r.reason);
       SND.play('select');
       UI.log('Mech drop ordered at ' + cellName(c), 'player');
-      if (R.dropReason(state, P, c)) cancelMode();
+      if (R.dropReadyReason(state, P)) cancelMode();
     } else {
       selectedCell = (selectionInfo(c) ? c : -1);
       if (selectedCell >= 0) SND.play('uiClick');
@@ -548,11 +549,11 @@
         break;
       }
       case 'drop': {
-        const reason = R.dropReason(state, P, R.hqCell(A));
+        const reason = R.dropReadyReason(state, P);
         if (reason) return fail(reason);
         SND.play('uiClick');
         mode = mode === 'drop' ? 'select' : 'drop'; selectedCell = -1;
-        if (mode === 'drop') UI.toast('Click an enemy cell to drop a mech', 'warn');
+        if (mode === 'drop') UI.toast('Click the enemy island to raid — or your own island to garrison', 'warn');
         break;
       }
       case 'upgrade': {
@@ -729,7 +730,7 @@
       const t0 = t + i * 0.18;
       const dur = e.type === 'robotMove' ? e.path.length * 0.42 : 0.7;
       botEnd = Math.max(botEnd, t0 + dur);
-      at(t0, () => e.type === 'robotMove' ? animateRobotMove(e) : animateRobotHit(e, idAt));
+      at(t0, () => e.type === 'robotMove' ? animateRobotMove(e) : e.type === 'robotFight' ? animateRobotFight(e) : animateRobotHit(e, idAt));
     });
     if (bots.length) t = botEnd + 0.4;
 
@@ -1005,6 +1006,34 @@
     });
   }
 
+  // Mech vs mech melee
+  function animateRobotFight(e) {
+    const rec = Renderer.getRobot(e.id), foe = Renderer.getRobot(e.targetId);
+    const tp = foe ? foe.group.position.clone() : Renderer.cellCenter(e.targetCell);
+    if (rec) {
+      rec.group.rotation.y = Math.atan2(tp.x - rec.group.position.x, tp.z - rec.group.position.z);
+      rec.punch = 1;
+    }
+    if (foe) foe.group.rotation.y = Math.atan2((rec ? rec.group.position.x : tp.x) - tp.x, (rec ? rec.group.position.z : tp.z) - tp.z);
+    Timeline.tween(0.22, () => {}, () => {
+      const p = tp.clone().setY(6);
+      Fx.smallBlast(p, 0xffcc66);
+      SND.play('robotPunch', { pan: panAtPos(p) });
+      Renderer.hitRobot(e.targetId);
+      Renderer.setRobotHp(e.targetId, e.hpAfter);
+      if (foe && foe.group.visible) floatAt(e.targetCell, '-' + e.dmg, 'dmg', 16);
+      const own = e.side === P;
+      if (e.killed) {
+        Fx.explosion(p.setY(2), 0.7);
+        SND.play('robotDie', { pan: panAtPos(p) });
+        Renderer.removeRobot(e.targetId);
+        UI.log(own ? 'Your mech destroyed an enemy mech in melee' : 'Your mech was destroyed in melee', own ? 'good' : 'bad');
+      } else {
+        UI.log((own ? 'Your mech pummels an enemy mech' : 'Enemy mech pummels your mech') + ' (-' + e.dmg + ', ' + e.hpAfter + ' HP left)', own ? 'good' : 'bad');
+      }
+    });
+  }
+
   function animateDrop(e, idAt) {
     const own = e.side === P;
     const hid = idAt[e.from];
@@ -1037,7 +1066,9 @@
         Renderer.addTrauma(0.2, b);
       }
       SND.play('robotLand', { pan: panAt(e.to) });
-      UI.log(own ? 'Mech landed at ' + cellName(e.to) : (landVisible ? 'Enemy mech landed at ' + cellName(e.to) + '!' : 'Enemy drop pod detected'), own ? 'player' : 'bad');
+      const garrison = R.ownerOfCell(e.to) === e.side;
+      UI.log(own ? (garrison ? 'Garrison mech deployed at ' : 'Mech landed at ') + cellName(e.to)
+        : garrison ? 'Enemy garrison mech deployed' : (landVisible ? 'Enemy mech landed at ' + cellName(e.to) + '!' : 'Enemy drop pod detected'), own ? 'player' : 'bad');
     });
   }
 
@@ -1063,6 +1094,7 @@
       if (e.type === 'impact') for (const h of e.hits) r[e.side].dealt += h.dmg;
       if (e.type === 'robotHit') r[e.side].dealt += e.hit.dmg;
       if (e.type === 'gunfire') for (const s of e.shots) if (s.killed) r[other(e.side)].robotsLost++;
+      if (e.type === 'robotFight' && e.killed) r[other(e.side)].robotsLost++;
       if (e.type === 'end') for (const d of e.destroyed) r[d.side].lostNames.push(BUILDINGS[d.type].name);
     }
     return r;

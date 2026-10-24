@@ -386,7 +386,7 @@ window.UI = (function () {
       <h4>Upgrades</h4>
       <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
-      <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
+      <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods, or by <b>garrison mechs</b>: drop a mech on your own island and it hunts invaders. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
       <h4>Structures</h4>
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
