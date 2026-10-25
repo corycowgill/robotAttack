@@ -1,2 +1,4 @@
 node_modules/
 test-results/
+.audio-work/
+tools/__pycache__/

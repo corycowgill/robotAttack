@@ -15,18 +15,24 @@
   var musicEnabled = lsGet('ra_music') !== '0';
 
   var MUSIC_LEVEL = 0.32;
-  var SFX_LEVEL = 0.9, UI_LEVEL = 0.8;
+  var SFX_LEVEL = 0.9, UI_LEVEL = 0.8, AMB_LEVEL = 0.7;
   // per-channel volume (0..1), on top of the master volume
   var musicVol = lsNum('ra_music_vol', 1), sfxVol = lsNum('ra_sfx_vol', 1);
+  var uiVol = lsNum('ra_ui_vol', 1), ambVol = lsNum('ra_amb_vol', 0.8);
   function lsNum(k, d) { try { var v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? Math.max(0, Math.min(1, v)) : d; } catch (e) { return d; } }
-  var MAX_VOICES = 24;
+  // 'studio' plays the generated clips, 'retro' the procedural synth recipes
+  var style = lsGet('ra_sound_style') === 'retro' ? 'retro' : 'studio';
+  var bgMute = lsGet('ra_bg_mute') !== '0';   // silence the game while its tab is hidden
+  var MAX_VOICES = 32;
   var THROTTLE_MS = 40;
+  // most copies of one sound that may ring at once (a squad of mechs walking, a salvo landing)
+  var POLY = { robotStep: 3, gunfire: 4, flak: 5, explosion: 6, incoming: 4, uiHover: 1 };
 
   // ---------- engine state ----------
   var ctx = null, triedCreate = false;
-  var master, comp, sfxBus, uiBus, musicBus, reverbIn, noiseBuf;
+  var master, comp, sfxBus, uiBus, musicBus, duckBus, ambBus, reverbIn, noiseBuf;
   var mode = 'off', tension = false;
-  var lastPlay = {}, activeVoices = 0;
+  var lastPlay = {}, activeVoices = 0, perName = {}, lastVariant = {};
 
   function ok() { return !!ctx; }
   function now() { return ctx.currentTime; }
@@ -84,8 +90,11 @@
     master.connect(comp);
 
     sfxBus = G(SFX_LEVEL * sfxVol); sfxBus.connect(master);
-    uiBus = G(UI_LEVEL * sfxVol); uiBus.connect(master);
-    musicBus = G(musicEnabled ? MUSIC_LEVEL * musicVol : 0); musicBus.connect(master);
+    uiBus = G(UI_LEVEL * uiVol); uiBus.connect(master);
+    // music -> duck (dips under big blasts) -> master
+    duckBus = G(1); duckBus.connect(master);
+    musicBus = G(musicEnabled ? MUSIC_LEVEL * musicVol : 0); musicBus.connect(duckBus);
+    ambBus = G(AMB_LEVEL * ambVol); ambBus.connect(master);
 
     // reverb: generated stereo IR, 2s noise * e^(-3t)
     try {
@@ -426,8 +435,107 @@
     });
   };
 
+  // Missile into the sea: muffled boom and a falling hiss of spray
+  R.splash = function (o, t, p) {
+    thump(o, t, 70 * p, 30, 0.4, 0.6);
+    var f = noiseHit(o, t, 'lowpass', 900, 0.8, 0.01, 0.5, 0.9);
+    sweep(f.frequency, 1400 * p, 300, t, 0.9);
+    var s = noiseHit(o, t + 0.25, 'bandpass', 3000, 0.6, 0.15, 0.18, 0.9);
+    sweep(s.frequency, 4000, 1500, t + 0.25, 1.0);
+  };
+
+  R.strikeImpact = function (o, t, p) {
+    R.explosion(o, t, p * 0.9, { big: true });
+    tone(o, 'sawtooth', 1600 * p, t, 0.002, 0.18, 0.6, 80, F('lowpass', 3000, 3));
+    crackle(o, t, 20, 1.6, 0.18);
+  };
+
+  R.uplinkReady = function (o, t, p) {
+    var a = O('sawtooth', 110 * p, t, 1.0), lp = F('lowpass', 400, 6), g = G(0);
+    a.frequency.exponentialRampToValueAtTime(440 * p, t + 0.8);
+    sweep(lp.frequency, 400, 4000, t, 0.8);
+    env(g, t, 0.6, 0.1, 0.3);
+    chain(a, lp, g, o);
+    chime(o, t + 0.8, 880 * p, 0.16, 0.8);
+    chime(o, t + 0.8, 1318.5 * p, 0.1, 0.9);
+  };
+
+  R.hqGun = function (o, t, p) {
+    thump(o, t, 120 * p, 40, 0.25, 0.7);
+    noiseHit(o, t, 'lowpass', 2500 * p, 0.7, 0.001, 0.55, 0.2);
+    crackle(o, t, 3, 0.15, 0.1);
+  };
+
+  R.mechClash = function (o, t, p) {
+    clank(o, t, 470 * p, 690 * p, 1200 * p, 0.25, 0.18);
+    clank(o, t + 0.05, 330 * p, 520 * p, 900 * p, 0.16, 0.22);
+    noiseHit(o, t, 'bandpass', 2200 * p, 1, 0.002, 0.4, 0.15);
+    thump(o, t, 90 * p, 45, 0.15, 0.5);
+  };
+
+  R.upgrade = function (o, t, p) {
+    R.build(o, t, p);
+    [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { chime(o, t + 0.45 + i * 0.07, f * p, 0.1, 0.4); });
+  };
+
+  // Inflatable decoy bursting: a pop and a deflating hiss
+  R.decoyPop = function (o, t, p) {
+    noiseHit(o, t, 'bandpass', 1200 * p, 0.8, 0.001, 0.6, 0.06);
+    thump(o, t, 160 * p, 60, 0.08, 0.4);
+    var f = noiseHit(o, t + 0.05, 'highpass', 3000, 0.7, 0.03, 0.15, 0.9);
+    sweep(f.frequency, 5000, 1500, t + 0.05, 0.9);
+    tone(o, 'square', 120 * p, t + 0.1, 0.02, 0.04, 0.6, 40, F('lowpass', 600, 4));
+  };
+
+  R.targetLock = function (o, t) {
+    [1500, 1500, 2000].forEach(function (f, i) { tone(o, 'square', f, t + i * 0.07, 0.002, 0.05, i === 2 ? 0.18 : 0.04, 0, F('lowpass', 4000, 0.7)); });
+  };
+  R.strikeLock = function (o, t) {
+    tone(o, 'sawtooth', 110, t, 0.01, 0.12, 0.9, 0, F('lowpass', 700, 3));
+    tone(o, 'sine', 220, t, 0.01, 0.12, 1.0);
+    chime(o, t + 0.1, 660, 0.12, 0.8);
+  };
+  R.dropOrder = function (o, t, p) {
+    clank(o, t, 380 * p, 570 * p, 900 * p, 0.14, 0.1);
+    noiseHit(o, t + 0.05, 'highpass', 3000, 0.7, 0.005, 0.12, 0.2);
+    R.select(o, t + 0.2);
+  };
+  R.undo = function (o, t) {
+    var f = noiseHit(o, t, 'bandpass', 600, 1.2, 0.18, 0.12, 0.05);
+    sweep(f.frequency, 3000, 600, t, 0.22);
+  };
+  R.cancel = function (o, t) {
+    tone(o, 'triangle', 900, t, 0.003, 0.1, 0.06);
+    tone(o, 'triangle', 600, t + 0.07, 0.003, 0.1, 0.1);
+  };
+  R.combatStart = function (o, t) {
+    thump(o, t, 80, 30, 0.8, 0.8);
+    var lp = F('lowpass', 2400, 1), g = G(0);
+    env(g, t, 0.01, 0.12, 1.6); chain(lp, g, o);
+    [73.42, 110, 146.83, 220].forEach(function (f) { O('sawtooth', f, t, 1.6).connect(lp); });
+    noiseHit(o, t, 'lowpass', 1200, 0.7, 0.002, 0.4, 0.8);
+  };
+  R.achievement = function (o, t) {
+    [659.25, 783.99, 987.77, 1318.5].forEach(function (f, i) { chime(o, t + i * 0.08, f, 0.14, i === 3 ? 1.0 : 0.35); });
+  };
+  R.radio = function (o, t) {
+    noiseHit(o, t, 'bandpass', 2000, 0.8, 0.005, 0.12, 0.35);
+    tone(o, 'square', 1800, t + 0.38, 0.002, 0.05, 0.03, 0, F('lowpass', 3000, 0.7));
+  };
+  R.handoff = function (o, t) {
+    var f = noiseHit(o, t, 'bandpass', 400, 1, 0.3, 0.1, 0.5);
+    sweep(f.frequency, 400, 2500, t, 0.6);
+    tone(o, 'sine', 220, t, 0.2, 0.08, 0.6);
+  };
+
   // name -> [bus, duration(s) incl. tails, reverb send, pitch variation]
   var META = {
+    splash: ['sfx', 1.6, 0.2, 1], strikeImpact: ['sfx', 3.0, 0.3, 1], uplinkReady: ['ui', 1.8, 0.2, 0],
+    hqGun: ['sfx', 0.5, 0.2, 1], mechClash: ['sfx', 0.5, 0.15, 1], upgrade: ['sfx', 1.3, 0.2, 0],
+    decoyPop: ['sfx', 1.0, 0.15, 1], targetLock: ['ui', 0.4, 0.05, 0], strikeLock: ['ui', 1.1, 0.2, 0],
+    dropOrder: ['ui', 0.6, 0.05, 0], undo: ['ui', 0.3, 0, 0], cancel: ['ui', 0.25, 0, 0],
+    combatStart: ['sfx', 1.8, 0.3, 0], achievement: ['ui', 1.4, 0.2, 0], radio: ['ui', 0.5, 0, 0],
+    handoff: ['ui', 0.8, 0.1, 0],
     explosion: ['sfx', 1.8, 0.22, 1], flak: ['sfx', 0.6, 0.2, 1],
     missileLaunch: ['sfx', 1.3, 0.2, 1], incoming: ['sfx', 1.9, 0.15, 1],
     strikeUp: ['sfx', 1.7, 0.05, 1], strikeDown: ['sfx', 1.5, 0.05, 1],
@@ -441,16 +549,23 @@
     uiHover: ['ui', 0.05, 0, 0], uiClick: ['ui', 0.08, 0, 0],
     select: ['ui', 0.12, 0.05, 0], error: ['ui', 0.2, 0, 0],
     turnStart: ['ui', 1.8, 0.15, 0], endTurn: ['ui', 0.4, 0.1, 0],
-    alarm: ['sfx', 1.0, 0.1, 0], victory: ['ui', 3.1, 0.3, 0],
-    defeat: ['ui', 3.0, 0.3, 0]
+    alarm: ['sfx', 1.0, 0.1, 0], victory: ['music', 3.1, 0.3, 0],
+    defeat: ['music', 3.0, 0.3, 0]
   };
+  // sounds big enough to dip the music under them
+  var DUCK = { explosion: 0.75, strikeImpact: 0.45, destroyed: 0.7, combatStart: 0.6, titleSting: 0.5 };
 
   // ---------- sample layer ----------
-  // Optional pre-rendered clips listed in assets/audio/manifest.json
-  // (generated offline by tools/gen_audio.py). Any sound or music mode
-  // without a clip keeps using the procedural recipes above.
+  // Pre-rendered clips listed in assets/audio/manifest.json (generated offline by
+  // tools/gen_audio.py). Any sound or music mode without a clip, and everything in
+  // the 'retro' sound style, keeps using the procedural recipes above.
+  // Music and ambience entries carry loop points: the file wraps its own tail and
+  // head around the loop, so the loop is seamless whatever the decoder's padding.
   var SAMPLE_DIR = 'assets/audio/';
-  var samples = {}, sampleGain = {}, musicBufs = {}, track = null;
+  var samples = {}, sampleGain = {}, musicBufs = {}, ambBufs = {}, track = null, ambTracks = {};
+  // Music decodes on demand and only a few tracks stay in memory (a decoded minute of
+  // stereo is ~10 MB, too much to hold every track on a phone)
+  var musicEntries = {}, musicLoading = {}, musicUsed = {}, MUSIC_CACHE = 3;
 
   function decode(url) {
     return fetch(url).then(function (r) { if (!r.ok) throw new Error(url); return r.arrayBuffer(); })
@@ -462,6 +577,13 @@
       });
   }
 
+  // manifest loop entry: "file.mp3" (whole file loops) or { file, loopStart, loopEnd }
+  function loopClip(entry, buf) {
+    var e = typeof entry === 'string' ? { file: entry } : entry;
+    var ls = e.loopStart || 0, le = e.loopEnd && e.loopEnd <= buf.duration ? e.loopEnd : buf.duration;
+    return { buf: buf, loopStart: ls, loopEnd: le };
+  }
+
   function loadSamples() {
     if (typeof fetch !== 'function' || location.protocol === 'file:') return;
     fetch(SAMPLE_DIR + 'manifest.json')
@@ -469,6 +591,8 @@
       .then(function (man) {
         if (!man) return;
         sampleGain = man.gain || {};
+        musicEntries = man.music || {};
+        applyMusic();   // starts loading the current mode's track
         Object.keys(man.sfx || {}).forEach(function (name) {
           (man.sfx[name] || []).forEach(function (file) {
             decode(SAMPLE_DIR + file).then(function (buf) {
@@ -476,11 +600,12 @@
             }).catch(function () { /* keep procedural */ });
           });
         });
-        Object.keys(man.music || {}).forEach(function (m) {
-          decode(SAMPLE_DIR + man.music[m]).then(function (buf) {
-            musicBufs[m] = buf;
+        Object.keys(man.amb || {}).forEach(function (a) {
+          var e = man.amb[a];
+          decode(SAMPLE_DIR + (e.file || e)).then(function (buf) {
+            ambBufs[a] = loopClip(e, buf);
             applyMusic();
-          }).catch(function () { /* keep procedural */ });
+          }).catch(function () { /* no ambience */ });
         });
       })
       .catch(function () { /* no manifest: procedural only */ });
@@ -496,29 +621,82 @@
     return buf.duration / pitch;
   }
 
-  function musicFor(m) {
-    if (musicBufs[m]) return musicBufs[m];
-    if (m === 'menu') return musicBufs.planning || null;
-    return null;
+  // a random variant, never the same one twice in a row
+  function pickVariant(name, bufs) {
+    var i = Math.floor(Math.random() * bufs.length);
+    if (bufs.length > 1 && i === lastVariant[name]) i = (i + 1 + Math.floor(Math.random() * (bufs.length - 1))) % bufs.length;
+    lastVariant[name] = i;
+    return bufs[i];
   }
 
-  // Crossfade to a looping music clip (or to nothing)
-  function setTrack(m) {
-    var buf = m ? musicFor(m) : null;
-    if (track && track.buf === buf) return;
-    if (track) {
-      var old = track;
-      fadeTo(old.out.gain, 0.0001, 1.5);
-      setTimeout(function () { try { old.src.stop(); old.out.disconnect(); } catch (e) { /* ignore */ } }, 2500);
-      track = null;
-    }
-    if (!buf) return;
-    var out = G(0.0001); out.connect(musicBus);
+  // which track a mode plays: climax and menu borrow a neighbour's track when theirs is missing.
+  // null means the procedural music.
+  function trackKey(m) {
+    if (style === 'retro' || m === 'off') return null;
+    if (m === 'combat' && tension && musicEntries.climax) return 'climax';
+    if (musicEntries[m]) return m;
+    if (m === 'menu' && musicEntries.planning) return 'planning';
+    return null;
+  }
+  function loadMusic(key) {
+    if (!key || musicBufs[key] || musicLoading[key] || !musicEntries[key]) return;
+    musicLoading[key] = true;
+    var e = musicEntries[key];
+    decode(SAMPLE_DIR + (e.file || e)).then(function (buf) {
+      delete musicLoading[key];
+      musicBufs[key] = loopClip(e, buf);
+      musicUsed[key] = Date.now();
+      var keys = Object.keys(musicBufs).sort(function (a, b) { return musicUsed[a] - musicUsed[b]; });
+      for (var i = 0; keys.length - i > MUSIC_CACHE; i++) if (!track || musicBufs[keys[i]] !== track.clip) delete musicBufs[keys[i]];
+      applyMusic();
+    }).catch(function () { delete musicLoading[key]; delete musicEntries[key]; applyMusic(); });   // that track falls back to procedural
+  }
+  // the track that usually comes next, decoded ahead of time
+  var NEXT = { menu: 'planning', planning: 'combat', combat: 'planning' };
+
+  function startLoop(clip, bus, level, fade) {
+    var out = G(0.0001); out.connect(bus);
     var src = ctx.createBufferSource();
-    src.buffer = buf; src.loop = true;
-    src.connect(out); src.start();
-    fadeTo(out.gain, sampleGain['music_' + m] || 1, 1.5);
-    track = { buf: buf, src: src, out: out };
+    src.buffer = clip.buf; src.loop = true;
+    src.loopStart = clip.loopStart; src.loopEnd = clip.loopEnd;
+    src.connect(out); src.start(now(), clip.loopStart);
+    fadeTo(out.gain, level, fade);
+    return { clip: clip, src: src, out: out };
+  }
+  function stopLoop(tr, fade) {
+    fadeTo(tr.out.gain, 0.0001, fade);
+    setTimeout(function () { try { tr.src.stop(); tr.out.disconnect(); } catch (e) { /* ignore */ } }, fade * 1000 + 1000);
+  }
+
+  // Crossfade to a track's looping clip (or to nothing)
+  function setTrack(key) {
+    var clip = key ? musicBufs[key] : null;
+    if (key) musicUsed[key] = Date.now();
+    if (track && track.clip === clip) return;
+    if (track) { stopLoop(track, 1.5); track = null; }
+    if (!clip) return;
+    track = startLoop(clip, musicBus, sampleGain['music_' + key] || 1, 1.5);
+  }
+
+  // Ambience beds: surf around the islands while in a game, far-off fighting during combat
+  var AMB_FOR = { menu: { ocean: 0.5, battleAmb: 0.35 }, planning: { ocean: 1 }, combat: { ocean: 0.8, battleAmb: 0.8 } };
+  function applyAmbience() {
+    var want = (style === 'retro' ? null : AMB_FOR[mode]) || {};
+    Object.keys(ambBufs).forEach(function (a) {
+      var lvl = (want[a] || 0) * (sampleGain['amb_' + a] || 1), cur = ambTracks[a];
+      if (lvl > 0 && !cur) ambTracks[a] = startLoop(ambBufs[a], ambBus, lvl, 2.5);
+      else if (lvl > 0) fadeTo(cur.out.gain, lvl, 2.0);
+      else if (cur) { stopLoop(cur, 2.0); delete ambTracks[a]; }
+    });
+  }
+
+  // Dip the music for a moment under a big blast
+  function duck(depth, hold) {
+    var t = now(), p = duckBus.gain;
+    p.cancelScheduledValues(t);
+    p.setValueAtTime(p.value, t);
+    p.linearRampToValueAtTime(Math.min(depth, p.value), t + 0.04);
+    p.setTargetAtTime(1, t + 0.04 + hold, 0.5);
   }
 
   function play(name, opts) {
@@ -529,22 +707,28 @@
       var m = META[name], nowMs = Date.now();
       if (lastPlay[name] && nowMs - lastPlay[name] < THROTTLE_MS) return;
       if (m[0] !== 'ui' && activeVoices >= MAX_VOICES) return;
+      if (POLY[name] && (perName[name] || 0) >= POLY[name]) return;
       lastPlay[name] = nowMs;
       var big = name === 'explosion' && opts.big;
-      var out = makeOut(opts, m[0] === 'ui' ? uiBus : sfxBus, big ? 0.45 : m[2]);
+      // stingers ride the music bus, unless music is off
+      var bus = m[0] === 'ui' ? uiBus : m[0] === 'music' ? (musicEnabled && musicVol > 0 ? musicBus : uiBus) : sfxBus;
+      var out = makeOut(opts, bus, big ? 0.45 : m[2]);
       var pitch = m[3] ? 1 + (Math.random() * 0.1 - 0.05) : 1;
       var key = big && samples.explosionBig ? 'explosionBig' : name;
-      var bufs = samples[key], dur;
+      var bufs = style === 'retro' ? null : samples[key], dur;
       if (bufs && bufs.length) {
         var gain = (sampleGain[key] || 1) * (big && key === name ? 1.3 : 1);
-        dur = playSample(out, bufs[Math.floor(Math.random() * bufs.length)], now() + 0.005, pitch, gain) + 0.3;
+        dur = playSample(out, pickVariant(key, bufs), now() + 0.005, pitch, gain) + 0.3;
       } else {
         R[name](out, now() + 0.005, pitch, opts);
         dur = (big ? 3.0 : m[1]) + 0.3;
       }
+      if (DUCK[name] && (opts.gain == null || opts.gain > 0.4)) duck(big ? 0.5 : DUCK[name], big ? 1.2 : 0.5);
       activeVoices++;
+      perName[name] = (perName[name] || 0) + 1;
       setTimeout(function () {
         activeVoices = Math.max(0, activeVoices - 1);
+        perName[name] = Math.max(0, perName[name] - 1);
         try { out.disconnect(); } catch (e) { /* ignore */ }
       }, dur * 1000);
     } catch (e) { /* never throw */ }
@@ -699,12 +883,16 @@
     if (!ok()) return;
     try {
       var m = musicEnabled ? mode : 'off';
-      var clip = m !== 'off' && musicFor(m);
-      setTrack(clip ? m : null);
+      var key = trackKey(m), clip = !!key;   // a track that is still loading plays silence, not the synth
+      loadMusic(key);
+      if (key) loadMusic(trackKey(NEXT[m]));
+      setTrack(key && musicBufs[key] ? key : null);
       if (!clip && (m === 'menu' || m === 'planning' || m === 'combat')) startBed(); else stopBed();
       if (!clip && m === 'combat') startCombat(); else stopCombat();
-      updateTension(tension && m !== 'off');
+      // the climax track carries the tension in combat; elsewhere a high pulse warns of the HQ's state
+      updateTension(tension && m !== 'off' && key !== 'climax');
     } catch (e) { /* ignore */ }
+    try { applyAmbience(); } catch (e) { /* ignore */ }
   }
 
   // ---------- public API ----------
@@ -772,7 +960,37 @@
   function setSfxVolume(v) {
     sfxVol = clamp(+v || 0, 0, 1);
     lsSet('ra_sfx_vol', sfxVol);
-    try { if (ok()) { fadeTo(sfxBus.gain, SFX_LEVEL * sfxVol, 0.06); fadeTo(uiBus.gain, UI_LEVEL * sfxVol, 0.06); } } catch (e) { /* ignore */ }
+    try { if (ok()) fadeTo(sfxBus.gain, SFX_LEVEL * sfxVol, 0.06); } catch (e) { /* ignore */ }
+  }
+  function setUiVolume(v) {
+    uiVol = clamp(+v || 0, 0, 1);
+    lsSet('ra_ui_vol', uiVol);
+    try { if (ok()) fadeTo(uiBus.gain, UI_LEVEL * uiVol, 0.06); } catch (e) { /* ignore */ }
+  }
+  function setAmbVolume(v) {
+    ambVol = clamp(+v || 0, 0, 1);
+    lsSet('ra_amb_vol', ambVol);
+    try { if (ok()) fadeTo(ambBus.gain, AMB_LEVEL * ambVol, 0.1); } catch (e) { /* ignore */ }
+  }
+  function setStyle(s) {
+    style = s === 'retro' ? 'retro' : 'studio';
+    lsSet('ra_sound_style', style);
+    applyMusic();
+  }
+
+  // Background tabs: suspend the whole context, resume on return
+  function onVisibility() {
+    if (!ok() || !document) return;
+    try {
+      if (document.hidden && bgMute) { if (ctx.state === 'running') ctx.suspend(); }
+      else if (ctx.state === 'suspended') { var pr = ctx.resume(); if (pr && pr.catch) pr.catch(function () { /* ignore */ }); }
+    } catch (e) { /* ignore */ }
+  }
+  try { document.addEventListener('visibilitychange', onVisibility); } catch (e) { /* no DOM */ }
+  function setBgMute(b) {
+    bgMute = !!b;
+    lsSet('ra_bg_mute', bgMute ? '1' : '0');
+    onVisibility();
   }
 
   window.GameAudio = {
@@ -780,6 +998,14 @@
     getMusicVolume: function () { return musicVol; },
     setSfxVolume: setSfxVolume,
     getSfxVolume: function () { return sfxVol; },
+    setUiVolume: setUiVolume,
+    getUiVolume: function () { return uiVol; },
+    setAmbVolume: setAmbVolume,
+    getAmbVolume: function () { return ambVol; },
+    setStyle: setStyle,
+    getStyle: function () { return style; },
+    setBgMute: setBgMute,
+    getBgMute: function () { return bgMute; },
     unlock: unlock,
     play: play,
     setMode: setMode,
@@ -792,6 +1018,6 @@
     setMusicEnabled: setMusicEnabled,
     isMusicEnabled: function () { return musicEnabled; },
     // which generated clips are loaded (for diagnostics)
-    loadedSamples: function () { return { sfx: Object.keys(samples), music: Object.keys(musicBufs) }; }
+    loadedSamples: function () { return { sfx: Object.keys(samples), music: Object.keys(musicBufs), amb: Object.keys(ambBufs), track: track && Object.keys(musicBufs).filter(function (k) { return musicBufs[k] === track.clip; })[0] }; }
   };
 })();

@@ -177,6 +177,11 @@ window.UI = (function () {
   #settings h2 { margin: 0 0 14px; letter-spacing: .14em; }
   .setrow { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--c-line); font-size: 15px; }
   .setrow:last-of-type { border-bottom: 0; }
+  .sethead { margin: 14px 0 2px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--c-dim); font-weight: 600; }
+  #settings h2 + .sethead { margin-top: 0; }
+  #settings .menu-box { max-height: 92vh; overflow-y: auto; }
+  .setpair { display: flex; align-items: center; gap: 12px; }
+  .setpair input[type=range] { width: min(120px, 24vw); }
   .setrow small { display: block; font-size: 12px; color: var(--c-dim); }
   .setrow input[type=range] { width: min(200px, 40vw); }
   /* Sliders: thin track filled up to the thumb (--p is set from JS) */
@@ -573,9 +578,15 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'settings', class: 'screen' }, `
       <div class="menu-box panel">
         <h2>SETTINGS</h2>
+        <h3 class="sethead">Audio</h3>
         <div class="setrow"><span>Master volume</span><input type="range" min="0" max="1" step="0.05" data-set="vol"></div>
-        <div class="setrow"><span>Music</span><input type="range" min="0" max="1" step="0.05" data-set="music"></div>
-        <div class="setrow"><span>Sound effects</span><input type="range" min="0" max="1" step="0.05" data-set="sfx"></div>
+        <div class="setrow"><span>Music</span><span class="setpair">${seg('musicOn', [[1, 'On'], [0, 'Off']])}<input type="range" min="0" max="1" step="0.05" data-set="music"></span></div>
+        <div class="setrow"><span>Sound effects<small>Explosions, weapons, mechs</small></span><input type="range" min="0" max="1" step="0.05" data-set="sfx"></div>
+        <div class="setrow"><span>Interface<small>Clicks, alerts, order confirmations</small></span><input type="range" min="0" max="1" step="0.05" data-set="ui"></div>
+        <div class="setrow"><span>Ambience<small>Surf, wind and distant battle</small></span><input type="range" min="0" max="1" step="0.05" data-set="amb"></div>
+        <div class="setrow"><span>Sound style<small>Studio: recorded score and effects. Retro: synthesized chiptune-style</small></span>${seg('style', [['studio', 'Studio'], ['retro', 'Retro']])}</div>
+        <div class="setrow"><span>In background<small>When the game's tab or app is hidden</small></span>${seg('bgMute', [[1, 'Mute'], [0, 'Keep playing']])}</div>
+        <h3 class="sethead">Game</h3>
         <div class="setrow"><span>Graphics<small>Auto lowers detail if the frame rate drops</small></span>${seg('quality', [['auto', 'Auto'], [0, 'Low'], [1, 'Medium'], [2, 'High']])}</div>
         <div class="setrow"><span>Combat playback</span>${seg('speed', [[1, '1x'], [2, '2x'], [3, '3x']])}</div>
         <div class="setrow"><span>Camera shake</span>${seg('shake', [[1, 'On'], [0, 'Off']])}</div>
@@ -627,7 +638,7 @@ window.UI = (function () {
     root.querySelectorAll('#settings [data-set]').forEach(c => {
       const ev = c.tagName === 'INPUT' ? 'input' : 'click';
       c.addEventListener(ev, () => {
-        const v = c.tagName === 'INPUT' ? +c.value : (c.dataset.v === 'auto' ? 'auto' : +c.dataset.v);
+        const v = c.tagName === 'INPUT' ? +c.value : (isNaN(+c.dataset.v) ? c.dataset.v : +c.dataset.v);
         H.onSetting(c.dataset.set, v);
       });
     });
@@ -1123,7 +1134,7 @@ window.UI = (function () {
   function hideGameOver() { $('gameover').classList.remove('show'); }
 
   function showHelp(on) { $('help').classList.toggle('show', on); }
-  // values: { vol, music, sfx, quality, speed, shake, intents }; null closes
+  // values: { vol, musicOn, music, sfx, ui, amb, style, bgMute, quality, speed, shake, intents }; null closes
   function showSettings(values) {
     if (!values) { $('settings').classList.remove('show'); return; }
     paintSettings(values);
