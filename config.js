@@ -70,6 +70,38 @@ const CONST = {
   }
 };
 
+// Real-time mode (Metal Marines style): resources flow every second, attacks launch whenever
+// launchers are ready, and the defender sees them coming. Per-turn values in CONST/BUILDINGS
+// (income, shield regen, uplink charge) are paid out smoothly over one ROUND.
+const RT = {
+  TICK: 0.1,              // simulation step, seconds
+  ROUND: 15,              // seconds over which one turn's income, regen and repair allowance arrive
+  CLOCK_PER_TURN: 20,     // the turn-limit option becomes a clock: 30 turns = 10 minutes
+  SILO_RELOAD: 16,        // seconds before a silo can fire again
+  HANGAR_RELOAD: 20,      // seconds to ready a new mech after the last one came home or died
+  MISSILE_FLIGHT: 8,      // launch to impact, plus a little per cell travelled
+  SALVO_GAP: 0.4,         // missiles in one attack leave one after another
+  SHIP_DELAY: 1.0,        // the dropship follows the last missile
+  SHIP_FLIGHT: 10,
+  SHIP_HULL: 2,           // AA hits to bring a dropship down, +1 per extra mech aboard
+  MECHS_PER_SHIP: 3,
+  MECH_TIME: 40,          // seconds a landed mech fights before its dropship collects it
+  MECH_ZONE: 2,           // mechs fight inside the 5x5 around where they landed
+  MECH_STEP: 1.6,         // seconds between a mech's moves or blows
+  MECH_DAMAGE_MUL: 0.5,   // per blow, versus a turn-based blow
+  ENGAGE_FROM: 0.5,       // AA can shoot at a missile in the second half of its flight
+  SHOT_TIME: 0.7,         // interceptor flight
+  AA_RELOAD: 3.5,
+  HQ_PD_RELOAD: 6,
+  GUN_RELOAD: 2,
+  HQ_GUN_RELOAD: 3,
+  REVEAL_TIME: 30,        // an impact or a firing battery stays revealed this long
+  STRIKE_FLIGHT: 7,
+  STRIKE_CHARGE_TIME: 70, // seconds for an uplink to charge
+  AI_THINK: 1.5,          // seconds between AI decisions (Patrol: double)
+  AI_ATTACK_GAP: [8, 20]  // smart AIs wait a random spell between attacks
+};
+
 // Building table — single source of truth for costs, HP and descriptions.
 const BUILDINGS = {
   hq: {
@@ -155,6 +187,7 @@ const SKIRMISH_OPTIONS = {
   credits: { label: 'Start credits', choices: [[250, 'Lean'], [350, 'Standard'], [600, 'Rich']], def: 350 },
   turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 30 },
   uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 },
+  pace:    { label: 'Pace',          choices: [[1, 'Real-time'], [0, 'Turns']], def: 1, solo: true },
   style:   { label: 'Opponent',      choices: [[0, 'Balanced'], [1, 'Blitz'], [2, 'Fortress'], [3, 'Raider']], def: 0, solo: true }
 };
 // Opponent personalities for the 'style' option (index = option value); the AI reads the key
@@ -263,4 +296,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, RT, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };

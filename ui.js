@@ -195,6 +195,23 @@ window.UI = (function () {
   body.compact #settings .menu-box { padding: 12px 16px; } body.compact .setrow { padding: 5px 0; font-size: 13px; }
 
   /* Report */
+  /* Real-time attack panel: pick which loaded silos, mechs and strike go */
+  #attack { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: min(580px, 94vw); padding: 12px 16px; display: none; z-index: 4; }
+  #attack.show { display: block; animation: tin .2s ease-out; }
+  #attack .ah { font-size: 15px; margin-bottom: 8px; } #attack .ah b { letter-spacing: .14em; color: var(--c-warn); } #attack .ah .k { float: right; color: var(--c-dim); font-size: 12px; margin-top: 2px; }
+  #attack .arow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 5px 0; }
+  #attack .al { width: 64px; font-size: 11px; color: var(--c-dim); text-transform: uppercase; letter-spacing: .1em; }
+  #attack .none { font-size: 12px; color: var(--c-dim); }
+  #attack .ach { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; border: 1px solid var(--c-line); background: rgba(255,255,255,.04); color: #c5d2de; font: inherit; font-size: 13px; cursor: pointer; }
+  #attack .ach svg { width: 16px; height: 16px; } #attack .ach small { color: var(--c-dim); font-size: 11px; }
+  #attack .ach.on { border-color: var(--c-warn); background: rgba(255,176,0,.16); color: #fff; } #attack .ach.on span { color: #fff; } #attack .ach.on small { color: #ffd98a; }
+  #attack .ach.wait { opacity: .45; cursor: default; }
+  #attack .aodds { font-size: 12px; color: var(--c-dim); margin: 6px 0 8px; } #attack .aodds .good { color: var(--c-credit); }
+  #attack .afoot { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  #attack .afoot .cost { margin-right: auto; } #attack .afoot .bad { color: var(--c-bad); }
+  #attack .afoot button { padding: 7px 16px; font-size: 14px; }
+  #attack .afoot button[disabled] { opacity: .45; cursor: default; }
+  body.compact #attack { bottom: 66px; padding: 8px 10px; } body.compact #attack .ah .k { display: none; } body.compact #attack .ach small { display: none; }
   #report { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
   #report.show { display: block; animation: tin .25s ease-out; }
   #report h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
@@ -496,7 +513,7 @@ window.UI = (function () {
 
     root.appendChild(el('div', { id: 'objectives', class: 'panel pi', style: 'display:none' }));
     root.appendChild(el('div', { id: 'orders', class: 'panel pi', style: 'display:none' }, `
-      <div class="ph"><span>Orders this turn</span><button class="sbtn" id="b-undo" title="Undo last action (Z)" style="flex:none;padding:3px 8px;font-size:12px">${icon('undo')} Undo <kbd>Z</kbd></button></div>
+      <div class="ph"><span id="ord-title">Orders this turn</span><button class="sbtn" id="b-undo" title="Undo last action (Z)" style="flex:none;padding:3px 8px;font-size:12px">${icon('undo')} Undo <kbd>Z</kbd></button></div>
       <div id="orderlist"></div>
       <div class="ph"><span>Battle log</span></div>
       <div id="log"></div>
@@ -518,6 +535,13 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
     root.appendChild(el('div', { id: 'report', class: 'panel' }));
+    root.appendChild(el('div', { id: 'attack', class: 'panel pi' }));
+    $('attack').addEventListener('click', e => {
+      const chip = e.target.closest('.ach');
+      if (chip && !chip.classList.contains('wait')) { H.onAttack('toggle', chip.dataset.kind, +chip.dataset.cell); return; }
+      if (e.target.closest('#at-go')) H.onAttack('launch');
+      if (e.target.closest('#at-x')) H.onAttack('cancel');
+    });
 
     // Menu
     const diffs = Object.keys(CONST.DIFFICULTY).map((k, i) => `
@@ -679,7 +703,16 @@ window.UI = (function () {
     return `<div class="menu-box panel">
       <h2>How to play</h2>
       <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive the turn limit (${CONST.MAX_TURNS} by default), the healthier HQ wins.</p>
-      <h4>Each turn</h4>
+      <h4>Real-time battles (skirmish default)</h4>
+      <ul>
+        <li><b>Resources flow every second.</b> Build, repair and upgrade at any moment, and the enemy does the same.</li>
+        <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>, click a target, then pick which loaded silos, mechs and strike to send. <kbd>Enter</kbd> launches.</li>
+        <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
+        <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through.</li>
+        <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside the 5×5 around the landing point for ${RT.MECH_TIME}s, then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later.</li>
+        <li><kbd>Space</kbd> pauses. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
+      </ul>
+      <h4>Each turn (turn-based games)</h4>
       <ol>
         <li><b>Plan.</b> Spend <span style="color:var(--c-credit)">credits</span> on buildings and repairs, and <span style="color:var(--c-energy)">energy</span> on missiles and mech drops. You can only build within ${CONST.BUILD_RADIUS} cells of your existing buildings.</li>
         <li><b>End turn.</b> Both sides' orders resolve at the same time: missiles launched <i>last</i> turn come down, AA intercepts, gun pods fire, mechs fight, drop pods land, and new missiles launch.</li>
@@ -722,9 +755,16 @@ window.UI = (function () {
     const eb = $('h-enb');
     eb.style.width = (100 * h.energy / h.energyCap) + '%';
     eb.parentElement.classList.toggle('full', h.energy >= h.energyCap);
-    $('h-turn').textContent = 'TURN ' + h.turn + ' / ' + h.maxTurns;
-    $('hud-turn').classList.toggle('late', h.maxTurns - h.turn < 5);
-    $('hud-turn').title = h.maxTurns - h.turn < 5 ? 'Turn limit close: the healthier HQ wins at turn ' + h.maxTurns : '';
+    if (h.clock) {
+      // real time: a battle clock instead of the turn counter
+      $('h-turn').textContent = h.clock;
+      $('hud-turn').classList.toggle('late', !!h.late);
+      $('hud-turn').title = h.late ? 'Time nearly up: the healthier HQ wins when the clock runs out' : '';
+    } else {
+      $('h-turn').textContent = 'TURN ' + h.turn + ' / ' + h.maxTurns;
+      $('hud-turn').classList.toggle('late', h.maxTurns - h.turn < 5);
+      $('hud-turn').title = h.maxTurns - h.turn < 5 ? 'Turn limit close: the healthier HQ wins at turn ' + h.maxTurns : '';
+    }
     $('hud-phase').textContent = h.phase;
     $('h-hq').textContent = h.hq.hp + ' / ' + h.hq.max;
     $('h-hqb').style.width = (100 * h.hq.hp / h.hq.max) + '%';
@@ -786,13 +826,13 @@ window.UI = (function () {
   function setOrders(orders, incoming) {
     const box = $('orderlist');
     box.innerHTML = '';
-    if (!orders.length && !incoming.length) { box.appendChild(el('div', { class: 'empty' }, 'No orders queued.')); return; }
+    if (!orders.length && !incoming.length) { box.appendChild(el('div', { class: 'empty' }, liveMode ? 'Nothing in the air.' : 'No orders queued.')); return; }
     for (const m of incoming) {
       box.appendChild(el('div', { class: 'order incoming' + (m.strike ? ' strike' : '') }, `${icon(m.strike ? 'strike' : 'missile')}<span>${esc(m.text)}</span>`));
     }
     for (const o of orders) {
-      const d = el('div', { class: 'order ' + o.kind }, `${icon(o.kind === 'drop' ? 'drop' : o.kind)}<span>${esc(o.text)}</span><span class="x" title="Cancel (refund)">&times;</span>`);
-      d.querySelector('.x').addEventListener('click', () => H.onAction('cancel', o.id));
+      const d = el('div', { class: 'order ' + o.kind }, `${icon(o.kind === 'drop' ? 'drop' : o.kind)}<span>${esc(o.text)}</span>${o.noCancel ? '' : '<span class="x" title="Cancel (refund)">&times;</span>'}`);
+      if (!o.noCancel) d.querySelector('.x').addEventListener('click', () => H.onAction('cancel', o.id));
       d.addEventListener('mouseenter', () => H.onOrderHover && H.onOrderHover(o.id));
       d.addEventListener('mouseleave', () => H.onOrderHover && H.onOrderHover(null));
       box.appendChild(d);
@@ -942,6 +982,33 @@ window.UI = (function () {
     p.classList.add('show');
   }
   function hideReport() { $('report').classList.remove('show'); }
+
+  // d: { target, silos: [{cell,label,status,ready,on}], hangars: [...], strike: {...}|null, cost, energy, reason, odds }
+  let attackHtml = '';
+  function showAttack(d) {
+    const chip = (kind, it) => `<button class="ach${it.on ? ' on' : ''}${it.ready ? '' : ' wait'}" data-kind="${kind}" data-cell="${it.cell}">${icon(kind === 'silo' ? 'missile' : kind === 'hangar' ? 'drop' : 'strike')}<span>${esc(it.label)}</span><small>${esc(it.status)}</small></button>`;
+    const row = (label, kind, list, none) => `<div class="arow"><span class="al">${label}</span>${list.length ? list.map(x => chip(kind, x)).join('') : '<span class="none">' + none + '</span>'}</div>`;
+    const html = `<div class="ah"><b>ATTACK</b> &rarr; ${esc(d.target)}<span class="k">Click another cell to retarget</span></div>`
+      + row('Missiles', 'silo', d.silos, 'No silos built')
+      + row('Mechs', 'hangar', d.hangars, 'No hangars built')
+      + (d.strike ? row('Orbital', 'strike', [d.strike], '') : '')
+      + `<div class="aodds">${d.odds || ''}</div>`
+      + `<div class="afoot"><span class="cost">Cost <b style="color:var(--c-energy)">${d.cost}e</b> of ${d.energy}e</span><span class="bad">${esc(d.reason || '')}</span>`
+      + `<button class="bigbtn" id="at-go"${d.reason ? ' disabled' : ''}>Launch <kbd>Enter</kbd></button><button class="bigbtn alt" id="at-x">Cancel</button></div>`;
+    if (html !== attackHtml) { $('attack').innerHTML = html; attackHtml = html; }
+    $('attack').classList.add('show');
+  }
+  function hideAttack() { $('attack').classList.remove('show'); attackHtml = ''; }
+  function isAttackOpen() { return $('attack').classList.contains('show'); }
+  // the End Turn button doubles as Pause in a real-time battle
+  function setEndLabel(text) { const b = $('b-end'); if (b) b.querySelector('span').textContent = text; }
+  // real time: the orders panel lists flights in the air, and there is no undo
+  let liveMode = false;
+  function setLiveMode(on) {
+    liveMode = !!on;
+    $('ord-title').textContent = on ? 'In the air' : 'Orders this turn';
+    $('b-undo').style.display = on ? 'none' : '';
+  }
 
   function showMenu(on, enter) {
     $('menu').classList.toggle('show', on);
@@ -1167,7 +1234,7 @@ window.UI = (function () {
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
-    toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showMenu, setContinue, setMusicChecked,
+    toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
 })();

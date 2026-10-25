@@ -124,13 +124,15 @@
     // missile pressure: silos and power first, heavy warheads early
     blitz: {
       opening: ['depot', 'power', 'silo', 'depot', 'power', 'silo', 'aa', 'silo', 'radar'],
-      after: (n, basic) => n('silo') < 5 ? 'silo' : basic('silo') ? 'up:silo' : n('power') < 4 ? 'power' : null
+      // real time rewards the rush more (silos fire as soon as they reload), so it stops at four there
+      after: (n, basic, state) => n('silo') < (state.realtime ? 4 : 5) ? 'silo' : basic('silo') ? 'up:silo' : n('power') < 4 ? 'power' : null
     },
     // turtle behind AA and shields, then win with the superweapon
     fortress: {
       opening: ['depot', 'aa', 'depot', 'power', 'shield', 'aa', 'silo', 'depot', 'radar'],
-      after: (n, basic, state) => state.turn >= 7 && n('uplink') < 1 && unlocked(state, 'uplink') ? 'uplink'
-        : n('aa') < 3 ? 'aa' : n('shield') < 2 ? 'shield' : n('silo') < 4 ? 'silo' : basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
+      after: (n, basic, state) => state.turn >= (state.realtime ? 10 : 7) && n('uplink') < 1 && unlocked(state, 'uplink') ? 'uplink'
+        // reloading AA makes turtling stronger in real time: fewer batteries before it turns to offence
+        : n('aa') < (state.realtime ? 2 : 3) ? 'aa' : n('shield') < (state.realtime ? 1 : 2) ? 'shield' : n('silo') < 4 ? 'silo' : basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
     },
     // mech swarms on a second front: hangars and heavy mechs
     raider: {
@@ -450,7 +452,87 @@
     planUpgrades(state, smart);
   }
 
-  const AI = { planTurn };
+  // ── Real-time play ──────────────────────────────────────
+  // Called every couple of seconds by the real-time engine (RTE). Builds, upgrades and repairs
+  // use the turn-based planners as they are. Attacks come in waves: the turn-based target
+  // pickers choose targets for whichever launchers are loaded (busy ones are masked with
+  // placeholder orders), and the orders are regrouped into real-time attacks.
+  function thinkRealtime(state, side, RTE) {
+    ME = side || C.SIDE_AI;
+    FOE = R.enemyOf(ME);
+    // rt.aiDiff lets simulations give each side its own skill
+    const diff = C.DIFFICULTY[(state.rt.aiDiff || {})[ME] || state.difficulty];
+    const smart = diff.smart;
+    const s = state.sides[ME];
+    const t = state.rt.t;
+    const mem = state.rt.ai[ME];
+    // missile damage keeps AA a priority for half a minute
+    const taken = s.stats.missileDamageTaken || 0;
+    if (taken > (mem.taken || 0)) mem.hurtUntil = t + 30;
+    mem.taken = taken;
+    const tm = { missileDamageTaken: t < (mem.hurtUntil || 0) ? 1 : 0 };
+
+    if (smart) planStrikeDefense(state);
+    planRepairs(state, diff);
+    planBuilds(state, tm, smart);
+    planUpgrades(state, smart);
+    s.undo = [];
+
+    // invaders on our island: scramble ready mechs to meet them
+    const invaders = enemyRobotsOnMySide(state).filter(r => R.ownerOfCell(r.cell) === ME);
+    if (invaders.length && smart) {
+      const hangars = RTE.readyLaunchers(state, ME, 'hangar').slice(0, 2).map(h => h.cell);
+      if (hangars.length) RTE.launchAttack(state, ME, { to: invaders[0].cell, hangars });
+    }
+
+    if (t < (mem.nextAttack || 0)) return;
+    const silos = R.buildingsOf(state, ME, 'silo'), ready = RTE.readyLaunchers(state, ME, 'silo');
+    const readyH = RTE.readyLaunchers(state, ME, 'hangar');
+    const strikeReady = !R.strikeReadyReason(state, ME);
+    const atCap = s.energy >= R.energyCap(state, ME) - 2;
+    let go;
+    if (smart) go = strikeReady || (ready.length && (ready.length >= silos.length || atCap)) || (!silos.length && readyH.length);
+    else go = (ready.length || readyH.length) && R.rand(state) < diff.fireChance * 0.5;
+    if (!go) return;
+
+    // mask launchers that are reloading, then let the turn-based pickers choose targets
+    const e0 = s.energy;
+    s.orders = R.buildingsOf(state, ME).filter(b => (b.type === 'silo' || b.type === 'hangar') && !RTE.isReady(state, b))
+      .map(b => ({ kind: 'busy', from: b.cell, cost: 0 }));
+    planStrike(state, smart);
+    planMissiles(state, diff, smart, 0);
+    planDrops(state, smart);
+    const orders = s.orders.filter(o => o.kind !== 'busy');
+    s.orders = []; s.undo = []; s.energy = e0;   // the engine charges for the attacks itself
+
+    const attacks = [];
+    for (const o of orders.filter(o => o.kind === 'strike')) attacks.push({ to: o.to, silos: [], hangars: [], strike: true });
+    for (const o of orders.filter(o => o.kind === 'missile')) {
+      let a = attacks.find(x => !x.strike && x.to === o.to);
+      if (!a) attacks.push(a = { to: o.to, silos: [], hangars: [] });
+      a.silos.push(o.from);
+    }
+    for (const o of orders.filter(o => o.kind === 'drop')) {
+      // ride along with a missile wave aimed nearby, a dropship holds three
+      let a = attacks.filter(x => !x.strike && x.hangars.length < RT_MECHS && R.dist(x.to, o.to) <= 3)
+        .sort((x, y) => y.silos.length - x.silos.length)[0];
+      if (!a) attacks.push(a = { to: o.to, silos: [], hangars: [] });
+      a.hangars.push(o.from);
+    }
+    let launched = false;
+    for (const a of attacks) {
+      let r = RTE.launchAttack(state, ME, a);
+      if (!r.ok && a.hangars.length && a.silos.length) r = RTE.launchAttack(state, ME, Object.assign({}, a, { hangars: [] }));
+      launched = launched || r.ok;
+    }
+    if (launched) {
+      const gap = (typeof RT !== 'undefined' ? RT : require('./config.js').RT).AI_ATTACK_GAP;
+      mem.nextAttack = t + (gap[0] + R.rand(state) * (gap[1] - gap[0])) * (smart ? 1 : 1.6);
+    }
+  }
+  const RT_MECHS = 3;
+
+  const AI = { planTurn, thinkRealtime };
   root.AI = AI;
   if (typeof module !== 'undefined') module.exports = AI;
 })(typeof window !== 'undefined' ? window : globalThis);

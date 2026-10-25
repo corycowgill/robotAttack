@@ -4,7 +4,7 @@
   "private": true,
   "description": "Turn-based island war strategy game for the browser (Three.js), inspired by Metal Marines.",
   "scripts": {
-    "test": "node --test tests/rules.test.js tests/sim.test.js",
+    "test": "node --test tests/rules.test.js tests/sim.test.js tests/realtime.test.js",
     "test:e2e": "node --test --test-concurrency=1 tests/e2e.test.js",
     "test:all": "npm test && npm run test:e2e",
     "serve": "node tests/serve.js"

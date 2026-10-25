@@ -66,9 +66,11 @@ const freeCell = (page, type) => page.evaluate(t => {
   for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(__game.state, 'player', t, c)) return c;
   return -1;
 }, type);
-async function startSkirmish(page, diff = 'patrol') {
+// Skirmish defaults to real time; most tests drive the turn-based game
+async function startSkirmish(page, diff = 'patrol', live = false) {
+  await page.click(`#m-opts button[data-k="pace"][data-v="${live ? 1 : 0}"]`);
   await page.click(`.diff[data-diff="${diff}"]`);
-  await page.waitForFunction(() => __game.phase === 'planning');
+  await page.waitForFunction(want => __game.phase === want, live ? 'live' : 'planning');
   await page.evaluate(() => __game.setSpeed && __game.setSpeed(3));
 }
 // End Turn during playback skips it; checked inside the page so it can't race into ending the next turn
@@ -125,6 +127,85 @@ test('defeat screen explains what went wrong', async t => {
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
   await page.waitForSelector('#go-tip', { state: 'visible', timeout: 15000 });
   assert.match(await page.textContent('#go-tip'), /^Debrief: /);
+  assert.deepStrictEqual(errors, []);
+});
+
+test('real time: the clock runs, build anytime, pick an attack, see it in the air, pause, resume after a reload', async t => {
+  const { page, errors } = await open(t);
+  await startSkirmish(page, 'patrol', true);
+  await page.waitForFunction(() => __game.state.rt.t > 2);
+  const c0 = await page.evaluate(() => __game.state.sides.player.credits);
+  await page.waitForFunction(c => __game.state.sides.player.credits > c, c0);
+  assert.match(await page.textContent('#hud'), /\d:\d\d \/ 10:00/, 'a battle clock instead of turns');
+  // building works while the clock runs
+  await page.click('.card[data-type="depot"]');
+  await clickCell(page, await freeCell(page, 'depot'));
+  assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'player', 'depot').length), 1);
+  await page.keyboard.press('Escape');
+  // attack: Q, click the enemy HQ, the panel picks the loaded silo, Enter launches
+  await page.evaluate(() => { const s = __game.state; s.sides.player.energy = 30; for (const b of Rules.buildingsOf(s, 'player', 'silo')) b.readyAt = 0; });
+  await page.keyboard.press('KeyQ');
+  await clickCell(page, await page.evaluate(() => Rules.hqCell('ai')));
+  await page.waitForSelector('#attack.show');
+  assert.strictEqual(await page.locator('#attack .ach.on').count(), 1, 'the loaded silo is picked');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'player'));
+  assert.ok(!(await page.isVisible('#attack')), 'the panel closes on launch');
+  assert.strictEqual(await page.evaluate(() => __game.state.sides.player.energy <= 30 - CONST.MISSILE_ENERGY + 2), true);
+  await page.waitForFunction(() => /Missile/.test(document.getElementById('orderlist').textContent));
+  // Space pauses the clock
+  await page.keyboard.press('Space');
+  const t1 = await page.evaluate(() => __game.state.rt.t);
+  await page.waitForTimeout(800);
+  assert.strictEqual(await page.evaluate(() => __game.state.rt.t), t1, 'paused');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(t => __game.state.rt.t > t, t1);
+  // the autosave each round lets Continue pick the battle back up
+  await page.waitForFunction(() => __game.state.turn >= 2, null, { timeout: 60000 });
+  await page.reload();
+  await dismissSplash(page);
+  await page.waitForSelector('#m-continue', { state: 'visible' });
+  await page.click('#m-continue');
+  await page.waitForFunction(() => __game.phase === 'live' && __game.state.rt.t >= 15);
+  assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'player', 'depot').length), 1);
+  // the battle ends when a Command Center falls
+  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
+  await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 30000 });
+  await page.waitForSelector('#go-reason', { state: 'visible', timeout: 15000 });
+  assert.match(await page.textContent('#go-reason'), /real time/);
+  assert.deepStrictEqual(errors, []);
+});
+
+test('real time: enemy launches are announced with a countdown, and mechs land, fight in their zone and leave', async t => {
+  const { page, errors } = await open(t);
+  await startSkirmish(page, 'patrol', true);
+  await page.evaluate(() => {
+    const s = __game.state;
+    s.sides.ai.energy = 30;
+    for (const b of Rules.buildingsOf(s, 'ai', 'silo')) b.readyAt = 0;
+    Realtime.launchAttack(s, 'ai', { to: Rules.hqCell('player'), silos: Rules.buildingsOf(s, 'ai', 'silo').map(b => b.cell) });
+  });
+  await page.waitForFunction(() => /MISSILE → .*\d+s/.test(document.getElementById('orderlist').textContent));
+  await page.waitForFunction(() => /Enemy attack inbound/.test(document.getElementById('log').textContent));
+  // our mechs: land next to an enemy structure, fight, then fly home
+  const to = await page.evaluate(() => {
+    const s = __game.state;
+    s.sides.player.credits = 2000; s.sides.player.energy = 30;
+    for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(s, 'player', 'hangar', c)) { Rules.build(s, 'player', 'hangar', c); break; }
+    for (const h of Rules.buildingsOf(s, 'player', 'hangar')) h.readyAt = 0;
+    const silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
+    return Rules.neighbors(silo.cell, 2).find(c => Realtime.landingCells(s, 'player', c).length);
+  });
+  await page.keyboard.press('KeyE');
+  await clickCell(page, to);
+  await page.waitForSelector('#attack.show');
+  await page.click('#at-go');   // the panel takes clicks over the map (regression)
+  await page.waitForFunction(() => __game.state.robots.some(r => r.side === 'player') || /dropship was shot down/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
+  // don't wait out the full raid: shorten the landed mechs' timer
+  await page.evaluate(() => { for (const r of __game.state.robots) if (r.side === 'player') r.leaveAt = Math.min(r.leaveAt, __game.state.rt.t + 4); });
+  // landed, lost or shot down, they're gone again and the hangar is rebuilding
+  await page.waitForFunction(() => !__game.state.robots.some(r => r.side === 'player') && !__game.state.rt.flights.some(f => f.side === 'player' && f.kind === 'ship'), null, { timeout: 90000 });
+  assert.ok(await page.evaluate(() => /time is up|nothing left|shot down|destroyed/.test(document.getElementById('log').textContent)), 'the log says what happened to them');
   assert.deepStrictEqual(errors, []);
 });
 
@@ -200,6 +281,7 @@ test('autosave: Continue after a reload restores the game', async t => {
 test('phone: compact layout and tap-to-confirm building', async t => {
   const { page, errors } = await open(t, { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
   assert.ok(await page.evaluate(() => document.body.classList.contains('compact')));
+  await page.tap('#m-opts button[data-k="pace"][data-v="0"]');
   await page.tap('.diff[data-diff="patrol"]');
   await page.waitForFunction(() => __game.phase === 'planning');
   const cell = await freeCell(page, 'depot');
@@ -299,7 +381,7 @@ test('battle options apply to the skirmish and are remembered', async t => {
   await page.reload();
   await dismissSplash(page);
   await page.waitForFunction(() => window.__game && document.querySelector('#m-opts'));
-  assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0,style=0');
+  assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0,pace=0,style=0');
   assert.deepStrictEqual(errors, []);
 });
 

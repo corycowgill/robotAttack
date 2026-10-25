@@ -2,7 +2,7 @@
 
 *Inspired by Namco's Metal Marines (SNES).*
 
-A turn-based base-building artillery strategy game in the browser, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
+A base-building artillery strategy game in the browser, played in real time (the Metal Marines way) or turn by turn, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
 
 Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
 
@@ -22,6 +22,32 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 - Tap to select. Placing a building or picking a missile or drop target takes two taps: one to preview, one to confirm.
 - Drag to pan, pinch to zoom.
 - In Safari, **Share → Add to Home Screen** runs the game fullscreen with its own icon.
+
+## Real-time battles
+
+Skirmishes play in real time by default, the way Metal Marines did:
+- **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
+- **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20.
+  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike) and click a target.
+  - The attack panel lists every silo and hangar with its status. Toggle which loaded ones to send and see the energy cost and the known defences, then press `Enter` or **Launch**.
+  - Missiles leave one after another. The dropship carrying the mechs follows them.
+- **Every launch is announced.** The moment an enemy missile or dropship lifts off:
+  - an alarm sounds;
+  - it appears in the **In the air** list with a countdown (about 8–10 seconds);
+  - it becomes visible in flight once it is over the sea.
+
+  Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games. A salvo with more missiles than the defence has shots gets through.
+- **Dropships can be shot down.** One ship carries up to 3 mechs and takes 2 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
+- **Mechs raid a zone and leave.** Landed mechs fight inside the 5×5 area around their landing point for 40 seconds, then their dropship takes them home. They leave early if the zone is clear. The hangar has a new mech ready 20 seconds after it returns or dies.
+- **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds.
+- **The clock:** the turn-limit option becomes a battle clock (30 turns = 10 minutes). When time runs out, the healthier Command Center wins.
+- **Pause:** `Space` pauses, and the game also pauses when you switch tabs.
+- **Saving:** the battle autosaves every 15 seconds, and **Continue** resumes it, missiles in flight included.
+
+The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. Smart AIs scramble ready mechs to meet raiders on their island. In AI-vs-AI simulations, a Commander mirror lasts about 6–7 minutes, about 70% of missiles are intercepted, and about a third of dropships are shot down.
+
+Two Players, the campaign and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
 
 ## How a turn works
 
@@ -117,6 +143,7 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 - starting credits: 250, 350 or 600;
 - turn limit: 20, 30 or 45;
 - whether the Strike Uplink is allowed;
+- the pace: **Real-time** (default; see above) or **Turns**;
 - the opponent's style:
   - **Balanced:** the standard AI.
   - **Blitz:** masses silos and heavy warheads to break you early.
@@ -184,7 +211,8 @@ All scripts are plain `<script>` modules loaded by `index.html`, in this order:
 |---|---|
 | `config.js` | Constants and the structure table (costs, HP, descriptions); the single source of truth |
 | `rules.js` | Pure game logic: state, validation, build/repair/sell, orders, vision, and the deterministic `resolveTurn()`, which returns an event list. No DOM, and it runs under Node. |
-| `ai.js` | Opponent logic. It uses the same `Rules` functions, and therefore the same restrictions, as the player. |
+| `ai.js` | Opponent logic. It uses the same `Rules` functions, and therefore the same restrictions, as the player. `planTurn()` plays a turn; `thinkRealtime()` plays a real-time battle. |
+| `realtime.js` | The real-time engine (`Realtime`): per-second economy, launcher reloads, attacks, flights, AA reloads and shots, dropships, mech zones and recall, timed reveals and the clock. `step(state, dt)` runs in fixed 0.1 s ticks and returns events. It is pure and deterministic, and runs under Node. |
 | `audio.js` | Sound engine (`window.GameAudio`): plays the generated clips and music loops, with procedural Web Audio recipes as fallback; buses for music, effects, interface and ambience; ducking, volume and mute |
 | `models.js` | Procedural Three.js models for structures, mechs, missiles, drop pods and ghosts |
 | `fx.js` | Pooled GPU particles, flash lights, shockwaves, scorch decals, smoke and fire emitters |
@@ -233,8 +261,9 @@ npm run test:e2e      # headless-browser smoke tests of real UI flows
 ```
 
 - `tests/rules.test.js`: island generation, build/upgrade/sell/undo, decoys, drops, missiles and AA, win conditions, determinism and save round trips.
+- `tests/realtime.test.js`: the real-time engine. It covers income per second, attack validation and costs, launch warnings, AA reloads against salvos, dropships landing or being shot down, mech zones and recall, determinism and save round trips mid-flight, and AI-vs-AI real-time games at every difficulty.
 - `tests/sim.test.js`: AI-vs-AI games at every difficulty and on every campaign map must finish within the rules; the Commander mirror must stay roughly balanced.
-- `tests/e2e.test.js`: plays through skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Everything is served locally, so the tests need no internet access.
+- `tests/e2e.test.js`: plays through a real-time battle (clock, building, the attack panel, inbound warnings, mechs, pause, Continue, game over), skirmish, the Drop button, a campaign victory, Continue after a reload, and the phone layout with tap-to-confirm, in Chromium with software WebGL. Everything is served locally, so the tests need no internet access.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request. On `main`, a passing run then publishes the game to GitHub Pages.
 
