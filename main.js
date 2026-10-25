@@ -282,6 +282,7 @@
     if (!saved && !mission && custom) state.custom = Object.assign({}, custom);   // kept for Rematch
     if (mission) state.mission = mission.id;
     if (daily) state.daily = daily.key;
+    if (!saved) { state.history = []; recordHistory(); }   // turn 0: the starting position
     Renderer.setMap(state.land);
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
@@ -1591,8 +1592,21 @@
     });
   }
 
+  // Per-turn record for the post-battle chart: HQ health % and structure count, both sides
+  function recordHistory() {
+    const snap = side => {
+      const hq = R.buildingsOf(state, side, 'hq')[0];
+      return { hq: hq ? Math.round(100 * hq.hp / hq.maxHp) : 0, n: R.buildingsOf(state, side).length };
+    };
+    state.history = state.history || [];
+    const t = state.winner ? state.turn : state.turn - 1;   // the turn that just resolved
+    state.history = state.history.filter(h => h.t !== t);
+    state.history.push({ t, player: snap(P1), ai: snap(P2) });
+  }
+
   function finishTurn(events, turn) {
     preNames = null;
+    recordHistory();
     checkTurnAchievements(events);
     frameView(false);
     UI.setCombatHint(false);
@@ -1669,6 +1683,7 @@
         again: mission ? (w === P ? 'Replay Mission' : 'Retry Mission') : state.daily ? 'Retry Daily' : 'Rematch',
         medals: medals ? { got: medals, labels: UI.medalLabels(mission), newBest } : null,
         quote: mission ? (w === P ? { who: COMMANDERS.hale, text: mission.win } : { who: COMMANDERS[mission.enemy], text: w === A ? 'As expected. Go home, Commander.' : 'Stalemate... this time.' }) : null,
+        history: state.history || [],
         rows: [
           ['Damage dealt', ps.damageDealt, as.damageDealt],
           ['Structures built', ps.built, as.built],

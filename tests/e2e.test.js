@@ -136,6 +136,7 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   assert.strictEqual(await page.evaluate(() => __game.state.winner), 'player');
   await page.waitForSelector('#go-next', { state: 'visible', timeout: 15000 });
   assert.strictEqual(await page.locator('#go-medals .medal.on').count(), 3, 'quick win with a full-health HQ earns all medals');
+  assert.strictEqual(await page.locator('#go-chart svg').count(), 2, 'post-battle charts: HQ health and structures');
   await page.screenshot({ path: 'test-results/victory.png' }).catch(() => {});
   await page.click('#go-next');
   await page.waitForSelector('#briefing.show');
