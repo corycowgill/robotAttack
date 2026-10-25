@@ -6,4 +6,5 @@ const config = require(path.join(root, 'config.js'));
 Object.assign(global, config);
 global.Rules = require(path.join(root, 'rules.js'));
 global.AI = require(path.join(root, 'ai.js'));
-module.exports = { ...config, Rules: global.Rules, AI: global.AI };
+global.Realtime = require(path.join(root, 'realtime.js'));
+module.exports = { ...config, Rules: global.Rules, AI: global.AI, Realtime: global.Realtime };

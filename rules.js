@@ -1071,7 +1071,9 @@
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, buildCost, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
-    resolveTurn, robotIntent, targetValue
+    resolveTurn, robotIntent, targetValue,
+    // shared with the real-time engine
+    damageBuilding, passable, bfsPath, onlineRadars
   };
 
   root.Rules = Rules;
