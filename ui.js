@@ -310,6 +310,16 @@ window.UI = (function () {
   .hotseat:hover { transform: translateY(-3px); border-color: rgba(46,196,255,.7); }
   .hotseat.daily { border-color: rgba(255,207,74,.35); } .hotseat.daily h3 { color: #ffcf4a; } .hotseat.daily h3 span { color: var(--c-dim); font-size: 13px; letter-spacing: .1em; margin-left: 6px; }
   .hotseat.daily .vs { font-size: 15px; color: var(--c-dim); text-align: right; } .hotseat.daily .vs b, .hotseat.daily .vs b:last-child { color: #ffcf4a; font-size: 20px; display: block; }
+  /* post-battle chart: two small multiples (different scales never share an axis) */
+  #go-chart { margin: 4px 0 14px; }
+  #go-chart .legend { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: var(--c-dim); margin-bottom: 4px; }
+  #go-chart .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  #go-chart .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #go-chart figure { margin: 0; position: relative; }
+  #go-chart figcaption { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--c-dim); margin-bottom: 2px; }
+  #go-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  #go-chart .tipbox { position: absolute; pointer-events: none; background: var(--c-bg2); border: 1px solid var(--c-line); border-radius: 4px; padding: 4px 7px; font-size: 11px; color: var(--c-text); white-space: nowrap; display: none; }
+  body.compact #go-chart .charts { gap: 8px; } body.compact #go-chart figcaption { font-size: 10px; }
   #go-daily { text-align: center; margin: 4px 0 12px; font-size: 15px; color: var(--c-dim); letter-spacing: .08em; }
   #go-daily b { color: #ffcf4a; font-size: 26px; letter-spacing: .04em; margin: 0 6px; }
   #achievements .menu-box { width: min(640px, 94vw); padding: 24px 26px; text-align: left; max-height: 90vh; overflow-y: auto; }
@@ -524,6 +534,7 @@ window.UI = (function () {
         <div id="go-reason"></div>
         <div id="go-medals" class="medals"></div>
         <div id="go-daily"></div>
+        <div id="go-chart"></div>
         <div id="go-quote"></div>
         <div id="go-stats"></div>
         <button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
@@ -1021,11 +1032,74 @@ window.UI = (function () {
     $('go-medals').style.display = g.medals ? '' : 'none';
     $('go-daily').innerHTML = g.daily ? `Daily score <b>${g.daily.score}</b> ${g.daily.newBest ? '— new best!' : '· best ' + g.daily.best}` : '';
     $('go-daily').style.display = g.daily ? '' : 'none';
+    renderBattleChart(g.history || [], g.cols || ['You', 'Enemy']);
     const cols = g.cols || ['You', 'Enemy'];
     $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">' + esc(cols[0]) + '</span><span class="h" style="color:var(--c-ai)">' + esc(cols[1]) + '</span>' +
       g.rows.map(r => `<span>${esc(r[0])}</span><b>${r[1]}</b><b>${r[2]}</b>`).join('');
     $('gameover').classList.add('show');
   }
+  // Battle history as two small line charts (HQ health %, structures), shared legend,
+  // direct end labels, hover crosshair + tooltip. Colours: validated pair on the dark panel.
+  const SERIES_COL = { player: '#1898d0', ai: '#ef4a2d' };
+  function renderBattleChart(hist, names) {
+    const box = $('go-chart');
+    if (hist.length < 2) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = '';
+    const legend = `<div class="legend"><span><i style="background:${SERIES_COL.player}"></i>${esc(names[0])}</span><span><i style="background:${SERIES_COL.ai}"></i>${esc(names[1])}</span></div>`;
+    box.innerHTML = legend + '<div class="charts">' + lineChart('Command Center health', hist, h => h.hq, 100, '%', names) + lineChart('Structures standing', hist, h => h.n, null, '', names) + '</div>';
+    box.querySelectorAll('figure').forEach(f => wireChartHover(f, hist, names));
+  }
+  function lineChart(title, hist, get, fixedMax, unit, names) {
+    const W = 280, H = 120, L = 26, R = 34, T = 8, B = 18;
+    const maxT = hist[hist.length - 1].t, minT = hist[0].t;
+    const vals = hist.flatMap(h => [get(h.player), get(h.ai)]);
+    const maxY = fixedMax || Math.max(4, Math.ceil(Math.max(...vals) / 4) * 4);
+    const x = t => L + (W - L - R) * (maxT === minT ? 0 : (t - minT) / (maxT - minT));
+    const y = v => T + (H - T - B) * (1 - v / maxY);
+    const grid = [0, 0.5, 1].map(k => `<line x1="${L}" x2="${W - R}" y1="${y(maxY * k)}" y2="${y(maxY * k)}" stroke="rgba(150,180,210,.14)" stroke-width="1"/><text x="${L - 5}" y="${y(maxY * k) + 3}" text-anchor="end" font-size="9" fill="#7d8fa3">${Math.round(maxY * k)}${unit}</text>`).join('');
+    const step = Math.max(1, Math.ceil((maxT - minT) / 6));
+    const ticks = hist.filter(h => (h.t - minT) % step === 0 || h.t === maxT).map(h => `<text x="${x(h.t)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#7d8fa3">${h.t}</text>`).join('');
+    const line = side => {
+      const pts = hist.map(h => x(h.t).toFixed(1) + ',' + y(get(h[side])).toFixed(1)).join(' ');
+      const last = hist[hist.length - 1], lx = x(last.t), ly = y(get(last[side]));
+      return `<polyline points="${pts}" fill="none" stroke="${SERIES_COL[side]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${lx}" cy="${ly}" r="4" fill="${SERIES_COL[side]}" stroke="#0e141c" stroke-width="2"/>`;
+    };
+    // end labels in text ink (identity is carried by the line), nudged apart if they collide
+    const last = hist[hist.length - 1];
+    let ya = y(get(last.player)), yb = y(get(last.ai));
+    if (Math.abs(ya - yb) < 11) { const m = (ya + yb) / 2, up = ya <= yb; ya = m + (up ? -6 : 6); yb = m + (up ? 6 : -6); }
+    const labels = `<text x="${W - R + 7}" y="${ya + 3}" font-size="10" fill="#d8e3ee">${get(last.player)}${unit}</text><text x="${W - R + 7}" y="${yb + 3}" font-size="10" fill="#d8e3ee">${get(last.ai)}${unit}</text>`;
+    return `<figure data-unit="${unit}" data-max="${maxY}"><figcaption>${esc(title)}</figcaption>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)} by turn: ${esc(names[0])} ends at ${get(last.player)}${unit}, ${esc(names[1])} at ${get(last.ai)}${unit}">
+        ${grid}${ticks}${line('ai')}${line('player')}${labels}
+        <line class="xhair" y1="${T}" y2="${H - B}" stroke="rgba(216,227,238,.4)" stroke-width="1" style="display:none"/>
+        <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" class="hit"/>
+      </svg><div class="tipbox"></div></figure>`;
+  }
+  function wireChartHover(fig, hist, names) {
+    const svg = fig.querySelector('svg'), hit = fig.querySelector('.hit'), xh = fig.querySelector('.xhair'), tip = fig.querySelector('.tipbox');
+    const isHq = fig.dataset.unit === '%';
+    const get = h => isHq ? h.hq : h.n, unit = fig.dataset.unit;
+    const move = e => {
+      const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+      const px = (e.clientX - r.left) / r.width * vb.width;
+      const L = 26, R = 34, minT = hist[0].t, maxT = hist[hist.length - 1].t;
+      const t = Math.round(minT + (px - L) / (vb.width - L - R) * (maxT - minT));
+      const h = hist.reduce((a, b) => Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a);
+      const sx = L + (vb.width - L - R) * (maxT === minT ? 0 : (h.t - minT) / (maxT - minT));
+      xh.setAttribute('x1', sx); xh.setAttribute('x2', sx); xh.style.display = '';
+      tip.innerHTML = `Turn ${h.t}<br><span style="color:${SERIES_COL.player}">●</span> ${esc(names[0])} ${get(h.player)}${unit} · <span style="color:${SERIES_COL.ai}">●</span> ${esc(names[1])} ${get(h.ai)}${unit}`;
+      tip.style.display = 'block';
+      const fx = sx / vb.width * r.width;
+      tip.style.left = Math.min(r.width - tip.offsetWidth, Math.max(0, fx - tip.offsetWidth / 2)) + 'px';
+      tip.style.top = '-6px';
+    };
+    hit.addEventListener('pointermove', move);
+    hit.addEventListener('pointerdown', move);
+    hit.addEventListener('pointerleave', () => { xh.style.display = 'none'; tip.style.display = 'none'; });
+  }
+
   function hideGameOver() { $('gameover').classList.remove('show'); }
 
   function showHelp(on) { $('help').classList.toggle('show', on); }
