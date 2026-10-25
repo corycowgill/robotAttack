@@ -116,9 +116,16 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 - island size: small (95 cells), normal (120) or large (150);
 - starting credits: 250, 350 or 600;
 - turn limit: 20, 30 or 45;
-- whether the Strike Uplink is allowed.
+- whether the Strike Uplink is allowed;
+- the opponent's style:
+  - **Balanced:** the standard AI.
+  - **Blitz:** masses silos and heavy warheads to break you early.
+  - **Fortress:** turtles behind AA and shields, then uses the superweapon.
+  - **Raider:** swarms your economy with heavy mechs.
 
-The browser remembers your choices, and they also apply to Two Players.
+  In simulations against the standard AI, each style wins about as often as Balanced does at the same difficulty.
+
+The browser remembers your choices. The map options also apply to Two Players; the opponent style doesn't, since there is no AI.
 
 **Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 20-turn blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
 - A win scores 1000, plus 30 for every turn under the limit, plus 5 for every % of HQ health left.

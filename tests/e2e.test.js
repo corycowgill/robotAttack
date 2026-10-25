@@ -299,7 +299,7 @@ test('battle options apply to the skirmish and are remembered', async t => {
   await page.reload();
   await dismissSplash(page);
   await page.waitForFunction(() => window.__game && document.querySelector('#m-opts'));
-  assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0');
+  assert.strictEqual(await page.locator('#m-opts button.on').evaluateAll(bs => bs.map(b => b.dataset.k + '=' + b.dataset.v).join(',')), 'land=150,credits=600,turns=20,uplink=0,style=0');
   assert.deepStrictEqual(errors, []);
 });
 

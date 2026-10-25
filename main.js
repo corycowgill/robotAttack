@@ -176,7 +176,8 @@
   // Battle options (SKIRMISH_OPTIONS values) -> newGame options
   function customGameOpts(o) {
     if (!o) return {};
-    return { landTarget: o.land, credits: { player: o.credits, ai: o.credits }, maxTurns: o.turns, locked: o.uplink ? [] : ['uplink'] };
+    return { landTarget: o.land, credits: { player: o.credits, ai: o.credits }, maxTurns: o.turns, locked: o.uplink ? [] : ['uplink'],
+      aiStyle: (AI_STYLE_INFO[o.style] || AI_STYLE_INFO[0]).key };
   }
 
   // "Large islands · Rich start · no superweapon" — only the options that differ from the defaults
@@ -297,7 +298,9 @@
       UI.log('Mission ' + m.id + ': ' + m.name, 'sys');
       UI.log(COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', 'enemy');
     } else {
-      UI.log((state.daily ? 'Daily Operation ' + state.daily : 'Operation started') + ' — opponent: ' + CONST.DIFFICULTY[diff].name, 'sys');
+      const style = AI_STYLE_INFO.find(x => x.key === state.aiStyle);
+      UI.log((state.daily ? 'Daily Operation ' + state.daily : 'Operation started') + ' — opponent: ' + CONST.DIFFICULTY[diff].name + (style && style.key !== 'balanced' ? ' (' + style.name + ')' : ''), 'sys');
+      if (style && style.key !== 'balanced') UI.log(style.name + ': ' + style.desc, 'enemy');
       if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
       UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
     }
@@ -1214,14 +1217,18 @@
     const direct = (time, cells) => at(Math.max(0, time - 0.1), () => focusAction(cells));
 
     // Descents + intercepts + impacts
+    // one island at a time — your fire landing on the enemy first, then theirs on you — so
+    // the camera can push in on each salvo instead of holding the whole map
     const desc = byBeat(R.BEAT.DESCEND);
     const DESC = 1.7;
-    if (desc.length) direct(t, desc.map(e => e.to));
-    desc.forEach((e, i) => {
-      const t0 = t + i * 0.22;
-      at(t0, () => animateDescent(e, DESC, idAt, impacts[e.id]));
-    });
-    if (desc.length) t += (desc.length - 1) * 0.22 + DESC + 0.7;
+    for (const target of [A, P]) {
+      const group = desc.filter(e => R.ownerOfCell(e.to) === target);
+      if (!group.length) continue;
+      direct(t, group.map(e => e.to));
+      group.forEach((e, i) => at(t + i * 0.22, () => animateDescent(e, DESC, idAt, impacts[e.id])));
+      t += (group.length - 1) * 0.22 + DESC + 0.5;
+    }
+    if (desc.length) t += 0.2;
 
     // Gun pods
     const guns = byBeat(R.BEAT.GUNFIRE);

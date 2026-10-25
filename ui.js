@@ -526,7 +526,7 @@ window.UI = (function () {
         <div class="sect">Campaign</div>
         <div class="missions" id="m-missions"></div>
         <div class="sect">Skirmish &amp; two players &mdash; random islands</div>
-        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span>${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}">${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
+        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span>${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
         <div class="diffs">${diffs}</div>
         <div class="panel hotseat daily" id="m-daily"><div><h3>DAILY OPERATION <span id="dl-date"></span></h3><p id="dl-desc"></p></div><div class="vs" id="dl-best"></div></div>
         <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
