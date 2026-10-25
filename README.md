@@ -47,14 +47,14 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 
 **Winning:** destroy the enemy Command Center. If both HQs fall in the same turn it's a draw. After 30 turns, the side whose HQ has more HP left (as a percentage) wins. If that's a tie, the side with more invested in surviving structures (including upgrades) wins.
 
-**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for your next planning phase). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible. An enemy AA Battery that fires at your missile gives its position away and is added to your last-known map.
+**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for your next planning phase). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible. An AA Battery that fires at a missile gives its position away: the attacker sees it during the next planning phase. This works both ways, so a salvo can follow up on a battery that revealed itself.
 
 **Reading the battle:**
 - The battle log names who shot each missile down, with its hit chance (for example "AA Battery at I27 (70%)" or "HQ point defence (40%)").
 - Impact lines come before the losses they caused, and say how much damage shields absorbed.
 - While aiming, the tooltip lists the known defences covering the target and the chance that one missile gets through.
 - While placing a structure, the tooltip previews what it does from that cell: how many enemy cells a Radar reveals, or which of your structures an AA Battery or Shield covers.
-- The turn report shows what you have seen of the enemy base.
+- The turn report shows what you have seen of the enemy base, and the log notes enemy builds and upgrades you can see.
 - A defeat screen ends with a one-line debrief on the biggest thing that went wrong.
 
 ## Structures

@@ -445,3 +445,20 @@ test('daily operation score rewards speed and HQ health; losses score damage dea
   s.winner = A; ehq.hp = ehq.maxHp * 0.25;
   assert.equal(R.dailyScore(s), 750);
 });
+
+test('an AA Battery that fires at a missile is revealed to the attacker', () => {
+  const s = R.newGame('patrol', 10);
+  rich(s, P); rich(s, A);
+  const hq = R.hqCell(A);
+  let cell = -1;
+  for (let c = 0; c < R.N && cell < 0; c++) if (!R.buildableReason(s, A, 'aa', c) && R.dist(c, hq) > BUILDINGS.hq.range + 1) cell = c;
+  assert.ok(cell >= 0);
+  assert.ok(R.build(s, A, 'aa', cell).ok);
+  assert.ok(!R.visibleEnemyCells(s, P).has(cell), 'hidden by fog to start with');
+  assert.ok(R.queueMissile(s, P, cell).ok);
+  R.resolveTurn(s);
+  const ev = R.resolveTurn(s);
+  const d = ev.find(e => e.type === 'descend' && e.side === P);
+  assert.ok(d.shots.some(x => x.by === cell && x.chance === BUILDINGS.aa.hitChance), 'the battery engaged, with its hit chance recorded');
+  assert.ok(R.visibleEnemyCells(s, P).has(cell), 'its position is visible next planning phase');
+});

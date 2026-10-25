@@ -512,7 +512,7 @@
     const extra = Math.round(b.maxHp * (UP_HP - 1));
     s.credits -= info.cost;
     const poolBefore = b.type === 'shield' ? stat(b, 'pool') : 0;
-    b.level = 2; b.maxHp += extra; b.hp += extra;
+    b.level = 2; b.maxHp += extra; b.hp += extra; b.upgradedTurn = state.turn;
     if (b.type === 'shield') b.pool += stat(b, 'pool') - poolBefore;
     if (b.type === 'aa' && !b.fired) b.shots = stat(b, 'shots');
     s.undo.push({ kind: 'upgrade', id: b.id, cell, cost: info.cost, extra, poolBefore: b.type === 'shield' ? b.pool - (stat(b, 'pool') - poolBefore) : undefined });
@@ -878,6 +878,8 @@
           tried.add(best);
           const hit = rand(state) < stat(best, 'hitChance');
           shots.push({ by: best.cell, hit, chance: stat(best, 'hitChance') });
+          // a battery that fires gives its position away: the attacker sees it next planning phase
+          if (best.type === 'aa') { const ai = sideOf(m.side).intel; ai.nextReveal = (ai.nextReveal || []).concat([best.cell]); }
           if (hit) { m.interceptedBy = best.cell; sideOf(def).stats.intercepts++; break; }
           best = null; bd = Infinity;
           for (const bat of batteries) {
