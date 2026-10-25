@@ -78,7 +78,7 @@ window.UI = (function () {
   #sysbtns { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
   .iconbtn { width: 38px; height: 38px; display: grid; place-items: center; cursor: pointer; color: var(--c-text); }
   .iconbtn:hover { color: #fff; border-color: rgba(46,196,255,.6); }
-  #vol { width: 90px; accent-color: var(--c-player); }
+  #vol { width: 90px; }
 
   /* Build bar */
   #dock { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; transition: transform .35s, opacity .35s; max-width: calc(100vw - 16px); }
@@ -179,6 +179,14 @@ window.UI = (function () {
   .setrow:last-of-type { border-bottom: 0; }
   .setrow small { display: block; font-size: 12px; color: var(--c-dim); }
   .setrow input[type=range] { width: min(200px, 40vw); }
+  /* Sliders: thin track filled up to the thumb (--p is set from JS) */
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; cursor: pointer; --p: 50%; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--c-player) var(--p), rgba(255,255,255,.14) var(--p)); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); }
+  input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c-player); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: #e8f6ff; border: 2px solid var(--c-player); box-shadow: 0 0 8px rgba(46,196,255,.55); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #e8f6ff; border: 2px solid var(--c-player); box-shadow: 0 0 8px rgba(46,196,255,.55); }
+  input[type=range]:focus-visible { outline: 2px solid var(--c-player); outline-offset: 2px; border-radius: 4px; }
   body.compact #settings .menu-box { padding: 12px 16px; } body.compact .setrow { padding: 5px 0; font-size: 13px; }
 
   /* Report */
@@ -633,6 +641,7 @@ window.UI = (function () {
     layout();
     $('b-menu').addEventListener('click', () => H.onAction('menu'));
     $('vol').addEventListener('input', e => H.onVolume(+e.target.value));
+    root.addEventListener('input', e => { if (e.target.type === 'range') fillRange(e.target); });
     root.addEventListener('mouseover', e => {
       const t = e.target.closest && e.target.closest('.card,.abtn,.sbtn,.diff,.bigbtn,.iconbtn');
       if (t && t !== lastHoverEl && H.onHover) H.onHover();
@@ -751,6 +760,8 @@ window.UI = (function () {
     $('drop-sub').textContent = a.drop.sub || '';
     $('fire-badge').textContent = a.fire.badge || '';
     $('drop-badge').textContent = a.drop.badge || '';
+    $('fire-badge').title = a.fire.badge ? 'Silos ready to launch / silos built' : '';
+    $('drop-badge').title = a.drop.badge ? 'Hangars ready to drop / hangars built' : '';
     $('b-strike').style.display = a.strike && a.strike.visible ? '' : 'none';
     if (a.strike && a.strike.visible) {
       set('b-strike', a.strike);
@@ -1121,7 +1132,7 @@ window.UI = (function () {
   function paintSettings(v) {
     document.querySelectorAll('#settings [data-set]').forEach(c => {
       const cur = v[c.dataset.set];
-      if (c.tagName === 'INPUT') c.value = cur;
+      if (c.tagName === 'INPUT') { c.value = cur; fillRange(c); }
       else c.classList.toggle('on', String(cur) === c.dataset.v);
     });
   }
@@ -1139,7 +1150,8 @@ window.UI = (function () {
   function isHelpOpen() { return $('help').classList.contains('show'); }
 
   function setMuted(m) { $('b-mute').innerHTML = icon(m ? 'mute' : 'sound'); }
-  function setVolume(v) { $('vol').value = v; }
+  function setVolume(v) { $('vol').value = v; fillRange($('vol')); }
+  function fillRange(r) { r.style.setProperty('--p', (100 * (r.value - r.min) / ((r.max - r.min) || 1)) + '%'); }
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,

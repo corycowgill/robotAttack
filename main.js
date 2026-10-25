@@ -603,8 +603,8 @@
     const strikeOrdered = s.orders.some(o => o.kind === 'strike');
     const ready = phase === 'planning' && !!fireReason && !!dropReason && (!!strikeReason || !uplink) && s.credits < 80;
     UI.setActions({
-      fire: { enabled: !fireReason, selected: mode === 'fire', reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? freeSilos + '/' + silos : '' },
-      drop: { enabled: !dropReason, selected: mode === 'drop', reason: dropReason, sub: CONST.DROP_ENERGY + 'e', badge: hangars ? freeH + '/' + hangars : '' },
+      fire: { enabled: !fireReason, selected: mode === 'fire', reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? freeSilos + '/' + silos: '' },
+      drop: { enabled: !dropReason, selected: mode === 'drop', reason: dropReason, sub: CONST.DROP_ENERGY + 'e', badge: hangars ? freeH + '/' + hangars: '' },
       strike: {
         visible: !!uplink, enabled: !strikeReason, selected: mode === 'strike', reason: strikeReason, sub: CONST.STRIKE_ENERGY + 'e',
         ready: !strikeReason, badge: uplink ? (strikeOrdered ? 'SET' : uplink.charge >= CONST.STRIKE_CHARGE ? 'READY' : uplink.charge + '/' + CONST.STRIKE_CHARGE) : ''
@@ -1183,6 +1183,7 @@
     phase = 'resolving';
     syncWorld(true); // show AI construction (if visible) before combat
     for (const b of R.buildingsOf(state, A)) if (b.builtTurn === state.turn && b.type !== 'hq' && playerSees(b.cell)) UI.log('Enemy built ' + BUILDINGS[R.apparent(b).type].name + ' at ' + cellName(b.cell), 'enemy');
+    for (const b of R.buildingsOf(state, A)) if (b.upgradedTurn === state.turn && b.level > 1 && playerSees(b.cell)) UI.log('Enemy upgraded ' + BUILDINGS[b.type].name + ' at ' + cellName(b.cell) + ': ' + UPGRADES[b.type].name, 'enemy');
 
     // Snapshot ids by cell before resolution mutates the board
     const idAt = {};
@@ -1392,16 +1393,14 @@
         Fx.smallBlast(p, 0xffdd88);
         SND.play('intercept', { pan: panAtPos(p) });
         const sp = Renderer.project(p.clone());
-        if (sp.visible) UI.floatText(sp.x, sp.y - 10, 'INTERCEPTED', 'blue');
+        if (sp.visible) UI.floatText(sp.x, sp.y - 10, 'INTERCEPTED', 'blue big');
         const by = shotBy(e.interceptedBy, shots[shots.length - 1]);
         UI.log((own ? 'Your missile was shot down by ' + by : 'Enemy missile shot down by your ' + by) + ' over ' + cellName(e.to), own ? 'bad' : 'good');
-        if (own) revealInterceptor(e.interceptedBy);
         Renderer.addTrauma(0.12, p);
       } else if (impact) {
         if (shots.length) {
           const names = shots.map(sh => shotBy(sh.by, sh)).join(' and ');
           UI.log((own ? 'Your missile slipped past ' + names : 'Your ' + names + ' missed the enemy missile') + ' over ' + cellName(e.to), own ? 'good' : 'bad');
-          if (own) shots.forEach(sh => revealInterceptor(sh.by));
         }
         applyImpact(impact, idAt);
       }
@@ -1415,18 +1414,6 @@
     if (b && b.type === 'hq') return 'HQ point defence' + pct;
     return 'AA Battery at ' + cellName(cell) + pct;
   }
-  // An enemy battery that fires gives its position away: remember it as last-known intel
-  function revealInterceptor(cell) {
-    if (R.ownerOfCell(cell) !== A) return;
-    const b = R.buildingAt(state, cell);
-    if (!b || b.type === 'hq') return;
-    const seen = state.sides[P].intel.seen;
-    if (visible.has(cell) || seen[cell]) return;
-    const a = R.apparent(b);
-    seen[cell] = { type: a.type, hp: a.hp, maxHp: a.maxHp, level: a.level, turn: state.turn };
-    Renderer.setGhosts(Object.keys(seen).filter(k => !visible.has(+k)).map(k => ({ cell: +k, type: seen[k].type })));
-  }
-
   // Interceptor from a battery to a meeting point; a miss bursts beside the missile
   function fireInterceptor(shot, meet, flight, idAt, e) {
     const batId = idAt[shot.by];
