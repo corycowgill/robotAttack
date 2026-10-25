@@ -27,22 +27,27 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 
 Skirmishes play in real time by default, the way Metal Marines did:
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
-- **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20.
+- **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
   - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike) and click a target.
   - The attack panel lists every silo and hangar with its status. Toggle which loaded ones to send and see the energy cost and the known defences, then press `Enter` or **Launch**.
   - Missiles leave one after another. The dropship carrying the mechs follows them.
 - **Every launch is announced.** The moment an enemy missile or dropship lifts off:
   - an alarm sounds;
-  - it appears in the **In the air** list with a countdown (about 8–10 seconds);
+  - it appears in the **In the air** list with a countdown (about 8–10 seconds), one row per wave;
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
-- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games. A salvo with more missiles than the defence has shots gets through.
-- **Dropships can be shot down.** One ship carries up to 3 mechs and takes 2 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
-- **Mechs raid a zone and leave.** Landed mechs fight inside the 5×5 area around their landing point for 40 seconds, then their dropship takes them home. They leave early if the zone is clear. The hangar has a new mech ready 20 seconds after it returns or dies.
-- **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games.
+  - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
+  - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
+  - A battery destroyed while its interceptor is in the air loses guidance.
+- **Dropships can be shot down.** One ship carries up to 3 mechs and takes 3 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
+- **Mechs raid a zone and leave.** Landed mechs fight inside the 5×5 area around their landing point for 30 seconds, then their dropship takes them home. They leave early if the zone is clear. Enemy raids are outlined on the map, and every raid gets a row in the list with its time left. The hangar has a new mech ready 20 seconds after it returns or dies.
+- **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds. A new radar comes online 5 seconds after it is built.
+- **Orbital strikes** charge for 90 seconds and land 11 seconds after launch: a long, loud warning. Splash is 34, so a full-health depot or power plant survives it.
+- **Repairs** restore up to 15 HP per structure every 15 seconds. A structure sold within 5 seconds of building refunds in full.
 - **The clock:** the turn-limit option becomes a battle clock (30 turns = 10 minutes). When time runs out, the healthier Command Center wins.
-- **Pause:** `Space` pauses, and the game also pauses when you switch tabs.
+- **Pause:** `Space` pauses, and the game also pauses when you switch tabs. While paused you can look around and inspect, but building and attacking wait until you resume.
 - **Saving:** the battle autosaves every 15 seconds, and **Continue** resumes it, missiles in flight included.
 
 The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. Smart AIs scramble ready mechs to meet raiders on their island. In AI-vs-AI simulations, a Commander mirror lasts about 6–7 minutes, about 70% of missiles are intercepted, and about a third of dropships are shot down.

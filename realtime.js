@@ -39,8 +39,8 @@
       think: { player: 0.5, ai: 0.5 },
       ai: { player: {}, ai: {} }   // per-side AI memory
     };
-    // the starting launchers are half loaded
-    for (const side of [P, A]) for (const b of R.buildingsOf(state, side)) if (b.type === 'silo' || b.type === 'hangar') b.readyAt = reloadOf(b) / 2;
+    // a short calm before the first salvo: the starting silo finishes loading START_LOAD in
+    for (const side of [P, A]) for (const b of R.buildingsOf(state, side)) if (b.type === 'silo' || b.type === 'hangar') b.readyAt = b.type === 'silo' ? T.START_LOAD : reloadOf(b) / 2;
     return state;
   }
 
@@ -135,7 +135,7 @@
     if (a.strike) {
       const up = R.buildingsOf(state, side, 'uplink')[0];
       up.charge = 0;
-      rt.flights.push(newFlight(state, 'strike', side, up.cell, a.to, at, { dmg: C.STRIKE_DAMAGE, splash: C.STRIKE_SPLASH, cost: C.STRIKE_ENERGY }));
+      rt.flights.push(newFlight(state, 'strike', side, up.cell, a.to, at, { dmg: C.STRIKE_DAMAGE, splash: Math.round(C.STRIKE_SPLASH * T.STRIKE_SPLASH_MUL), cost: C.STRIKE_ENERGY }));
       ids.push(rt.flights[rt.flights.length - 1].id);
       at += T.SALVO_GAP;
     }
@@ -217,7 +217,12 @@
     for (let i = 0; i < R.N; i++) {
       const b = state.cells[i].building;
       if (!b || b.dead) continue;
-      if (b.type === 'shield') b.pool = Math.min(R.stat(b, 'pool'), b.pool + R.stat(b, 'regen') * dt / T.ROUND);
+      if (b.type === 'shield') {
+        // whole points only, so damage (and HP, and repair bills) stay whole numbers
+        b.poolAcc = (b.poolAcc || 0) + R.stat(b, 'regen') * dt / T.ROUND;
+        const whole = Math.floor(b.poolAcc + 1e-6);
+        if (whole) { b.pool = Math.min(R.stat(b, 'pool'), Math.floor(b.pool) + whole); b.poolAcc -= whole; }
+      }
       if (b.type === 'uplink') b.charge = Math.min(C.STRIKE_CHARGE, (b.charge || 0) + C.STRIKE_CHARGE * dt / T.STRIKE_CHARGE_TIME);
       if ((b.type === 'silo' || b.type === 'hangar') && b.readyAt === undefined) b.readyAt = t + reloadOf(b) / 2;
     }
@@ -266,6 +271,9 @@
       sh.done = true;
       const f = rt.flights.find(x => x.id === sh.flight);
       if (!f || f.done) continue;
+      // a battery destroyed while its interceptor was in the air loses guidance
+      const bat = R.buildingAt(state, sh.by);
+      if (!bat || bat.id !== sh.byId) { ev({ type: 'aaMiss', id: f.id, side: f.side, by: sh.by, lost: true }); continue; }
       if (!sh.hit) { ev({ type: 'aaMiss', id: f.id, side: f.side, by: sh.by }); continue; }
       const def = state.sides[R.enemyOf(f.side)].stats;
       if (f.kind === 'missile') {
@@ -352,7 +360,7 @@
         bat.reloadAt = t + (bat.type === 'hq' ? T.HQ_PD_RELOAD : T.AA_RELOAD * (bat.level > 1 ? 0.75 : 1));
         const chance = R.stat(bat, 'hitChance');
         const hit = R.rand(state) < chance;
-        rt.shots.push({ by: bat.cell, flight: best.id, hit, chance, at: t + T.SHOT_TIME });
+        rt.shots.push({ by: bat.cell, byId: bat.id, flight: best.id, hit, chance, at: t + T.SHOT_TIME });
         if (bat.type === 'aa') reveal(state, best.side, [bat.cell]);
         ev({ type: 'aaShot', side: def, by: bat.cell, byId: bat.id, id: best.id, kind: best.kind, hit, chance, travel: T.SHOT_TIME });
       }

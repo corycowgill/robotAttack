@@ -83,9 +83,9 @@ const RT = {
   SALVO_GAP: 0.4,         // missiles in one attack leave one after another
   SHIP_DELAY: 1.0,        // the dropship follows the last missile
   SHIP_FLIGHT: 10,
-  SHIP_HULL: 2,           // AA hits to bring a dropship down, +1 per extra mech aboard
+  SHIP_HULL: 3,           // AA hits to bring a dropship down, +1 per extra mech aboard
   MECHS_PER_SHIP: 3,
-  MECH_TIME: 40,          // seconds a landed mech fights before its dropship collects it
+  MECH_TIME: 30,          // seconds a landed mech fights before its dropship collects it
   MECH_ZONE: 2,           // mechs fight inside the 5x5 around where they landed
   MECH_STEP: 1.6,         // seconds between a mech's moves or blows
   MECH_DAMAGE_MUL: 0.5,   // per blow, versus a turn-based blow
@@ -96,10 +96,16 @@ const RT = {
   GUN_RELOAD: 2,
   HQ_GUN_RELOAD: 3,
   REVEAL_TIME: 30,        // an impact or a firing battery stays revealed this long
-  STRIKE_FLIGHT: 7,
-  STRIKE_CHARGE_TIME: 70, // seconds for an uplink to charge
+  STRIKE_FLIGHT: 11,      // a long, loud warning: time to raise a shield or repair
+  STRIKE_CHARGE_TIME: 90, // seconds for an uplink to charge
+  STRIKE_SPLASH_MUL: 0.85,// so a full-health 40 HP depot or power plant survives the splash
   AI_THINK: 1.5,          // seconds between AI decisions (Patrol: double)
-  AI_ATTACK_GAP: [8, 20]  // smart AIs wait a random spell between attacks
+  AI_ATTACK_GAP: { patrol: [25, 45], commander: [14, 26], warlord: [12, 22] },  // random wait between AI waves
+  OPENING_GRACE: { patrol: 45, commander: 25, warlord: 20 },  // no AI attack before this
+  START_LOAD: 24,         // the starting silo is ready this many seconds in
+  RADAR_BOOT: 5,          // seconds before a new radar comes online
+  REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full
+  REPAIR_PER_ROUND: 15    // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
 };
 
 // Building table — single source of truth for costs, HP and descriptions.
@@ -134,7 +140,7 @@ const BUILDINGS = {
     counter: 'Countered by AA Batteries and Shields'
   },
   aa: {
-    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1, hitChance: 0.7,
+    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1, hitChance: 0.7, rtCostStep: 20,   // real time: each AA you own makes the next 20 dearer
     desc: 'Fires at 1 incoming missile per turn aimed within its range (70% hit). Batteries back each other up on a miss.',
     stats: () => ['1 shot / turn, 70% hit', 'Covers radius 4']
   },

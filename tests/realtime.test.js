@@ -29,8 +29,8 @@ test('attacks: pick loaded silos, pay energy, see it coming, land after the flig
   const s = game();
   const silo = R.buildingsOf(s, P, 'silo')[0];
   const to = R.hqCell(A);
-  assert.match(RTE.attackReason(s, P, { to, silos: [silo.cell] }), /reloading/, 'new launchers start half loaded');
-  run(s, RT.SILO_RELOAD / 2);
+  assert.match(RTE.attackReason(s, P, { to, silos: [silo.cell] }), /reloading/, 'a calm opening: the starting silo is still loading');
+  run(s, RT.START_LOAD);
   s.sides[P].energy = 20;
   assert.equal(RTE.attackReason(s, P, { to: R.hqCell(P), silos: [silo.cell] }), 'Missiles must target enemy territory');
   const r = RTE.launchAttack(s, P, { to, silos: [silo.cell] });
@@ -52,7 +52,7 @@ test('AA batteries reload between shots, so a salvo outnumbering them gets throu
   s.sides[P].credits = 9999;
   const silos = [R.buildingsOf(s, P, 'silo')[0]];
   while (silos.length < 4) silos.push(buildAt(s, P, 'silo'));
-  run(s, RT.SILO_RELOAD);
+  run(s, RT.START_LOAD);
   s.sides[P].energy = 40;
   const r = RTE.launchAttack(s, P, { to: R.hqCell(A), silos: silos.map(b => b.cell) });
   assert.ok(r.ok, r.reason);

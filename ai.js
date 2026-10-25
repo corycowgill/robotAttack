@@ -186,11 +186,13 @@
   }
 
   const PATROL_ORDER = ['depot', 'power', 'silo', 'aa', 'gunpod', 'radar', 'depot', 'hangar', 'silo', 'power', 'aa'];
+  // real time: a second silo early, so Patrol's waves are salvos it can actually land
+  const PATROL_RT_ORDER = ['depot', 'power', 'silo', 'aa', 'silo', 'gunpod', 'radar', 'depot', 'hangar', 'power', 'aa'];
   function nextPatrolBuild(state) {
     if (enemyRobotsOnMySide(state).length && count(state, 'gunpod') < 2) return 'gunpod';
     const have = {};
     const style = styleOf(state);
-    const order = style === AI_STYLES.balanced ? PATROL_ORDER : style.opening;
+    const order = style === AI_STYLES.balanced ? (state.realtime ? PATROL_RT_ORDER : PATROL_ORDER) : style.opening;
     for (const t of order) {
       have[t] = (have[t] || 0) + 1;
       if (count(state, t) < have[t]) {
@@ -485,14 +487,20 @@
       if (hangars.length) RTE.launchAttack(state, ME, { to: invaders[0].cell, hangars });
     }
 
-    if (t < (mem.nextAttack || 0)) return;
+    const rtc = typeof RT !== 'undefined' ? RT : require('./config.js').RT;
+    const level = (state.rt.aiDiff || {})[ME] || state.difficulty;
+    if (mem.nextAttack === undefined) mem.nextAttack = rtc.OPENING_GRACE[level] || 25;
+    if (t < mem.nextAttack) return;
     const silos = R.buildingsOf(state, ME, 'silo'), ready = RTE.readyLaunchers(state, ME, 'silo');
     const readyH = RTE.readyLaunchers(state, ME, 'hangar');
     const strikeReady = !R.strikeReadyReason(state, ME);
     const atCap = s.energy >= R.energyCap(state, ME) - 2;
+    // waves of two or more missiles: a lone missile mostly just feeds the enemy AA
+    // (a single silo still fires when energy would otherwise go to waste)
+    const salvo = ready.length >= 2 || (silos.length === 1 && ready.length === 1 && atCap);
     let go;
-    if (smart) go = strikeReady || (ready.length && (ready.length >= silos.length || atCap)) || (!silos.length && readyH.length);
-    else go = (ready.length || readyH.length) && R.rand(state) < diff.fireChance * 0.5;
+    if (smart) go = strikeReady || (salvo && (ready.length >= silos.length || atCap)) || (!silos.length && readyH.length) || (readyH.length >= 2 && !ready.length);
+    else go = (salvo || readyH.length) && R.rand(state) < diff.fireChance;
     if (!go) return;
 
     // mask launchers that are reloading, then let the turn-based pickers choose targets
@@ -526,8 +534,8 @@
       launched = launched || r.ok;
     }
     if (launched) {
-      const gap = (typeof RT !== 'undefined' ? RT : require('./config.js').RT).AI_ATTACK_GAP;
-      mem.nextAttack = t + (gap[0] + R.rand(state) * (gap[1] - gap[0])) * (smart ? 1 : 1.6);
+      const gap = rtc.AI_ATTACK_GAP[level] || rtc.AI_ATTACK_GAP.commander;
+      mem.nextAttack = t + gap[0] + R.rand(state) * (gap[1] - gap[0]);
     }
   }
   const RT_MECHS = 3;

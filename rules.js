@@ -14,6 +14,7 @@
   const UP = (typeof UPGRADES !== 'undefined') ? UPGRADES : require('./config.js').UPGRADES;
   const UP_COST = (typeof UPGRADE_COST !== 'undefined') ? UPGRADE_COST : require('./config.js').UPGRADE_COST;
   const UP_HP = (typeof UPGRADE_HP !== 'undefined') ? UPGRADE_HP : require('./config.js').UPGRADE_HP;
+  const RTC = (typeof RT !== 'undefined') ? RT : require('./config.js').RT;   // real-time tunables
 
   // A structure's stat, honouring its upgrade level
   function stat(b, key) {
@@ -293,6 +294,7 @@
       fired: false, deployed: false, repaired: 0,
       dead: false, builtTurn: state.turn
     };
+    if (state.rt) b.builtAt = state.rt.t;
     if (type === 'aa') b.shots = def.shots;
     if (type === 'hq') b.shots = 1;
     if (type === 'uplink') b.charge = 0;
@@ -369,6 +371,7 @@
   // ── Vision ───────────────────────────────────────────────
   // Radars come online the turn after construction (no build-peek-undo)
   function onlineRadars(state, side) {
+    if (state.realtime) return buildingsOf(state, side, 'radar').filter(r => r.builtAt === undefined || state.rt.t - r.builtAt >= RTC.RADAR_BOOT);
     return buildingsOf(state, side, 'radar').filter(r => r.builtTurn < state.turn);
   }
 
@@ -442,7 +445,8 @@
   // so an all-economy opening can't snowball unchecked.
   function buildCost(state, side, type) {
     const def = B[type];
-    return def.cost + (def.costStep ? def.costStep * buildingsOf(state, side, type).length : 0);
+    const step = (def.costStep || 0) + (state.realtime && def.rtCostStep ? def.rtCostStep : 0);
+    return def.cost + (step ? step * buildingsOf(state, side, type).length : 0);
   }
 
   // Cheap check ignoring credits/max — for the build-zone overlay
@@ -471,8 +475,8 @@
     if (!b || b.side !== side) return { amount: 0, cost: 0, reason: 'Nothing to repair' };
     const missing = b.maxHp - b.hp;
     if (missing <= 0) return { amount: 0, cost: 0, reason: 'Already at full HP' };
-    const left = C.REPAIR_MAX_PER_TURN - b.repaired;
-    if (left <= 0) return { amount: 0, cost: 0, reason: 'Repair limit reached this turn' };
+    const left = (state.realtime ? RTC.REPAIR_PER_ROUND : C.REPAIR_MAX_PER_TURN) - b.repaired;
+    if (left <= 0) return { amount: 0, cost: 0, reason: state.realtime ? 'Repair crews busy — ready in ' + Math.ceil(state.rt.nextRound - state.rt.t) + 's' : 'Repair limit reached this turn' };
     const credits = state.sides[side].credits;
     const amount = Math.min(missing, left, Math.floor(credits / C.REPAIR_COST_PER_HP));
     if (amount <= 0) return { amount: 0, cost: 0, reason: 'Not enough credits' };
@@ -492,7 +496,8 @@
 
   function sellValue(b, state) {
     const invested = (b.paid || B[b.type].cost) + (b.level > 1 ? upgradeCost(b.type) : 0);
-    if (state && b.builtTurn === state.turn) return invested; // changed your mind this turn: full refund
+    // changed your mind: full refund this turn (real time: within a few seconds of building)
+    if (state && (state.realtime ? b.builtAt !== undefined && state.rt.t - b.builtAt <= RTC.REFUND_WINDOW : b.builtTurn === state.turn)) return invested;
     return Math.floor(invested * C.SELL_REFUND * (Math.max(0, b.hp - b.repaired) / b.maxHp));
   }
 

@@ -29,6 +29,7 @@ window.UI = (function () {
     repair: '<path d="M14 6a4 4 0 0 0-5 5l-6 6 3 3 6-6a4 4 0 0 0 5-5l-3 3-3-3z"/>',
     sell: '<circle cx="12" cy="12" r="9"/><path d="M15 9c-1-1-5-1-5 1s5 1 5 3-4 2-5 1M12 6v2M12 16v2"/>',
     end: '<path d="M6 4l12 8-12 8z"/>',
+    pause: '<path d="M8 5v14M16 5v14"/>',
     sound: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
     mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
@@ -710,7 +711,7 @@ window.UI = (function () {
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
         <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through.</li>
         <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside the 5×5 around the landing point for ${RT.MECH_TIME}s, then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later.</li>
-        <li><kbd>Space</kbd> pauses. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
+        <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
       </ul>
       <h4>Each turn (turn-based games)</h4>
       <ol>
@@ -748,9 +749,9 @@ window.UI = (function () {
   }
 
   function setHUD(h) {
-    $('h-cr').textContent = h.credits;
+    $('h-cr').textContent = Math.floor(h.credits);
     $('h-cri').textContent = '+' + h.creditInc;
-    $('h-en').textContent = h.energy + '/' + h.energyCap;
+    $('h-en').textContent = Math.floor(h.energy) + '/' + h.energyCap;
     $('h-eni').textContent = '+' + h.energyInc;
     const eb = $('h-enb');
     eb.style.width = (100 * h.energy / h.energyCap) + '%';
@@ -766,13 +767,13 @@ window.UI = (function () {
       $('hud-turn').title = h.maxTurns - h.turn < 5 ? 'Turn limit close: the healthier HQ wins at turn ' + h.maxTurns : '';
     }
     $('hud-phase').textContent = h.phase;
-    $('h-hq').textContent = h.hq.hp + ' / ' + h.hq.max;
+    $('h-hq').textContent = Math.ceil(h.hq.hp) + ' / ' + h.hq.max;
     $('h-hqb').style.width = (100 * h.hq.hp / h.hq.max) + '%';
     // hot-seat Player 2 plays red: "your" colours follow the seat
     const mine = h.red ? 'var(--c-ai)' : 'var(--c-player)', theirs = h.red ? 'var(--c-player)' : 'var(--c-ai)';
     $('h-hql').style.color = $('h-hqb').style.background = mine;
     $('h-ehql').style.color = $('h-ehqb').style.background = theirs;
-    $('h-ehq').textContent = h.enemyHq.known ? (h.enemyHq.hp + ' / ' + h.enemyHq.max) : ('~' + h.enemyHq.hp + ' / ' + h.enemyHq.max);
+    $('h-ehq').textContent = (h.enemyHq.known ? '' : '~') + Math.ceil(h.enemyHq.hp) + ' / ' + h.enemyHq.max;
     $('h-ehqb').style.width = (100 * h.enemyHq.hp / h.enemyHq.max) + '%';
   }
 
@@ -984,24 +985,52 @@ window.UI = (function () {
   function hideReport() { $('report').classList.remove('show'); }
 
   // d: { target, silos: [{cell,label,status,ready,on}], hangars: [...], strike: {...}|null, cost, energy, reason, odds }
-  let attackHtml = '';
+  // The panel's structure is rebuilt only when its launchers change; countdowns, toggles and
+  // costs update in place, so a click never lands on a button that is being replaced.
+  let attackShape = '';
   function showAttack(d) {
-    const chip = (kind, it) => `<button class="ach${it.on ? ' on' : ''}${it.ready ? '' : ' wait'}" data-kind="${kind}" data-cell="${it.cell}">${icon(kind === 'silo' ? 'missile' : kind === 'hangar' ? 'drop' : 'strike')}<span>${esc(it.label)}</span><small>${esc(it.status)}</small></button>`;
+    const p = $('attack');
+    const chip = (kind, it) => `<button class="ach" data-kind="${kind}" data-cell="${it.cell}">${icon(kind === 'silo' ? 'missile' : kind === 'hangar' ? 'drop' : 'strike')}<span>${esc(it.label)}</span><small></small></button>`;
     const row = (label, kind, list, none) => `<div class="arow"><span class="al">${label}</span>${list.length ? list.map(x => chip(kind, x)).join('') : '<span class="none">' + none + '</span>'}</div>`;
-    const html = `<div class="ah"><b>ATTACK</b> &rarr; ${esc(d.target)}<span class="k">Click another cell to retarget</span></div>`
-      + row('Missiles', 'silo', d.silos, 'No silos built')
-      + row('Mechs', 'hangar', d.hangars, 'No hangars built')
-      + (d.strike ? row('Orbital', 'strike', [d.strike], '') : '')
-      + `<div class="aodds">${d.odds || ''}</div>`
-      + `<div class="afoot"><span class="cost">Cost <b style="color:var(--c-energy)">${d.cost}e</b> of ${d.energy}e</span><span class="bad">${esc(d.reason || '')}</span>`
-      + `<button class="bigbtn" id="at-go"${d.reason ? ' disabled' : ''}>Launch <kbd>Enter</kbd></button><button class="bigbtn alt" id="at-x">Cancel</button></div>`;
-    if (html !== attackHtml) { $('attack').innerHTML = html; attackHtml = html; }
-    $('attack').classList.add('show');
+    const shape = JSON.stringify([d.silos.map(x => x.cell + x.label), d.hangars.map(x => x.cell + x.label), !!d.strike]);
+    if (shape !== attackShape) {
+      attackShape = shape;
+      p.innerHTML = `<div class="ah"><b>ATTACK</b> &rarr; <span class="tg"></span><span class="k">Click another cell to retarget</span></div>`
+        + row('Missiles', 'silo', d.silos, 'No silos built')
+        + row('Mechs', 'hangar', d.hangars, 'No hangars built')
+        + (d.strike ? row('Orbital', 'strike', [d.strike], '') : '')
+        + `<div class="aodds"></div>`
+        + `<div class="afoot"><span class="cost"></span><span class="bad"></span>`
+        + `<button class="bigbtn" id="at-go">Launch <kbd>Enter</kbd></button><button class="bigbtn alt" id="at-x">Cancel</button></div>`;
+    }
+    const items = { silo: d.silos, hangar: d.hangars, strike: d.strike ? [d.strike] : [] };
+    p.querySelectorAll('.ach').forEach(b => {
+      const it = items[b.dataset.kind].find(x => String(x.cell) === b.dataset.cell);
+      if (!it) return;
+      b.classList.toggle('on', !!it.on);
+      b.classList.toggle('wait', !it.ready);
+      const st = b.querySelector('small');
+      if (st.textContent !== it.status) st.textContent = it.status;
+    });
+    p.querySelector('.tg').textContent = d.target;
+    const odds = p.querySelector('.aodds');
+    if (odds.innerHTML !== (d.odds || '')) odds.innerHTML = d.odds || '';
+    p.querySelector('.cost').innerHTML = `Cost <b style="color:var(--c-energy)">${d.cost}e</b> of ${d.energy}e`;
+    p.querySelector('.afoot .bad').textContent = d.reason || '';
+    const go = $('at-go');
+    if (go.disabled !== !!d.reason) go.disabled = !!d.reason;
+    p.classList.add('show');
   }
-  function hideAttack() { $('attack').classList.remove('show'); attackHtml = ''; }
+  function hideAttack() { $('attack').classList.remove('show'); attackShape = ''; }
   function isAttackOpen() { return $('attack').classList.contains('show'); }
   // the End Turn button doubles as Pause in a real-time battle
-  function setEndLabel(text) { const b = $('b-end'); if (b) b.querySelector('span').textContent = text; }
+  function setEndLabel(text) {
+    const b = $('b-end');
+    if (!b) return;
+    b.querySelector('span').textContent = text;
+    const ico = b.querySelector('svg');
+    if (ico) ico.outerHTML = icon(text === 'Pause' ? 'pause' : 'end');
+  }
   // real time: the orders panel lists flights in the air, and there is no undo
   let liveMode = false;
   function setLiveMode(on) {
@@ -1130,6 +1159,7 @@ window.UI = (function () {
     $('go-medals').style.display = g.medals ? '' : 'none';
     $('go-daily').innerHTML = g.daily ? `Daily score <b>${g.daily.score}</b> ${g.daily.newBest ? '— new best!' : '· best ' + g.daily.best}` : '';
     $('go-daily').style.display = g.daily ? '' : 'none';
+    chartClock = g.clockStep || 0;
     renderBattleChart(g.history || [], g.cols || ['You', 'Enemy']);
     const cols = g.cols || ['You', 'Enemy'];
     $('go-stats').innerHTML = '<span class="h"></span><span class="h" style="color:var(--c-player)">' + esc(cols[0]) + '</span><span class="h" style="color:var(--c-ai)">' + esc(cols[1]) + '</span>' +
@@ -1139,6 +1169,9 @@ window.UI = (function () {
   // Battle history as two small line charts (HQ health %, structures), shared legend,
   // direct end labels, hover crosshair + tooltip. Colours: validated pair on the dark panel.
   const SERIES_COL = { player: '#1898d0', ai: '#ef4a2d' };
+  // real-time games record history every few seconds: label the axis with the battle clock
+  let chartClock = 0;
+  const tLabel = t => chartClock ? Math.floor(t * chartClock / 60) + ':' + String(Math.floor(t * chartClock % 60)).padStart(2, '0') : String(t);
   function renderBattleChart(hist, names) {
     const box = $('go-chart');
     if (hist.length < 2) { box.innerHTML = ''; box.style.display = 'none'; return; }
@@ -1156,7 +1189,7 @@ window.UI = (function () {
     const y = v => T + (H - T - B) * (1 - v / maxY);
     const grid = [0, 0.5, 1].map(k => `<line x1="${L}" x2="${W - R}" y1="${y(maxY * k)}" y2="${y(maxY * k)}" stroke="rgba(150,180,210,.14)" stroke-width="1"/><text x="${L - 5}" y="${y(maxY * k) + 3}" text-anchor="end" font-size="9" fill="#7d8fa3">${Math.round(maxY * k)}${unit}</text>`).join('');
     const step = Math.max(1, Math.ceil((maxT - minT) / 6));
-    const ticks = hist.filter(h => (h.t - minT) % step === 0 || h.t === maxT).map(h => `<text x="${x(h.t)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#7d8fa3">${h.t}</text>`).join('');
+    const ticks = hist.filter(h => (h.t - minT) % step === 0 || h.t === maxT).map(h => `<text x="${x(h.t)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#7d8fa3">${tLabel(h.t)}</text>`).join('');
     const line = side => {
       const pts = hist.map(h => x(h.t).toFixed(1) + ',' + y(get(h[side])).toFixed(1)).join(' ');
       const last = hist[hist.length - 1], lx = x(last.t), ly = y(get(last[side]));
@@ -1187,7 +1220,7 @@ window.UI = (function () {
       const h = hist.reduce((a, b) => Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a);
       const sx = L + (vb.width - L - R) * (maxT === minT ? 0 : (h.t - minT) / (maxT - minT));
       xh.setAttribute('x1', sx); xh.setAttribute('x2', sx); xh.style.display = '';
-      tip.innerHTML = `Turn ${h.t}<br><span style="color:${SERIES_COL.player}">●</span> ${esc(names[0])} ${get(h.player)}${unit} · <span style="color:${SERIES_COL.ai}">●</span> ${esc(names[1])} ${get(h.ai)}${unit}`;
+      tip.innerHTML = `${chartClock ? tLabel(h.t) : 'Turn ' + h.t}<br><span style="color:${SERIES_COL.player}">●</span> ${esc(names[0])} ${get(h.player)}${unit} · <span style="color:${SERIES_COL.ai}">●</span> ${esc(names[1])} ${get(h.ai)}${unit}`;
       tip.style.display = 'block';
       const fx = sx / vb.width * r.width;
       tip.style.left = Math.min(r.width - tip.offsetWidth, Math.max(0, fx - tip.offsetWidth / 2)) + 'px';
