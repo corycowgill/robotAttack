@@ -10,8 +10,15 @@ function run(s, seconds, opts) {
   for (let i = 0; i < Math.round(seconds / RT.TICK); i++) out.push(...RTE.step(s, RT.TICK, opts));
   return out;
 }
-function buildAt(s, side, type) {
-  for (let c = 0; c < R.N; c++) if (!R.buildableReason(s, side, type, c)) { s.sides[side].credits += 1000; return R.build(s, side, type, c).building; }
+// builds a structure and (unless `wait`) skips its construction time
+function buildAt(s, side, type, wait) {
+  for (let c = 0; c < R.N; c++) {
+    if (R.buildableReason(s, side, type, c)) continue;
+    s.sides[side].credits += 1000;
+    const b = R.build(s, side, type, c).building;
+    if (!wait) { b.progress = 1; if (type === 'shield') b.pool = BUILDINGS.shield.pool; }
+    return b;
+  }
   throw new Error('no space for ' + type);
 }
 
@@ -137,4 +144,33 @@ test('AI-vs-AI real-time games finish within the rules and the clock', () => {
       assert.ok(s.rt.t <= s.rt.timeLimit + 1);
     }
   }
+});
+
+test('construction takes time, and factories speed up building, reloading and mech production', () => {
+  const s = game(8);
+  const depot = buildAt(s, P, 'depot', true);
+  assert.ok(!R.online(depot), 'a new depot is a building site');
+  const inc0 = R.income(s, P).credits;
+  run(s, RT.BUILD_TIME.depot / 2);
+  assert.equal(R.income(s, P).credits, inc0, 'no income until it is finished');
+  const ev = run(s, RT.BUILD_TIME.depot / 2 + 0.2);
+  assert.ok(ev.some(e => e.type === 'built' && e.id === depot.id), 'announced when finished');
+  assert.ok(R.online(depot) && R.income(s, P).credits > inc0);
+  assert.equal(R.upgradeInfo(s, P, buildAt(s, P, 'power', true).cell).reason, 'Still under construction');
+  // a battery under construction does not shoot
+  const aa = buildAt(s, A, 'aa', true);
+  assert.ok(!R.online(aa));
+  // factories: faster construction and reloads
+  assert.equal(RTE.buildSpeed(s, P), 1);
+  const f = buildAt(s, P, 'factory');
+  assert.equal(RTE.buildSpeed(s, P), 1 + RT.FACTORY_BUILD_BOOST);
+  assert.equal(RTE.reloadSpeed(s, P), 1 + RT.FACTORY_RELOAD_BOOST);
+  const slow = RT.BUILD_TIME.silo, silo = buildAt(s, P, 'silo', true);
+  run(s, slow / (1 + RT.FACTORY_BUILD_BOOST) + 0.2);
+  assert.ok(R.online(silo), 'one factory builds a silo in two thirds of the time');
+  s.sides[P].credits += 1000;
+  assert.ok(R.upgrade(s, P, f.cell).ok);
+  assert.equal(RTE.factories(s, P), 2, 'an Assembly Line counts as two factories');
+  assert.ok(R.newGame('commander', 1).locked.includes('factory'), 'turn-based games have no factories');
+  assert.ok(!s.locked.includes('factory'));
 });

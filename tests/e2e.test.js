@@ -192,7 +192,7 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
     const s = __game.state;
     s.sides.player.credits = 2000; s.sides.player.energy = 30;
     for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(s, 'player', 'hangar', c)) { Rules.build(s, 'player', 'hangar', c); break; }
-    for (const h of Rules.buildingsOf(s, 'player', 'hangar')) h.readyAt = 0;
+    for (const h of Rules.buildingsOf(s, 'player', 'hangar')) { h.progress = 1; h.readyAt = 0; }   // skip construction
     const silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
     return Rules.neighbors(silo.cell, 2).find(c => Realtime.landingCells(s, 'player', c).length);
   });
@@ -378,7 +378,7 @@ test('battle options apply to the skirmish and are remembered', async t => {
     const st = __game.state;
     return { land: st.land.filter((v, i) => v && Rules.ownerOfCell(i) === 'player').length, credits: st.sides.player.credits, aiCredits: st.sides.ai.credits, maxTurns: st.maxTurns, locked: st.locked };
   });
-  assert.deepStrictEqual(s, { land: 150, credits: 600, aiCredits: 600, maxTurns: 20, locked: ['uplink'] });
+  assert.deepStrictEqual(s, { land: 150, credits: 600, aiCredits: 600, maxTurns: 20, locked: ['uplink', 'factory'] });
   assert.strictEqual(await page.locator('.card[data-type="uplink"]').count(), 0, 'no superweapon card');
   assert.match(await page.textContent('#hud'), /1 \/ 20/);
   await page.reload();

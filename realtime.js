@@ -28,6 +28,7 @@
   function init(state) {
     state.realtime = true;
     state.missiles = [];
+    state.locked = (state.locked || []).filter(t => t !== 'factory');   // factories are a real-time structure
     state.rt = {
       t: 0, acc: 0,
       timeLimit: (state.maxTurns || C.MAX_TURNS) * T.CLOCK_PER_TURN,
@@ -44,9 +45,23 @@
     return state;
   }
 
+  // ── Factories and construction ────────────────────────────
+  // Online factories, an Assembly Line counting twice
+  function factories(state, side) {
+    return R.buildingsOf(state, side, 'factory').filter(R.online).reduce((n, b) => n + (R.stat(b, 'factories') || 1), 0);
+  }
+  function buildSpeed(state, side) { return 1 + T.FACTORY_BUILD_BOOST * factories(state, side); }
+  function reloadSpeed(state, side) { return 1 + T.FACTORY_RELOAD_BOOST * factories(state, side); }
+  // Seconds until a structure under construction is finished at the current speed
+  function buildLeft(state, b) {
+    if (R.online(b)) return 0;
+    return (1 - b.progress) * (T.BUILD_TIME[b.type] || 8) / buildSpeed(state, b.side);
+  }
+
   // ── Launcher readiness ────────────────────────────────────
   function reloadOf(b) { return b.type === 'silo' ? T.SILO_RELOAD : T.HANGAR_RELOAD; }
   function isReady(state, b) {
+    if (!R.online(b)) return false;
     if (b.type === 'hangar' && b.out) return false;
     return (b.readyAt || 0) <= state.rt.t + 1e-6;
   }
@@ -55,6 +70,7 @@
   }
   // Seconds until a launcher is ready (0 if ready, null while its mech is away)
   function readyIn(state, b) {
+    if (!R.online(b)) return buildLeft(state, b) + reloadOf(b) / 2 / reloadSpeed(state, b.side);
     if (b.type === 'hangar' && b.out) return null;
     return Math.max(0, (b.readyAt || 0) - state.rt.t);
   }
@@ -96,6 +112,7 @@
     for (const c of silos) {
       const b = R.buildingAt(state, c);
       if (!b || b.side !== side || b.type !== 'silo') return 'Not one of your silos';
+      if (!R.online(b)) return 'That silo is still under construction';
       if (!isReady(state, b)) return 'Silo ' + c + ' is reloading';
     }
     if (hangars.length) {
@@ -112,6 +129,7 @@
     if (a.strike) {
       const up = R.buildingsOf(state, side, 'uplink')[0];
       if (!up) return 'Build a Strike Uplink first';
+      if (!R.online(up)) return 'The uplink is still under construction';
       if (up.charge < C.STRIKE_CHARGE) return 'Uplink charging';
     }
     const cost = attackCost(a);
@@ -141,7 +159,7 @@
     }
     for (const c of a.silos || []) {
       const silo = R.buildingAt(state, c);
-      silo.readyAt = at + T.SILO_RELOAD;
+      silo.readyAt = at + T.SILO_RELOAD / reloadSpeed(state, side);
       rt.flights.push(newFlight(state, 'missile', side, c, a.to, at, {
         dmg: R.stat(silo, 'dmg') || C.MISSILE_DAMAGE, splash: R.stat(silo, 'splash') || C.MISSILE_SPLASH, cost: C.MISSILE_ENERGY
       }));
@@ -213,10 +231,22 @@
       if (dc) { s.credits += dc; f.c -= dc; }
       if (de) { s.energy = Math.min(R.energyCap(state, side), s.energy + de); f.e -= de; }
     }
-    // shields recharge and uplinks charge continuously; new launchers start half loaded
+    // construction, then shields recharge and uplinks charge continuously
+    const speed = { player: buildSpeed(state, P), ai: buildSpeed(state, A) };
     for (let i = 0; i < R.N; i++) {
       const b = state.cells[i].building;
       if (!b || b.dead) continue;
+      if (!R.online(b)) {
+        b.progress = Math.min(1, b.progress + dt * speed[b.side] / (T.BUILD_TIME[b.type] || 8));
+        if (b.progress < 1 - 1e-9) continue;
+        b.progress = 1;
+        b.doneAt = t;
+        if (b.type === 'shield') b.pool = R.stat(b, 'pool');
+        // a new launcher starts half loaded
+        if (b.type === 'silo' || b.type === 'hangar') b.readyAt = t + reloadOf(b) / 2 / reloadSpeed(state, b.side);
+        ev({ type: 'built', id: b.id, side: b.side, cell: b.cell, kind: b.type });
+        continue;
+      }
       if (b.type === 'shield') {
         // whole points only, so damage (and HP, and repair bills) stay whole numbers
         b.poolAcc = (b.poolAcc || 0) + R.stat(b, 'regen') * dt / T.ROUND;
@@ -342,7 +372,7 @@
   function engage(state, ev) {
     const rt = state.rt, t = rt.t;
     for (const def of [P, A]) {
-      const batteries = R.buildingsOf(state, def).filter(b => b.type === 'aa' || b.type === 'hq');
+      const batteries = R.buildingsOf(state, def).filter(b => (b.type === 'aa' || b.type === 'hq') && R.online(b));
       for (const bat of batteries) {
         if ((bat.reloadAt || 0) > t) continue;
         const range = R.stat(bat, 'range');
@@ -410,13 +440,13 @@
     const h = R.buildingAt(state, hangarCell);
     if (!h || h.type !== 'hangar' || !h.out) return;
     h.out = false;
-    h.readyAt = state.rt.t + T.HANGAR_RELOAD;
+    h.readyAt = state.rt.t + T.HANGAR_RELOAD / reloadSpeed(state, h.side);
   }
 
   function gunnery(state, ev) {
     const t = state.rt.t;
     for (const side of [P, A]) {
-      for (const g of R.buildingsOf(state, side).filter(b => b.type === 'gunpod' || b.type === 'hq')) {
+      for (const g of R.buildingsOf(state, side).filter(b => (b.type === 'gunpod' || b.type === 'hq') && R.online(b))) {
         if ((g.gunAt || 0) > t) continue;
         const gun = g.type === 'hq' ? B.hq.gun : { shots: R.stat(g, 'shots'), damage: B.gunpod.damage, range: B.gunpod.range };
         const shots = [];
@@ -531,6 +561,7 @@
 
   const api = {
     init, step, attackReason, attackCost, launchAttack, readyLaunchers, readyIn, isReady,
+    factories, buildSpeed, reloadSpeed, buildLeft,
     landingCells, inbound, progress, detects, mechsCommitted
   };
   root.Realtime = api;

@@ -15,7 +15,7 @@
   const MID = (C.GRID_W - 1) / 2;
   function depth(cell) { return Math.abs(R.xy(cell).x - MID); } // distance from the front line
 
-  const TARGET_SCORE = { hq: 10, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, shield: 4, radar: 3, gunpod: 2 };
+  const TARGET_SCORE = { hq: 10, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, factory: 5, shield: 4, radar: 3, gunpod: 2 };
 
   function count(state, type) { return R.buildingsOf(state, ME, type).length; }
   function unlocked(state, type) { return !(state.locked || []).includes(type); }
@@ -152,12 +152,14 @@
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
     // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
     // opening beats a missiles-first one about 60/40)
-    const opening = style.opening;
+    // real time: a factory early speeds up everything after it
+    const opening = state.realtime && unlocked(state, 'factory') ? style.opening.slice(0, 3).concat(['factory'], style.opening.slice(3)) : style.opening;
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
       if (n(t) < have[t]) return t;
     }
+    if (state.realtime && unlocked(state, 'factory') && n('factory') < 2 && state.turn >= 10) return 'factory';
     // the superweapon comes online mid-game (a 4-turn charge lands it around turn 15)
     if (state.turn >= 10 && n('uplink') < 1 && unlocked(state, 'uplink')) return 'uplink';
     if ((mem.missileDamageTaken > 0 || knownEnemy(state, 'silo') >= 2) && aaCoveringHQ(state) < 2 && n('aa') < 4) return 'aa';
@@ -187,7 +189,7 @@
 
   const PATROL_ORDER = ['depot', 'power', 'silo', 'aa', 'gunpod', 'radar', 'depot', 'hangar', 'silo', 'power', 'aa'];
   // real time: a second silo early, so Patrol's waves are salvos it can actually land
-  const PATROL_RT_ORDER = ['depot', 'power', 'silo', 'aa', 'silo', 'gunpod', 'radar', 'depot', 'hangar', 'power', 'aa'];
+  const PATROL_RT_ORDER = ['depot', 'power', 'silo', 'factory', 'aa', 'silo', 'gunpod', 'radar', 'depot', 'hangar', 'power', 'aa'];
   function nextPatrolBuild(state) {
     if (enemyRobotsOnMySide(state).length && count(state, 'gunpod') < 2) return 'gunpod';
     const have = {};

@@ -21,6 +21,8 @@
     const u = b.level > 1 && UP[b.type];
     return u && u[key] !== undefined ? u[key] : B[b.type][key];
   }
+  // Real time: a structure under construction does nothing yet (turn-based builds are instant)
+  function online(b) { return !(b.progress < 1); }
   function upgradeCost(type) { return UP[type] ? Math.round(B[type].cost * UP_COST / 10) * 10 : 0; }
 
   const W = C.GRID_W, H = C.GRID_H, N = W * H;
@@ -255,7 +257,7 @@
       robots: [],
       missiles: [],           // in flight, launched last turn
       sides: { player: newSide(P), ai: newSide(A) },
-      locked: (opts.locked || []).slice(),  // structure types not available in this game
+      locked: (opts.locked || []).concat(['factory']),  // structure types not available in this game (factories: real time only)
       hotseat: !!opts.hotseat,              // two humans: no AI income bonus
       aiStyle: opts.aiStyle || 'balanced',  // skirmish opponent personality (see AI_STYLES in ai.js)
       maxTurns: opts.maxTurns || C.MAX_TURNS
@@ -294,7 +296,11 @@
       fired: false, deployed: false, repaired: 0,
       dead: false, builtTurn: state.turn
     };
-    if (state.rt) b.builtAt = state.rt.t;
+    if (state.rt) {
+      // real time: construction starts now; shields charge up once built
+      b.builtAt = state.rt.t;
+      if (type !== 'hq') { b.progress = 0; b.pool = 0; }
+    }
     if (type === 'aa') b.shots = def.shots;
     if (type === 'hq') b.shots = 1;
     if (type === 'uplink') b.charge = 0;
@@ -333,6 +339,7 @@
   function income(state, side) {
     let credits = C.BASE_CREDITS, energy = C.BASE_ENERGY;
     for (const b of buildingsOf(state, side)) {
+      if (!online(b)) continue;
       if (b.type === 'depot') credits += stat(b, 'credits');
       if (b.type === 'power') energy += stat(b, 'energy');
     }
@@ -340,7 +347,7 @@
     return { credits: Math.round(credits * m), energy: Math.round(energy * m) };
   }
   function energyCap(state, side) {
-    return C.ENERGY_CAP_BASE + buildingsOf(state, side, 'power').reduce((t, b) => t + stat(b, 'cap'), 0);
+    return C.ENERGY_CAP_BASE + buildingsOf(state, side, 'power').filter(online).reduce((t, b) => t + stat(b, 'cap'), 0);
   }
 
   // What an enemy observer sees: decoys pose as their disguise, HP scaled to match
@@ -371,7 +378,7 @@
   // ── Vision ───────────────────────────────────────────────
   // Radars come online the turn after construction (no build-peek-undo)
   function onlineRadars(state, side) {
-    if (state.realtime) return buildingsOf(state, side, 'radar').filter(r => r.builtAt === undefined || state.rt.t - r.builtAt >= RTC.RADAR_BOOT);
+    if (state.realtime) return buildingsOf(state, side, 'radar').filter(r => online(r) && (r.doneAt === undefined || state.rt.t - r.doneAt >= RTC.RADAR_BOOT));
     return buildingsOf(state, side, 'radar').filter(r => r.builtTurn < state.turn);
   }
 
@@ -506,6 +513,7 @@
     if (!b || b.side !== side) return { reason: 'Select one of your structures' };
     if (!UP[b.type]) return { reason: B[b.type].name + ' cannot be upgraded' };
     if (b.level > 1) return { reason: 'Already upgraded' };
+    if (!online(b)) return { cost: upgradeCost(b.type), reason: 'Still under construction' };
     const cost = upgradeCost(b.type);
     if (state.sides[side].credits < cost) return { cost, reason: 'Need ' + cost + ' credits' };
     return { cost, reason: null, name: UP[b.type].name, desc: UP[b.type].desc };
@@ -752,7 +760,7 @@
   function targetValue(state, cell) {
     const b = buildingAt(state, cell);
     if (!b) return 0;
-    return { hq: 10, silo: 8, aa: 7, hangar: 6, power: 5, depot: 4, shield: 4, radar: 3, gunpod: 3 }[b.type] || 1;
+    return { hq: 10, silo: 8, aa: 7, hangar: 6, power: 5, factory: 5, depot: 4, shield: 4, radar: 3, gunpod: 3 }[b.type] || 1;
   }
 
   // ── Robot pathfinding (8-way BFS avoiding buildings and robots) ──
@@ -1078,7 +1086,7 @@
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
     resolveTurn, robotIntent, targetValue,
     // shared with the real-time engine
-    damageBuilding, passable, bfsPath, onlineRadars
+    damageBuilding, passable, bfsPath, onlineRadars, online
   };
 
   root.Rules = Rules;

@@ -898,6 +898,30 @@ window.Renderer = (function () {
     return rec;
   }
 
+  // Real-time construction: a building site rises with its progress and shows a cyan progress bar
+  function setBuildingProgress(id, k) {
+    const rec = buildings[id];
+    if (!rec) return;
+    if (k === undefined || k >= 1) {
+      if (rec.build !== undefined && rec.build < 1) {
+        rec.build = 1;
+        if (rec.rise >= 1 && rec.collapse < 0) rec.group.scale.y = rec.baseScale || 1;
+        if (rec.pbar) rec.pbar.visible = false;
+      }
+      return;
+    }
+    rec.build = k;
+    if (!rec.pbar) {
+      rec.pbar = makeHpBar(8);
+      rec.pbar.position.copy(rec.bar.position);
+      rec.pbar.position.y += 1.8;
+      scene.add(rec.pbar);
+    }
+    rec.pbar.userData.fg.scale.x = Math.max(0.001, k);
+    rec.pbar.userData.fg.material.color.setHex(0x5fd4ff);
+    rec.pbar.visible = rec.group.visible;
+  }
+
   // Whose eyes the board is drawn through (hot-seat swaps it): only the owner sees a decoy's badge
   let viewer = CONST.SIDE_PLAYER;
   function setViewer(side) { viewer = side; }
@@ -1001,6 +1025,7 @@ window.Renderer = (function () {
     scene.remove(rec.badge);
     disposeTree(rec.bar);
     if (rec.dome) { scene.remove(rec.dome); disposeTree(rec.dome); }
+    if (rec.pbar) { scene.remove(rec.pbar); disposeTree(rec.pbar); }
     Models.dispose(rec.group);
   }
 
@@ -1010,6 +1035,7 @@ window.Renderer = (function () {
     rec.group.visible = v;
     if (rec.dome) rec.dome.visible = v;
     if (!v) rec.bar.visible = false; else setBar(rec.bar, rec.hp / rec.maxHp, rec.forceBar);
+    if (rec.pbar) rec.pbar.visible = v && rec.build < 1;
     if (!v) Fx.setEmitter('b' + id, null, null);
     else { rec.smoke = undefined; setBuildingHp(id, rec.hp, rec.maxHp); }
   }
@@ -1471,6 +1497,8 @@ window.Renderer = (function () {
         const t = rec.rise, c1 = 1.70158, c3 = c1 + 1;
         g.scale.y = Math.max(0.01, 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)) * (rec.baseScale || 1);
       }
+      // a building site stands at a fraction of its height until finished
+      if (rec.build < 1 && rec.rise >= 1 && rec.collapse < 0) g.scale.y = (0.25 + 0.75 * rec.build) * (rec.baseScale || 1);
       if (rec.collapse >= 0) {
         rec.collapse += dt / 0.8;
         const t = Math.min(1, rec.collapse);
@@ -1540,7 +1568,7 @@ window.Renderer = (function () {
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
     addRobot, removeRobot, getRobot, setRobotHp, hitRobot, allRobotIds,
-    add, remove, focus, focusCell, frameAll, addTrauma,
+    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress,
     get camera() { return camera; }, get time() { return time; }
   };
 })();
