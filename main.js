@@ -1328,7 +1328,7 @@
     const pos = Renderer.cellCenter(e.from);
     UI.log(own ? 'Orbital strike away — it lands on ' + describeCell(e.to) + ' next turn'
       : 'ENEMY ORBITAL STRIKE launched — target ' + describeCell(e.to) + ', impact next turn', own ? 'player' : 'bad');
-    if (!playerSees(e.from)) { SND.play('strikeUp', { pan: 0.6, gain: 0.5 }); return; }
+    if (!playerSees(e.from)) { SND.play('strikeUp', { pan: 0.6, gain: 0.6, far: true }); return; }
     SND.play('strikeUp', { pan: panAt(e.from) });
     const beam = Renderer.strikeBeam(pos, own ? 0x66e8ff : 0xff7a55, 1.4, true);
     Fx.dustRing(pos, 1.2);
@@ -1367,7 +1367,7 @@
         : 'Enemy launch heard — origin and target unknown', own ? 'player' : 'enemy');
     if (!vis) {
       // Enemy launch from the fog: heard, not seen (its arc would reveal silo and target)
-      SND.play('missileLaunch', { pan: 0.6, gain: 0.5 });
+      SND.play('missileLaunch', { pan: 0.6, gain: 0.6, far: true });
       return;
     } else {
       SND.play('missileLaunch', { pan: panAtPos(a) });
@@ -1394,7 +1394,8 @@
     const m = Models.missile(e.side);
     m.scale.setScalar(missileScale());
     Renderer.add(m);
-    if (!own) SND.play('incoming', { pan: panAt(e.to), gain: 0.8 });
+    // enemy missiles scream in overhead; yours whistle down faintly on the far island
+    SND.play('incoming', own ? { pan: panAt(e.to), gain: 0.35, far: true } : { pan: panAt(e.to), gain: 0.8 });
     const intercepted = e.interceptedBy >= 0;
     const shots = e.shots || [];
     // each AA shot meets the missile a little further along its descent
@@ -1663,7 +1664,8 @@
     pod.scale.setScalar(1.5);
     Renderer.add(pod);
     const p = new THREE.Vector3();
-    SND.play('podLaunch', { pan: panAtPos(a), gain: own || playerSees(e.from) ? 1 : 0.5 });
+    const launchSeen = own || playerSees(e.from);
+    SND.play('podLaunch', { pan: panAtPos(a), gain: launchSeen ? 1 : 0.6, far: !launchSeen });
     const landVisible = own || playerSees(e.to);
     Timeline.tween(1.6, k => {
       const t = 1 - Math.pow(1 - k, 2.2);
@@ -1683,7 +1685,7 @@
         Fx.smallBlast(b.clone().setY(2), 0xffaa55);
         Renderer.addTrauma(0.2, b);
       }
-      SND.play('robotLand', { pan: panAt(e.to) });
+      SND.play('robotLand', { pan: panAt(e.to), gain: landVisible ? 1 : 0.7, far: !landVisible });
       const garrison = R.ownerOfCell(e.to) === e.side;
       UI.log(own ? (garrison ? 'Garrison mech deployed at ' : 'Mech landed at ') + cellName(e.to)
         : garrison ? 'Enemy garrison mech deployed' : (landVisible ? 'Enemy mech landed at ' + cellName(e.to) + '!' : 'Enemy drop pod detected'), own ? 'player' : 'bad');

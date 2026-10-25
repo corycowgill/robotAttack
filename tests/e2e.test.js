@@ -350,11 +350,22 @@ test('audio: generated clips load and each phase plays its music track', async t
       GameAudio.setStyle(s);
       ['explosion', 'splash', 'strikeImpact', 'decoyPop', 'mechClash', 'hqGun', 'upgrade', 'targetLock', 'strikeLock', 'dropOrder',
         'undo', 'cancel', 'combatStart', 'achievement', 'radio', 'handoff', 'uplinkReady'].forEach(n => GameAudio.play(n));
+      GameAudio.play('missileLaunch', { far: true, pan: 0.6, gain: 0.6 });
+      GameAudio.play('destroyed', { big: true });
     }, style);
   }
   assert.ok(!(await loaded()).track, 'retro style uses the synth score');
   await page.evaluate(() => GameAudio.setStyle('studio'));
   await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planning');
+  // after a combat the planning track picks up where it left off
+  await page.waitForTimeout(1500);
+  const before = (await loaded()).pos;
+  assert.ok(before > 1.5, 'planning track is playing: ' + before);
+  await page.evaluate(() => GameAudio.setMode('combat'));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'combat', null, { timeout: 20000 });
+  await page.evaluate(() => GameAudio.setMode('planning'));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planning', null, { timeout: 20000 });
+  assert.ok((await loaded()).pos >= before, 'planning resumed at ' + (await loaded()).pos + ', left at ' + before);
   assert.deepStrictEqual(errors, []);
 });
 

@@ -96,12 +96,17 @@
     musicBus = G(musicEnabled ? MUSIC_LEVEL * musicVol : 0); musicBus.connect(duckBus);
     ambBus = G(AMB_LEVEL * ambVol); ambBus.connect(master);
 
-    // reverb: generated stereo IR, 2s noise * e^(-3t)
+    // reverb: generated stereo IR, 2s noise * e^(-3t) after a short pre-delay, through a
+    // lowpass that closes as it decays (air soaks up the highs first, so the tail is warm)
     try {
-      var len = Math.floor(sr * 2), ir = ctx.createBuffer(2, len, sr);
+      var len = Math.floor(sr * 2), pre = Math.floor(sr * 0.012), ir = ctx.createBuffer(2, len, sr);
       for (var c = 0; c < 2; c++) {
-        var ch = ir.getChannelData(c);
-        for (var j = 0; j < len; j++) ch[j] = (Math.random() * 2 - 1) * Math.exp(-3 * j / sr);
+        var ch = ir.getChannelData(c), y = 0;
+        for (var j = pre; j < len; j++) {
+          var k = (j - pre) / sr, a = 0.08 + 0.82 * Math.exp(-2.5 * k);
+          y += a * ((Math.random() * 2 - 1) - y);
+          ch[j] = y * Math.exp(-3 * k) * 1.6;
+        }
       }
       var conv = ctx.createConvolver(); conv.buffer = ir;
       var ret = G(0.8); conv.connect(ret); ret.connect(master);
@@ -110,14 +115,19 @@
     } catch (e) { reverbIn = null; }
   }
 
-  // per-voice output: gain -> (panner) -> bus, plus reverb send
+  // per-voice output: gain -> (muffle) -> (panner) -> bus, plus reverb send
   function makeOut(opts, bus, rev) {
     var g = G(opts.gain == null ? 1 : clamp(+opts.gain || 0, 0, 1)), node = g;
+    // heard through the fog, not seen: dull and roomy, like it came from over the water
+    if (opts.far) {
+      var lp = F('lowpass', 950, 0.5); node.connect(lp); node = lp;
+      rev = Math.max(rev, 0.4);
+    }
     if (opts.pan && ctx.createStereoPanner) {
       try {
         var p = ctx.createStereoPanner(); p.pan.value = clamp(+opts.pan || 0, -1, 1);
-        g.connect(p); node = p;
-      } catch (e) { node = g; }
+        node.connect(p); node = p;
+      } catch (e) { /* unpanned */ }
     }
     node.connect(bus);
     if (rev > 0 && reverbIn) { var s = G(rev); node.connect(s); s.connect(reverbIn); }
@@ -654,28 +664,39 @@
   // the track that usually comes next, decoded ahead of time
   var NEXT = { menu: 'planning', planning: 'combat', combat: 'planning' };
 
-  function startLoop(clip, bus, level, fade) {
+  function startLoop(clip, bus, level, fade, at) {
     var out = G(0.0001); out.connect(bus);
     var src = ctx.createBufferSource();
     src.buffer = clip.buf; src.loop = true;
     src.loopStart = clip.loopStart; src.loopEnd = clip.loopEnd;
-    src.connect(out); src.start(now(), clip.loopStart);
+    var from = at > clip.loopStart && at < clip.loopEnd ? at : clip.loopStart;
+    src.connect(out); src.start(now(), from);
     fadeTo(out.gain, level, fade);
-    return { clip: clip, src: src, out: out };
+    return { clip: clip, src: src, out: out, t0: now(), from: from };
+  }
+  // where in the file a loop is playing now
+  function loopPos(tr) {
+    var c = tr.clip, p = tr.from + (now() - tr.t0), len = c.loopEnd - c.loopStart;
+    return p < c.loopEnd ? p : c.loopStart + (p - c.loopStart) % len;
   }
   function stopLoop(tr, fade) {
     fadeTo(tr.out.gain, 0.0001, fade);
     setTimeout(function () { try { tr.src.stop(); tr.out.disconnect(); } catch (e) { /* ignore */ } }, fade * 1000 + 1000);
   }
 
-  // Crossfade to a track's looping clip (or to nothing)
+  // Crossfade to a track's looping clip (or to nothing). A track picks up where it left off,
+  // so the planning music runs on across turns instead of restarting after every combat.
+  // Swapping between the combat and climax arrangements takes a longer blend.
+  var musicPos = {};
   function setTrack(key) {
     var clip = key ? musicBufs[key] : null;
     if (key) musicUsed[key] = Date.now();
     if (track && track.clip === clip) return;
-    if (track) { stopLoop(track, 1.5); track = null; }
+    var fade = track && key && (track.key === 'climax') !== (key === 'climax') ? 3.0 : 1.5;
+    if (track) { musicPos[track.key] = loopPos(track); stopLoop(track, fade); track = null; }
     if (!clip) return;
-    track = startLoop(clip, musicBus, sampleGain['music_' + key] || 1, 1.5);
+    track = startLoop(clip, musicBus, sampleGain['music_' + key] || 1, fade, musicPos[key]);
+    track.key = key;
   }
 
   // Ambience beds: surf around the islands while in a game, far-off fighting during combat
@@ -709,7 +730,7 @@
       if (m[0] !== 'ui' && activeVoices >= MAX_VOICES) return;
       if (POLY[name] && (perName[name] || 0) >= POLY[name]) return;
       lastPlay[name] = nowMs;
-      var big = name === 'explosion' && opts.big;
+      var big = name === 'explosion' && opts.big, hqDown = name === 'destroyed' && opts.big;
       // stingers ride the music bus, unless music is off
       var bus = m[0] === 'ui' ? uiBus : m[0] === 'music' ? (musicEnabled && musicVol > 0 ? musicBus : uiBus) : sfxBus;
       var out = makeOut(opts, bus, big ? 0.45 : m[2]);
@@ -719,11 +740,14 @@
       if (bufs && bufs.length) {
         var gain = (sampleGain[key] || 1) * (big && key === name ? 1.3 : 1);
         dur = playSample(out, pickVariant(key, bufs), now() + 0.005, pitch, gain) + 0.3;
+        // a Command Center going down: the big blast under the collapse
+        if (hqDown && samples.explosionBig) dur = Math.max(dur, playSample(out, pickVariant('explosionBig', samples.explosionBig), now() + 0.005, 0.9, sampleGain.explosionBig || 1) + 0.3);
       } else {
         R[name](out, now() + 0.005, pitch, opts);
         dur = (big ? 3.0 : m[1]) + 0.3;
       }
-      if (DUCK[name] && (opts.gain == null || opts.gain > 0.4)) duck(big ? 0.5 : DUCK[name], big ? 1.2 : 0.5);
+      if (hqDown) duck(0.25, 2.5);
+      else if (DUCK[name] && (opts.gain == null || opts.gain > 0.4)) duck(big ? 0.5 : DUCK[name], big ? 1.2 : 0.5);
       activeVoices++;
       perName[name] = (perName[name] || 0) + 1;
       setTimeout(function () {
@@ -1018,6 +1042,6 @@
     setMusicEnabled: setMusicEnabled,
     isMusicEnabled: function () { return musicEnabled; },
     // which generated clips are loaded (for diagnostics)
-    loadedSamples: function () { return { sfx: Object.keys(samples), music: Object.keys(musicBufs), amb: Object.keys(ambBufs), track: track && Object.keys(musicBufs).filter(function (k) { return musicBufs[k] === track.clip; })[0] }; }
+    loadedSamples: function () { return { sfx: Object.keys(samples), music: Object.keys(musicBufs), amb: Object.keys(ambBufs), track: track && track.key, pos: track ? loopPos(track) : 0 }; }
   };
 })();

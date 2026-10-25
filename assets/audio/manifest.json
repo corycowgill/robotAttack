@@ -43,8 +43,7 @@
     ],
     "build": [
       "sfx/build_1.mp3",
-      "sfx/build_2.mp3",
-      "sfx/build_3.mp3"
+      "sfx/build_2.mp3"
     ],
     "cancel": [
       "sfx/cancel_1.mp3"
@@ -219,7 +218,7 @@
   },
   "source": {
     "achievement": "Stable Audio 3 Small (music): A short bright rewarding achievement unlocked jingle: a sparkling rising synth arpeggio ending on a shiny major chord. No vocals.",
-    "alarm": "Stable Audio 3 Small (sfx): A military base warning klaxon sounding two urgent alarm blasts. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "alarm": "Stable Audio 3 Small (sfx): Two urgent blasts of a loud military base warning siren klaxon, a harsh electric horn. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "battleAmb": "Stable Audio 3 Small (sfx): Distant battlefield ambience across the sea: faint far-away explosions and artillery rumbles, low wind, occasional distant sirens. Continuous background, no music, no voices, no close sounds.",
     "build": "Stable Audio 3 Small (sfx): A futuristic military structure assembling itself: quick mechanical ratchets, heavy metal panels locking into place and a short pneumatic hiss. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "cancel": "Stable Audio 3 Small (sfx): A short soft descending two-note electronic interface blip, cancelling a command. Isolated one-shot game sound effect, close and clean, no music, no speech.",
@@ -229,9 +228,9 @@
     "decoyPop": "Stable Audio 3 Small (sfx): A big inflatable rubber decoy bursting: a loud rubbery pop followed by air hissing out as it deflates and flaps. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "defeat": "Stable Audio 3 Small (music): A short somber defeat cue for a sci-fi war game: a slow descending low brass phrase over dark strings and a distant muffled drum, fading to a bleak minor chord. Instrumental, no vocals.",
     "destroyed": "Stable Audio 3 Small (sfx): A large military building collapsing after an explosion: steel beams groaning and snapping, concrete crumbling, debris crashing down and settling. Isolated one-shot game sound effect, close and clean, no music, no speech.",
-    "dropOrder": "Stable Audio 3 Small (sfx): A heavy metal latch clunking shut, followed by a short clean electronic beep. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "dropOrder": "Stable Audio 3 Small (sfx): A heavy steel hatch locking shut with one deep solid mechanical clunk, sci-fi military. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "endTurn": "Stable Audio 3 Small (sfx): A clean short sci-fi computer interface confirmation chime: two bright synthesizer tones rising, crisp and clean, no noise. Isolated one-shot game sound effect, close and clean, no music, no speech.",
-    "error": "Stable Audio 3 Small (sfx): A short low double buzz of a military computer denying an action. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "error": "Stable Audio 3 Small (sfx): A short harsh low electronic buzzer, two quick buzzes, access denied. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "explosion": "Stable Audio 3 Small (sfx): A missile warhead exploding on a concrete military base: sharp powerful blast, deep bass boom, crunching concrete and metal debris raining down, short rumbling tail. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "explosionBig": "Stable Audio 3 Small (sfx): A gigantic explosion destroying a fortified command bunker: enormous concussive blast, sub-bass shockwave, collapsing steel and concrete, long rolling thunderous rumble. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "flak": "Stable Audio 3 Small (sfx): A single anti-aircraft flak cannon shot: sharp punchy thump of the gun firing and a high crackling airburst of the shell. Isolated one-shot game sound effect, close and clean, no music, no speech.",
@@ -239,7 +238,7 @@
     "handoff": "Stable Audio 3 Small (sfx): A smooth sci-fi screen transition whoosh with a soft low swell. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "hqGun": "Stable Audio 3 Small (sfx): A single heavy autocannon shot from a fortified bunker turret: a deep punchy blast with metallic recoil and a short echo. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "incoming": "Stable Audio 3 Small (sfx): An incoming missile falling from the sky toward the listener, a rising descending whistle and air-tearing scream, ending right before impact, no explosion. Isolated one-shot game sound effect, close and clean, no music, no speech.",
-    "intercept": "Stable Audio 3 Small (sfx): A missile intercepted and destroyed in mid-air high above: bright cracking explosion, sizzling metal fragments and a short echo across the sky. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "intercept": "Stable Audio 3 Small (sfx): A missile shot down in mid-air far overhead: a sharp explosive crack and a full boom, then burning fragments sizzling and a short echo across the sky. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "mechClash": "Stable Audio 3 Small (sfx): Two giant battle robots clashing in melee: a heavy metal-on-metal slam, grinding armor plates and sparking servos. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "menu": "Stable Audio 3 Small (music): Epic main title theme for a near-future sci-fi military strategy game about island warfare with giant mechs and missiles. Hybrid orchestral and synth score, D minor, 96 BPM: a heroic French horn and brass melody over pulsing analog synth bass, big taiko and orchestral drums, soaring strings, steady driving rhythm. Instrumental, no vocals, high quality cinematic recording.",
     "missileLaunch": "Stable Audio 3 Small (sfx): Heavy ballistic missile launching from an underground silo: a metal hatch clanks open, a rocket motor ignites with a deep roar and the missile whooshes up and away into the sky. Isolated one-shot game sound effect, close and clean, no music, no speech.",
@@ -252,9 +251,9 @@
     "robotLand": "Stable Audio 3 Small (sfx): A heavy armored drop pod crashing down onto the ground and a battle mech standing up: a massive metal impact thud, dust, then hydraulic servos whirring. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "robotPunch": "Stable Audio 3 Small (sfx): A giant robot fist smashing into a steel building: a heavy metallic clang, crunching dented metal and a brief rattle. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "robotStep": "Stable Audio 3 Small (sfx): One single heavy footstep of a giant battle mech robot: a deep metal stomp on the ground with a short hydraulic servo hiss. Isolated one-shot game sound effect, close and clean, no music, no speech.",
-    "select": "Stable Audio 3 Small (sfx): A short clean two-tone sci-fi interface confirmation beep, rising. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "select": "Stable Audio 3 Small (sfx): A short soft digital blip, a crisp clean sci-fi interface select sound. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "sell": "Stable Audio 3 Small (sfx): A sci-fi structure being dismantled and recycled: a quick descending mechanical whirr, metal panels unlatching and a soft thump. Isolated one-shot game sound effect, close and clean, no music, no speech.",
-    "shieldHit": "Stable Audio 3 Small (sfx): A futuristic energy force-field dome absorbing a missile impact: a deep resonant electric thrum, shimmering crackle and a warbling hum that fades out. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "shieldHit": "Stable Audio 3 Small (sfx): A sci-fi energy shield deflecting an impact: a sharp electric zap and crackle, then a bright shimmering hum that wobbles and fades out. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "splash": "Stable Audio 3 Small (sfx): A missile plunging into the ocean and exploding underwater: a muffled deep boom and a tall column of water crashing back down with heavy splashing. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "strikeDown": "Stable Audio 3 Small (sfx): An orbital laser strike descending from the sky: an ominous growing electric roar with crackling plasma that builds up to the moment of impact. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "strikeImpact": "Stable Audio 3 Small (sfx): A devastating orbital laser strike hitting the ground: a blinding plasma blast, a massive explosion with a deep sub-bass shockwave, crackling energy and a long rumbling tail. Isolated one-shot game sound effect, close and clean, no music, no speech.",

@@ -72,11 +72,11 @@ SHEET = {
         prompt='A single anti-aircraft flak cannon shot: sharp punchy thump of the gun firing and a high crackling airburst of the shell.' + ISO,
         clap='an anti aircraft gun firing a flak shell'),
     'intercept': dict(kind='sfx', gen=2, keep=1.4, n=3, db=-16,
-        prompt='A missile intercepted and destroyed in mid-air high above: bright cracking explosion, sizzling metal fragments and a short echo across the sky.' + ISO,
-        clap='a mid air explosion high in the sky'),
+        prompt='A missile shot down in mid-air far overhead: a sharp explosive crack and a full boom, then burning fragments sizzling and a short echo across the sky.' + ISO,
+        clap='an explosion in the sky'),
     'shieldHit': dict(kind='sfx', gen=3, keep=1.6, n=3, db=-18,
-        prompt='A futuristic energy force-field dome absorbing a missile impact: a deep resonant electric thrum, shimmering crackle and a warbling hum that fades out.' + ISO,
-        clap='a sci-fi energy shield being hit, electric hum'),
+        prompt='A sci-fi energy shield deflecting an impact: a sharp electric zap and crackle, then a bright shimmering hum that wobbles and fades out.' + ISO,
+        clap='an electric zap and a shimmering energy hum'),
     # ── Orbital strike ──
     'strikeUp': dict(kind='sfx', gen=3, keep=2.0, n=2, db=-17,
         prompt='A sci-fi orbital uplink cannon firing a beam of light straight up into space: rising electrical charge-up whine, powerful energy release and a fading shimmering tail.' + ISO,
@@ -117,7 +117,7 @@ SHEET = {
         prompt='A sci-fi drop pod launched from a hangar: a pneumatic clamp release, a short powerful thruster burst and a whoosh flying away.' + ISO,
         clap='a rocket thruster launching and whooshing away'),
     # ── Base building ──
-    'build': dict(kind='sfx', gen=3, keep=1.4, n=3, db=-19,
+    'build': dict(kind='sfx', gen=3, keep=1.4, n=2, db=-19,
         prompt='A futuristic military structure assembling itself: quick mechanical ratchets, heavy metal panels locking into place and a short pneumatic hiss.' + ISO,
         clap='mechanical construction, metal parts locking into place'),
     'upgrade': dict(kind='sfx', gen=3, keep=1.6, n=2, db=-19,
@@ -140,8 +140,8 @@ SHEET = {
         prompt='A military targeting computer locking on to a target: quick rising electronic beeps ending in a solid lock-on tone.' + ISO,
         clap='an electronic target lock beep'),
     'dropOrder': dict(kind='sfx', gen=2, keep=0.9, n=1, db=-21,
-        prompt='A heavy metal latch clunking shut, followed by a short clean electronic beep.' + ISO,
-        clap='a metal latch clunk then a beep'),
+        prompt='A heavy steel hatch locking shut with one deep solid mechanical clunk, sci-fi military.' + ISO,
+        clap='a heavy metal clunk'),
     'undo': dict(kind='sfx', gen=2, keep=0.5, n=1, db=-23,
         prompt='A quick soft reversed whoosh user interface sound, like rewinding.' + ISO,
         clap='a short reverse whoosh'),
@@ -156,10 +156,10 @@ SHEET = {
         prompt='A very tiny soft high electronic tick, a subtle interface hover sound.' + ISO,
         clap='a tiny soft electronic tick'),
     'select': dict(kind='sfx', gen=1, keep=0.25, n=2, db=-23,
-        prompt='A short clean two-tone sci-fi interface confirmation beep, rising.' + ISO,
-        clap='a short rising electronic beep'),
+        prompt='A short soft digital blip, a crisp clean sci-fi interface select sound.' + ISO,
+        clap='a short digital blip'),
     'error': dict(kind='sfx', gen=1, keep=0.4, n=2, db=-22,
-        prompt='A short low double buzz of a military computer denying an action.' + ISO,
+        prompt='A short harsh low electronic buzzer, two quick buzzes, access denied.' + ISO,
         clap='an error buzzer'),
     'turnStart': dict(kind='sfx', gen=3, keep=2.0, n=1, db=-22,
         prompt='A submarine sonar radar ping with a long clean echo, calm sci-fi command interface.' + ISO,
@@ -171,8 +171,8 @@ SHEET = {
         prompt='A short cinematic battle start hit: a huge orchestral and synth impact with a deep boom, a brass stab and a metallic reverb tail. Trailer hit, no melody, no vocals.',
         clap='a cinematic trailer impact hit'),
     'alarm': dict(kind='sfx', gen=3, keep=1.6, n=1, db=-20,
-        prompt='A military base warning klaxon sounding two urgent alarm blasts.' + ISO,
-        clap='an alarm klaxon'),
+        prompt='Two urgent blasts of a loud military base warning siren klaxon, a harsh electric horn.' + ISO,
+        clap='a loud warning klaxon horn'),
     'achievement': dict(kind='sting', gen=3, keep=2.2, n=1, db=-20, stereo=True,
         prompt='A short bright rewarding achievement unlocked jingle: a sparkling rising synth arpeggio ending on a shiny major chord. No vocals.',
         clap='a short happy reward jingle'),
@@ -324,13 +324,39 @@ def active_rms(x):
     return float(np.sqrt(np.mean(np.square(loud))))
 
 
+# peak ceiling before encoding, with room for MP3 overshoot (write_mp3 checks the result)
+CEIL = 0.84
+
+
 def level(x, target_db):
     x = x * (10 ** ((target_db - db(active_rms(x))) / 20))
     peak = np.abs(x).max()
-    if peak > 0.95:  # soft-knee limit: tanh above 0.6, then rescale
-        x = np.where(np.abs(x) > 0.6, np.sign(x) * (0.6 + 0.4 * np.tanh((np.abs(x) - 0.6) / 0.4)), x)
-        x *= 0.95 / max(np.abs(x).max(), 1e-9)
+    if peak > CEIL:  # soft-knee limit: tanh above 0.55, then rescale
+        x = np.where(np.abs(x) > 0.55, np.sign(x) * (0.55 + 0.45 * np.tanh((np.abs(x) - 0.55) / 0.45)), x)
+        x *= CEIL / max(np.abs(x).max(), 1e-9)
     return x.astype(np.float32)
+
+
+def bass_share(x, hz=150):
+    sp = np.abs(np.fft.rfft(x.mean(axis=1))) ** 2
+    f = np.fft.rfftfreq(len(x), 1 / SR)
+    return float(sp[f < hz].sum() / (sp.sum() + 1e-12))
+
+
+def add_presence(x, mix=0.35):
+    """Phone and laptop speakers can't play much below ~150 Hz, so a sound that lives down there
+    vanishes on them. Saturating the sub band adds its harmonics in the 150-900 Hz range, which
+    the ear hears as the missing fundamental (the same trick as hardware 'bass enhancers')."""
+    from scipy.signal import butter, sosfilt
+    if bass_share(x) < 0.55:
+        return x
+    low = sosfilt(butter(4, 150, 'lowpass', fs=SR, output='sos'), x, axis=0)
+    g = 1.0 / (np.abs(low).max() + 1e-9)
+    harm = np.tanh(3.0 * g * low) / g
+    harm = sosfilt(butter(2, [180, 900], 'bandpass', fs=SR, output='sos'), harm, axis=0)
+    # match the added band to a fixed fraction of the sub band's level
+    harm *= mix * np.sqrt(np.mean(low ** 2)) / (np.sqrt(np.mean(harm ** 2)) + 1e-12)
+    return (x + harm).astype(np.float32)
 
 
 def shape_oneshot(x, keep):
@@ -422,12 +448,20 @@ def cyclic_pad(body, pad=0.5):
     return np.concatenate([body[-n:], body, body[:n]]), n
 
 
-def write_mp3(path, x, kbps):
+def write_mp3(path, x, kbps, ceil_db=-0.8):
+    """Encode, then decode and check the peak: dense, bright clips can overshoot by 2 dB or
+    more once encoded, and the browser would clip them. Turn the input down and retry."""
     ch = x.shape[1]
-    pcm = (np.clip(x, -1, 1) * 32767).astype('<i2').tobytes()
-    cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(SR), '-ac', str(ch), '-i', 'pipe:0',
-           '-c:a', 'libmp3lame', '-b:a', f'{kbps}k', path]
-    subprocess.run(cmd, input=pcm, check=True)
+    for _ in range(4):
+        pcm = (np.clip(x, -1, 1) * 32767).astype('<i2').tobytes()
+        cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(SR), '-ac', str(ch), '-i', 'pipe:0',
+               '-c:a', 'libmp3lame', '-b:a', f'{kbps}k', path]
+        subprocess.run(cmd, input=pcm, check=True)
+        dec = subprocess.run(['ffmpeg', '-v', 'quiet', '-i', path, '-f', 'f32le', '-'], capture_output=True).stdout
+        over = db(np.abs(np.frombuffer(dec, np.float32)).max()) - ceil_db
+        if over <= 0:
+            return
+        x = x * 10 ** (-(over + 0.2) / 20)
 
 
 # ── Main ──────────────────────────────────────────────────
@@ -438,6 +472,7 @@ def main():
     ap.add_argument('--only', default='', help='comma-separated names to (re)process')
     ap.add_argument('--regen', action='store_true', help='sample new takes instead of reusing cached ones')
     ap.add_argument('--cand', type=int, default=0, help='takes per kept variant (default per kind)')
+    ap.add_argument('--more', type=int, default=0, help='sample this many new takes per kept variant on top of the cached ones')
     ap.add_argument('--no-rank', action='store_true', help='skip CLAP ranking')
     ap.add_argument('--seed', type=int, default=2026)
     ap.add_argument('--list', action='store_true', help='print the prompt sheet and exit')
@@ -483,6 +518,7 @@ def main():
             for f in cached:
                 os.remove(os.path.join(raw_dir, f))
             cached = []
+        want = max(want, len(cached) + a.more * n_keep)
         seed = a.seed + idx * 1009 + len(cached) * 7
         while len(cached) < want:
             batch = min(4 if spec['gen'] <= 12 else 1, want - len(cached))
@@ -509,7 +545,7 @@ def main():
                 if shaped is None or len(shaped) < int(0.03 * SR):
                     continue
                 pen = oneshot_quality(x, shaped, spec['keep'])
-                clip = level(shaped, spec['db'])
+                clip = level(add_presence(shaped), spec['db'])
                 extra = {}
             else:
                 if kind == 'music':
