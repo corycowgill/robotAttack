@@ -100,6 +100,34 @@ test('skirmish: build, fire a missile and end the turn', async t => {
   assert.deepStrictEqual(errors, []);
 });
 
+test('Q pressed again while aiming keeps fire mode: two missiles queue (regression)', async t => {
+  const { page, errors } = await open(t);
+  await startSkirmish(page);
+  await page.evaluate(() => { __game.state.sides.player.credits += 500; __game.state.sides.player.energy = 30; });
+  await page.click('.card[data-type="silo"]');
+  await clickCell(page, await freeCell(page, 'silo'));
+  await page.keyboard.press('Escape');
+  const hq = await page.evaluate(() => Rules.hqCell('ai'));
+  await page.keyboard.press('KeyQ');
+  await clickCell(page, hq);
+  await page.keyboard.press('KeyQ');      // used to toggle aiming off, so the next click only selected
+  await clickCell(page, hq);
+  assert.strictEqual(await page.evaluate(() => __game.state.sides.player.orders.filter(o => o.kind === 'missile').length), 2);
+  assert.deepStrictEqual(errors, []);
+});
+
+test('defeat screen explains what went wrong', async t => {
+  const { page, errors } = await open(t);
+  await startSkirmish(page);
+  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'player', 'hq')[0].dead = true; });
+  await page.click('#b-end');
+  await skipPlayback(page);
+  await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
+  await page.waitForSelector('#go-tip', { state: 'visible', timeout: 15000 });
+  assert.match(await page.textContent('#go-tip'), /^Debrief: /);
+  assert.deepStrictEqual(errors, []);
+});
+
 test('Drop button works once a hangar stands (regression)', async t => {
   const { page, errors } = await open(t);
   await startSkirmish(page);

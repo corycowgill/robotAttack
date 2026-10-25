@@ -438,6 +438,9 @@
       mechHintShown = true;
       UI.toast('Enemy mechs on your island! Arrows show where they go next. Gun Pods [8] shred them — or drop a garrison mech [E] on your own island.', 'warn');
     }
+    // Gen. Hale warns a player who is falling behind on economy
+    if (!hotseat && state.turn === 5 && R.buildingsOf(state, P, 'depot').length < 2)
+      UI.toast('Gen. Hale: Only one Supply Depot? The enemy will out-build us. Get a second one up now.', 'warn');
     if (P === P1) saveGame(); // hot-seat saves at the start of a round, before either side has planned
     if (hotseat && P === P1) roundStart = JSON.stringify(state.cells);
     refreshAll();
@@ -741,9 +744,10 @@
     { text: 'You start with a <b>Missile Silo</b>. Press <kbd>Q</kbd> and click the red <b>enemy HQ</b>', touch: 'You start with a <b>Missile Silo</b>. Tap <b>Fire Missile</b>, then the red <b>enemy HQ</b> (twice to confirm)', done: s => s.sides[P].stats.missilesFired > 0 || s.sides[P].orders.some(o => o.kind === 'missile') },
     { text: 'Press <kbd>Space</kbd> to end the turn and watch the battle', touch: 'Tap <b>End Turn</b> and watch the battle', done: s => s.turn > 1 },
     { text: 'HQs and AA shoot missiles down (40% / 70%). Fire <b>several at once</b> to break through — build more silos', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
-    { text: 'Build a <b>Radar</b> <kbd>3</kbd> — reveals targets and incoming missiles', done: s => has(s, 'radar') },
+    { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast — each structure extends your build zone, so build eastward first. The placement tip shows how many enemy cells it reveals', touch: 'Build a <b>Radar</b> on your east coast (build eastward first) — the placement tip shows how many enemy cells it reveals', done: s => has(s, 'radar') },
     { text: 'Protect your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
-    { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
+    { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') },
+    { text: 'Select one of your structures and press <kbd>U</kbd> to <b>upgrade</b> it', touch: 'Tap one of your structures, then <b>Upgrade</b>', done: s => R.buildingsOf(s, P).some(b => (b.level || 1) > 1) }
   ];
   function has(s, t) { return R.buildingsOf(s, P, t).length > 0; }
   function refreshObjectives() {
@@ -771,11 +775,12 @@
     if (mode === 'build') {
       const reason = R.buildableReason(state, P, buildType, hoverCell);
       if (reason) html = '<span class="bad">' + UI.esc(reason) + '</span>';
+      else html = placementPreview(buildType, hoverCell);
     } else if (mode === 'fire') {
       const reason = R.missileReason(state, P, hoverCell);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
         : !R.isLand(state, hoverCell) ? '<span class="bad">Open water</span> — a missile here would be wasted'
-          : 'Fire at <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">Lands at the start of next turn\'s combat</span>';
+          : 'Fire at <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">Lands at the start of next turn\'s combat</span>' + defenceOdds(hoverCell);
     } else if (mode === 'strike') {
       const reason = R.strikeReason(state, P, hoverCell);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
@@ -792,6 +797,43 @@
       else if (R.ownerOfCell(hoverCell) === A && !visible.has(hoverCell)) html = '<span class="k">Unknown — fogged.<br>Radar or missile impacts reveal it.</span>';
     }
     if (html) UI.showTip(html, mouse.x, mouse.y); else UI.hideTip();
+  }
+
+  // What a structure would do from this cell, shown while placing it
+  function placementPreview(type, cell) {
+    const d = BUILDINGS[type];
+    if (type === 'radar') {
+      const n = R.cellsInRadius(cell, d.range).filter(c => R.ownerOfCell(c) === A && R.isLand(state, c)).length;
+      return n ? 'Reveals <b>' + n + '</b> enemy land cells' : '<span class="bad">Reveals no enemy cells from here</span> — build closer to the coast facing the enemy';
+    }
+    if (type === 'aa' || type === 'shield') {
+      const covered = R.buildingsOf(state, P).filter(b => R.dist(b.cell, cell) <= d.range + 0.01);
+      const hq = covered.some(b => b.type === 'hq');
+      return 'Covers <b>' + covered.length + '</b> of your structures' + (hq ? ' <span class="good">incl. HQ</span>' : '');
+    }
+    if (type === 'gunpod') {
+      const hq = R.dist(R.hqCell(P), cell) <= d.range + 0.01;
+      return 'Shoots mechs within radius ' + d.range + (hq ? ' — covers your HQ' : '');
+    }
+    return null;
+  }
+
+  // Defences the player knows about around a missile target, and the odds one missile gets through
+  function defenceOdds(cell) {
+    const seen = state.sides[P].intel.seen;
+    const known = [];
+    const hq = R.hqCell(A);
+    if (R.dist(hq, cell) <= BUILDINGS.hq.range + 0.01) known.push({ name: 'HQ', p: BUILDINGS.hq.hitChance });
+    for (const k in seen) {
+      if (seen[k].type !== 'aa') continue;
+      const lvl2 = seen[k].level === 2;
+      const range = lvl2 ? UPGRADES.aa.range : BUILDINGS.aa.range;
+      if (R.dist(+k, cell) <= range + 0.01) known.push({ name: 'AA', p: lvl2 ? UPGRADES.aa.hitChance : BUILDINGS.aa.hitChance });
+    }
+    if (!known.length) return '<br><span class="good">No known air defence covers this cell</span>';
+    const through = known.reduce((a, d) => a * (1 - d.p), 1);
+    return '<br><span class="k">Known defences: ' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ')
+      + ' — a lone missile gets through ~' + Math.round(through * 100) + '%</span>';
   }
 
   // ── Input ─────────────────────────────────────────────────
@@ -832,6 +874,7 @@
   }
 
   function clickCell(c, keepMode) {
+    reportTimer = Math.min(reportTimer, 0.01);
     if (mode === 'build') {
       const r = R.build(state, P, buildType, c);
       if (!r.ok) return fail(r.reason);
@@ -849,7 +892,10 @@
       UI.log('Missile targeted at ' + describeCell(c), 'player');
       const silo = R.buildingAt(state, r.order.from);
       if (silo) Renderer.aimTurret(silo.id, c);
-      if (!R.freeLaunchers(state, P, 'silo').length || state.sides[P].energy < CONST.MISSILE_ENERGY) cancelMode();
+      const queued = state.sides[P].orders.filter(o => o.kind === 'missile').length;
+      const more = R.freeLaunchers(state, P, 'silo').length && state.sides[P].energy >= CONST.MISSILE_ENERGY;
+      UI.toast('Missile ' + queued + '/' + R.buildingsOf(state, P, 'silo').length + ' queued' + (more ? ' — click another target' : ''), 'good');
+      if (!more) cancelMode();
     } else if (mode === 'strike') {
       const r = R.queueStrike(state, P, c);
       if (!r.ok) return fail(r.reason);
@@ -924,7 +970,8 @@
         const reason = R.missileReason(state, P, R.hqCell(A));
         if (reason && reason !== 'Target must be in enemy territory') return fail(reason);
         SND.play('uiClick');
-        mode = mode === 'fire' ? 'select' : 'fire'; selectedCell = -1;
+        // the hotkey always (re-)arms; only the button toggles, Esc / right-click cancel
+        mode = mode === 'fire' && arg !== 'key' ? 'select' : 'fire'; selectedCell = -1;
         if (mode === 'fire') UI.toast('Click an enemy cell to target (right-click to cancel)', 'warn');
         break;
       }
@@ -932,7 +979,7 @@
         const reason = R.strikeReadyReason(state, P);
         if (reason) return fail(reason);
         SND.play('uiClick');
-        mode = mode === 'strike' ? 'select' : 'strike'; selectedCell = -1;
+        mode = mode === 'strike' && arg !== 'key' ? 'select' : 'strike'; selectedCell = -1;
         if (mode === 'strike') UI.toast('Click an enemy cell for the orbital strike (right-click to cancel)', 'warn');
         break;
       }
@@ -940,7 +987,7 @@
         const reason = R.dropReadyReason(state, P);
         if (reason) return fail(reason);
         SND.play('uiClick');
-        mode = mode === 'drop' ? 'select' : 'drop'; selectedCell = -1;
+        mode = mode === 'drop' && arg !== 'key' ? 'select' : 'drop'; selectedCell = -1;
         if (mode === 'drop') UI.toast('Click the enemy island to raid — or your own island to garrison', 'warn');
         break;
       }
@@ -1034,9 +1081,9 @@
       return;
     }
     switch (e.code) {
-      case 'KeyQ': action('fire'); break;
-      case 'KeyE': action('drop'); break;
-      case 'KeyR': action('strike'); break;
+      case 'KeyQ': action('fire', 'key'); break;
+      case 'KeyE': action('drop', 'key'); break;
+      case 'KeyR': action('strike', 'key'); break;
       case 'KeyT': action('repair'); break;
       case 'KeyU': action('upgrade'); break;
       case 'KeyX': case 'Delete': action('sell'); break;
@@ -1330,7 +1377,9 @@
       arcPoint(a, b, h, arcT(kk), p);
       m.position.copy(p);
       orient(m, p.clone().sub(prev));
-      Fx.trail(p, 'missile', own ? 0x66ccff : 0xff6a00);
+      // grow in from the apex instead of popping into view mid-air
+      m.scale.setScalar(missileScale() * Math.min(1, 0.15 + kk * 6));
+      if (kk > 0.04) Fx.trail(p, 'missile', own ? 0x66ccff : 0xff6a00);
       prev.copy(p);
       shots.forEach((shot, i) => {
         if (fired[i] || kk < meetK(i) - 0.25) return;
@@ -1344,13 +1393,38 @@
         SND.play('intercept', { pan: panAtPos(p) });
         const sp = Renderer.project(p.clone());
         if (sp.visible) UI.floatText(sp.x, sp.y - 10, 'INTERCEPTED', 'blue');
-        UI.log((own ? 'Your missile was intercepted' : 'Intercepted enemy missile') + ' over ' + cellName(e.to), own ? 'bad' : 'good');
+        const by = shotBy(e.interceptedBy, shots[shots.length - 1]);
+        UI.log((own ? 'Your missile was shot down by ' + by : 'Enemy missile shot down by your ' + by) + ' over ' + cellName(e.to), own ? 'bad' : 'good');
+        if (own) revealInterceptor(e.interceptedBy);
         Renderer.addTrauma(0.12, p);
       } else if (impact) {
-        if (shots.length) UI.log((own ? 'Your missile evaded AA fire over ' : 'AA missed the enemy missile over ') + cellName(e.to), own ? 'good' : 'bad');
+        if (shots.length) {
+          const names = shots.map(sh => shotBy(sh.by, sh)).join(' and ');
+          UI.log((own ? 'Your missile slipped past ' + names : 'Your ' + names + ' missed the enemy missile') + ' over ' + cellName(e.to), own ? 'good' : 'bad');
+          if (own) shots.forEach(sh => revealInterceptor(sh.by));
+        }
         applyImpact(impact, idAt);
       }
     });
+  }
+
+  // Who fired at a missile, in log wording: 'HQ point defence' or 'AA Battery at I27 (70%)'
+  function shotBy(cell, shot) {
+    const b = R.buildingAt(state, cell);
+    const pct = shot && shot.chance ? ' (' + Math.round(shot.chance * 100) + '%)' : '';
+    if (b && b.type === 'hq') return 'HQ point defence' + pct;
+    return 'AA Battery at ' + cellName(cell) + pct;
+  }
+  // An enemy battery that fires gives its position away: remember it as last-known intel
+  function revealInterceptor(cell) {
+    if (R.ownerOfCell(cell) !== A) return;
+    const b = R.buildingAt(state, cell);
+    if (!b || b.type === 'hq') return;
+    const seen = state.sides[P].intel.seen;
+    if (visible.has(cell) || seen[cell]) return;
+    const a = R.apparent(b);
+    seen[cell] = { type: a.type, hp: a.hp, maxHp: a.maxHp, level: a.level, turn: state.turn };
+    Renderer.setGhosts(Object.keys(seen).filter(k => !visible.has(+k)).map(k => ({ cell: +k, type: seen[k].type })));
   }
 
   // Interceptor from a battery to a meeting point; a miss bursts beside the missile
@@ -1395,13 +1469,16 @@
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
     if (hqHit) slowMotion(0.55, 0.35);
     // the target's own damage, with splash on its neighbours reported separately
-    let direct = 0, splash = 0;
-    for (const h of ev.hits) { const d = applyHit(h, idAt); if (h.cell === ev.cell) direct += d; else splash += d; }
+    let direct = 0, splash = 0, absorbed = 0;
+    for (const h of ev.hits) { const d = shownDmg(h, h.dmg); if (h.cell === ev.cell) direct += d; else splash += d; absorbed += h.absorbed > 0 ? h.absorbed : 0; }
     const name = describeCell(ev.cell);
-    const dmgText = (ev.hits.some(h => h.cell === ev.cell) ? direct + ' damage' : 'missed the structure') + (splash ? ' (+' + splash + ' splash)' : '');
+    const dmgText = (ev.hits.some(h => h.cell === ev.cell) ? direct + ' damage' : 'no direct hit') + (splash ? ', ' + splash + ' splash to nearby structures' : '')
+      + (absorbed ? ' (' + absorbed + ' absorbed by shields)' : '');
     if (big) UI.log((own ? 'ORBITAL STRIKE on ' : 'ENEMY ORBITAL STRIKE on ') + name + ': ' + dmgText, own ? 'good' : 'bad');
     else if (!ev.hits.length) UI.log((own ? 'Your missile ' : 'Enemy missile ') + (wet ? 'splashed into the sea at ' : 'hit empty ground at ') + cellName(ev.cell), own ? 'player' : 'enemy');
     else UI.log((own ? 'Missile impact on ' : 'Enemy missile hit ') + name + ': ' + dmgText, own ? 'good' : 'bad');
+    // log the summary first, then the losses it caused
+    for (const h of ev.hits) applyHit(h, idAt);
     // the impact reveals the area — lift fog right away for the attacker
     if (own) {
       for (const c of ev.reveal) visible.add(c);
@@ -1475,7 +1552,9 @@
           SND.play('robotDie', { pan: panAtPos(target) });
           Renderer.removeRobot(s.robotId);
           UI.log(e.side === P ? 'Your ' + gun + ' destroyed an enemy mech' : 'Your mech was destroyed by an enemy ' + gun + ' at ' + cellName(e.from), e.side === P ? 'good' : 'bad');
-        } else if (e.side !== P) {
+        } else if (e.side === P) {
+          if (rec && rec.group.visible) UI.log('Your ' + gun + ' hit an enemy mech (-' + s.dmg + ', ' + s.hpAfter + ' HP left)', 'good');
+        } else {
           UI.log('Your mech hit by an enemy ' + gun + ' at ' + cellName(e.from) + ' (-' + s.dmg + ', ' + s.hpAfter + ' HP left)', 'bad');
         }
       });
@@ -1643,7 +1722,29 @@
       if (e.type === 'robotFight' && e.killed) r[other(e.side)].robotsLost++;
       if (e.type === 'end') for (const d of e.destroyed) r[d.side].lostNames.push(BUILDINGS[d.type].name);
     }
+    r.intel = intelLine(r.swap ? P2 : P);
     return r;
+  }
+
+  // What the side has seen of the enemy's base, for the turn report
+  function intelLine(side) {
+    const seen = state.sides[side].intel.seen;
+    const types = Object.keys(seen).map(k => seen[k].type);
+    const depots = types.filter(t => t === 'depot').length;
+    return 'Intel: ' + (types.length + 1) + '+ enemy structures seen' + (depots ? ', ' + depots + ' depot' + (depots > 1 ? 's' : '') : '');
+  }
+
+  // One actionable line for the defeat screen: the biggest thing that went wrong
+  function defeatTip() {
+    const ps = state.sides[P].stats, as = state.sides[A].stats;
+    const mine = t => R.buildingsOf(state, P, t).length, theirs = t => R.buildingsOf(state, A, t).length;
+    const landed = as.missilesFired - state.missiles.filter(m => m.side === A && !m.strike).length;
+    if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot in the first five turns.';
+    if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
+    if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Gun Pod near your HQ, or a garrison mech, stops them.';
+    if (ps.missilesFired >= 4 && ps.missilesHit / Math.max(1, ps.missilesFired) < 0.35) return 'Most of your missiles were shot down. Fire several in the same turn, or aim at targets outside the enemy\'s AA cover (the aim tooltip shows the odds).';
+    if (ps.missilesFired < state.turn / 2) return 'You fired only ' + ps.missilesFired + ' missiles. More silos and power plants keep the pressure on.';
+    return 'Diversify: mix missile salvos with a mech drop or an orbital strike so the enemy can\'t defend against everything.';
   }
 
   function gameOver() {
@@ -1677,6 +1778,7 @@
         title,
         kind: hotseat ? (w === 'draw' ? 'draw' : 'win') : w === P ? 'win' : w === A ? 'lose' : 'draw',
         cols: hotseat ? ['Player 1', 'Player 2'] : null,
+        tip: !hotseat && w === A ? defeatTip() : null,
         reason: (hotseat ? seatReason + ' — turn ' + state.turn + ' · two players' : state.endReason + ' — turn ' + state.turn + ' · ' + (mission ? 'Mission ' + mission.id + ': ' + mission.name : state.daily ? 'Daily Operation ' + state.daily : CONST.DIFFICULTY[state.difficulty].name)),
         daily: daily ? { score: daily.score, best: Math.max(daily.score, daily.prev), newBest: daily.score > daily.prev } : null,
         next: !!(mission && w === P && CAMPAIGN[mission.id]),

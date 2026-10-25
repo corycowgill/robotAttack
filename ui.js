@@ -104,7 +104,8 @@ window.UI = (function () {
   .abtn.strike .ico { color: #3dffc8; } .abtn.strike .badge { top: 4px; right: 5px; font-size: 10px; letter-spacing: .06em; padding: 1px 4px; border-radius: 3px; background: rgba(5,10,16,.7); } .abtn.strike.sel { border-color: #3dffc8; background: rgba(61,255,200,.14); }
   .abtn.strike.ready:not(.off) { border-color: rgba(61,255,200,.7); animation: glowStrike 1.2s infinite; }
   @keyframes glowStrike { 50% { box-shadow: 0 0 18px rgba(61,255,200,.55); } }
-  .order.strike .ico, .order.incoming.strike .ico { color: #3dffc8; }
+  .order.strike .ico { color: #3dffc8; }
+  .order.incoming.strike .ico { color: #ff5a3d; }
   .abtn.end { background: linear-gradient(180deg, rgba(46,196,255,.28), rgba(46,196,255,.12)); border-color: rgba(46,196,255,.6); min-width: clamp(92px, 8vw, 128px); }
   .abtn.end .ico { color: #fff; }
   .abtn.end.ready { animation: glow 1.4s infinite; }
@@ -157,7 +158,7 @@ window.UI = (function () {
   .toast.bad { border-color: rgba(255,74,61,.6); color: #ffb1a8; } .toast.good { border-color: rgba(102,255,153,.5); color: #b6ffd0; } .toast.warn { border-color: rgba(255,176,0,.6); color: #ffd98a; }
   @keyframes tin { from { opacity: 0; transform: translateY(-8px); } } @keyframes tout { to { opacity: 0; transform: translateY(-8px); } }
   #tip { position: absolute; max-width: 300px; padding: 10px 12px; font-size: 14px; line-height: 1.35; display: none; z-index: 5; }
-  #tip b { font-size: 16px; } #tip .k { color: var(--c-dim); font-size: 13px; } #tip .bad { color: var(--c-bad); } #tip .cnt { color: var(--c-warn); font-size: 13px; }
+  #tip b { font-size: 16px; } #tip .k { color: var(--c-dim); font-size: 13px; } #tip .bad { color: var(--c-bad); } #tip .good { color: var(--c-credit); } #tip .cnt { color: var(--c-warn); font-size: 13px; }
   #banner { position: absolute; left: 0; right: 0; top: 30%; text-align: center; pointer-events: none; opacity: 0; }
   #banner.show { animation: ban 1.7s ease-out forwards; }
   #banner .t { font-size: 64px; font-weight: 700; letter-spacing: .25em; text-shadow: 0 0 30px rgba(46,196,255,.6); }
@@ -341,6 +342,8 @@ window.UI = (function () {
   #go-title { font-size: 64px; font-weight: 700; letter-spacing: .2em; }
   #go-title.win { color: #8fdcff; text-shadow: 0 0 30px rgba(46,196,255,.6); } #go-title.lose { color: #ff6a55; text-shadow: 0 0 30px rgba(255,68,34,.6); } #go-title.draw { color: #ffd98a; }
   #go-reason { color: var(--c-dim); margin-bottom: 18px; letter-spacing: .08em; }
+  #go-tip { margin: -10px auto 16px; max-width: 520px; font-size: 14px; color: var(--c-warn); }
+  #go-tip:empty { display: none; }
   #go-stats { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 18px; text-align: left; font-size: 15px; margin: 0 auto 20px; max-width: 380px; }
   #go-stats .h { color: var(--c-dim); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
   .bigbtn { padding: 12px 26px; border-radius: 8px; border: 1px solid rgba(46,196,255,.6); background: rgba(46,196,255,.18); color: #fff; font-family: inherit; font-size: 18px; font-weight: 700; letter-spacing: .12em; cursor: pointer; margin: 0 6px; }
@@ -532,6 +535,7 @@ window.UI = (function () {
       <div class="menu-box panel">
         <div id="go-title">VICTORY</div>
         <div id="go-reason"></div>
+        <div id="go-tip"></div>
         <div id="go-medals" class="medals"></div>
         <div id="go-daily"></div>
         <div id="go-chart"></div>
@@ -860,10 +864,14 @@ window.UI = (function () {
 
   function toast(text, kind) {
     const box = $('toasts');
+    for (const o of [...box.children]) if (o.textContent === text) o.remove(); // no duplicate stacking
     const t = el('div', { class: 'toast ' + (kind || '') }, esc(text));
+    // longer messages stay up long enough to read
+    const life = Math.min(6000, 2300 + Math.max(0, text.length - 40) * 45);
+    t.style.animation = 'tin .2s ease-out, tout .4s ease-in ' + ((life - 500) / 1000) + 's forwards';
     box.appendChild(t);
     while (box.children.length > 3) box.removeChild(box.firstChild);
-    setTimeout(() => t.remove(), 2300);
+    setTimeout(() => t.remove(), life);
   }
 
   function showTip(html, x, y) {
@@ -908,7 +916,7 @@ window.UI = (function () {
       <div class="row"><span>Mechs lost</span><b>${s.robotsLost}</b></div>
       <div class="lost">${s.lostNames.length ? 'Lost: ' + esc(s.lostNames.join(', ')) : 'No structures lost'}</div></div>`;
     p.innerHTML = `<h2>Turn ${r.turn} report</h2><div class="cols">${col('You', r.swap ? 'var(--c-ai)' : 'var(--c-player)', r.player)}${col('Enemy', r.swap ? 'var(--c-player)' : 'var(--c-ai)', r.ai)}</div>
-      <div class="foot"><span>Next turn: <b style="color:var(--c-credit)">+${r.income.credits}c</b> <b style="color:var(--c-energy)">+${r.income.energy}e</b></span><span>&nbsp;</span></div>`;
+      <div class="foot"><span>Next turn: <b style="color:var(--c-credit)">+${r.income.credits}c</b> <b style="color:var(--c-energy)">+${r.income.energy}e</b></span><span>${r.intel ? esc(r.intel) : '&nbsp;'}</span></div>`;
     p.classList.add('show');
   }
   function hideReport() { $('report').classList.remove('show'); }
@@ -1028,6 +1036,7 @@ window.UI = (function () {
     t.textContent = g.title;
     t.className = g.kind;
     $('go-reason').textContent = g.reason;
+    $('go-tip').textContent = g.tip ? 'Debrief: ' + g.tip : '';
     $('go-medals').innerHTML = g.medals ? medalRow(g.medals.got, g.medals.labels) + (g.medals.newBest ? '<div class="newbest">NEW MEDAL</div>' : '') : '';
     $('go-medals').style.display = g.medals ? '' : 'none';
     $('go-daily').innerHTML = g.daily ? `Daily score <b>${g.daily.score}</b> ${g.daily.newBest ? '— new best!' : '· best ' + g.daily.best}` : '';
