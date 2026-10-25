@@ -2,7 +2,7 @@
 
 *Inspired by Namco's Metal Marines (SNES).*
 
-A turn-based base-building artillery strategy game in the browser, rendered with Three.js (r128) and scored with procedural Web Audio.
+A turn-based base-building artillery strategy game in the browser, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
 
 Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
 
@@ -172,7 +172,7 @@ The browser remembers your choices. The map options also apply to Two Players; t
 | `H` / `F` | Camera to your HQ / whole map |
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
-| Gear button / menu **Settings** | Master, music and effects volume; graphics quality (Auto / Low / Medium / High); combat playback speed; camera shake; mech arrows. Saved in the browser. |
+| Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); combat playback speed; camera shake; mech arrows. Saved in the browser. |
 | `?` | Help |
 | Touch | Tap to select / place / target; drag one finger to pan, pinch to zoom |
 
@@ -185,7 +185,7 @@ All scripts are plain `<script>` modules loaded by `index.html`, in this order:
 | `config.js` | Constants and the structure table (costs, HP, descriptions); the single source of truth |
 | `rules.js` | Pure game logic: state, validation, build/repair/sell, orders, vision, and the deterministic `resolveTurn()`, which returns an event list. No DOM, and it runs under Node. |
 | `ai.js` | Opponent logic. It uses the same `Rules` functions, and therefore the same restrictions, as the player. |
-| `audio.js` | Procedural Web Audio: sound-effect recipes, ambient and combat music, volume/mute (`window.GameAudio`) |
+| `audio.js` | Sound engine (`window.GameAudio`): plays the generated clips and music loops, with procedural Web Audio recipes as fallback; buses for music, effects, interface and ambience; ducking, volume and mute |
 | `models.js` | Procedural Three.js models for structures, mechs, missiles, drop pods and ghosts |
 | `fx.js` | Pooled GPU particles, flash lights, shockwaves, scorch decals, smoke and fire emitters |
 | `renderer.js` | Scene, lighting, terrain, overlays (grid, build zone, fog shader), camera rig, picking, mesh registry |
@@ -194,22 +194,31 @@ All scripts are plain `<script>` modules loaded by `index.html`, in this order:
 
 ### Generated audio
 
-`audio.js` plays pre-rendered clips listed in `assets/audio/manifest.json` and falls back to its procedural WebAudio recipes for anything missing. Opening `index.html` directly from disk (`file://`) always uses the procedural sounds, because browsers block `fetch` there.
+All music, ambience and sound effects in `assets/audio/` were generated locally with **Stable Audio 3 Small** (the `sfx` and `music` checkpoints) running in ComfyUI. `assets/audio/manifest.json` lists them; `audio.js` loads it at startup and falls back to its procedural recipes for anything missing. Opening `index.html` directly from disk (`file://`) always uses the procedural sounds, because browsers block `fetch` there. The **Retro** sound style in Settings also uses them.
 
-`tools/gen_audio.py` renders the clips with text-to-audio models. It holds a prompt sheet for every gameplay sound plus three music loops, then trims, levels and loop-crossfades the output, encodes MP3s and writes the manifest.
+| Music (looping) | Plays |
+|---|---|
+| `menu` | Title screen and menus |
+| `planning` | Planning phase |
+| `combat` | Combat playback |
+| `climax` | Combat while either Command Center is below 40% |
+
+Stingers: `titleSting` (press start), `combatStart` (each combat phase), `victory`, `defeat`, `achievement`. Ambience beds: `ocean` (all the time) and `battleAmb` (combat and the title flyover). Music dips briefly under big explosions.
+
+Every gameplay event has its own sound: launches, the incoming whistle, flak, interceptions, impacts, sea splashes, shield hits, building collapses, decoys bursting, the Gun Pod and HQ guns, mech footsteps, landings, punches, mech-on-mech melee and mech deaths, drop pods, the orbital strike (charge-up, descent, impact and a cue when your Uplink is ready), building, upgrading, repairs, selling, undo, order confirmations (missile lock, strike lock, drop armed, cancel), turn start, end turn, alarms, radio chatter from Gen. Hale, the two-player hand-off, and interface clicks.
+
+`tools/gen_audio.py` regenerates them. It holds the prompt sheet, samples several takes per sound through a local ComfyUI server, ranks the takes with the CLAP audio-text model (`laion/larger_clap_general`), then trims, levels, finds a tempo-matched loop point for the music, crossfades it, encodes MP3s and writes the manifest. Raw takes are cached in `.audio-work/` (git-ignored).
 
 ```bash
-pip install torch diffusers transformers accelerate soundfile lameenc scipy torchsde sentencepiece
-export HF_TOKEN=...                                 # for the gated Stable Audio Open weights
-python tools/gen_audio.py --list                    # show prompts
-python tools/gen_audio.py --backend stable          # all SFX + music (Stable Audio Open 1.0)
-python tools/gen_audio.py --only explosion,flak     # regenerate a few
-python tools/gen_audio.py --backend audioldm2 --music-backend musicgen   # ungated, non-commercial licences
+pip install numpy scipy soundfile torch transformers   # and ffmpeg on PATH
+# ComfyUI with stable_audio_3_small_sfx/_music.safetensors and t5gemma_b_b_ul2.safetensors
+python ComfyUI/main.py --port 8191
+python tools/gen_audio.py --list                    # show the prompt sheet
+python tools/gen_audio.py                           # everything
+python tools/gen_audio.py --only explosion,combat --regen   # resample a few
 ```
 
-Check each model's licence before shipping generated audio:
-- Stable Audio Open uses the Stability AI Community License.
-- AudioLDM2 and MusicGen weights are non-commercial.
+Stable Audio 3 is released under the Stability AI Community License; check it before shipping generated audio commercially.
 
 ## Testing
 

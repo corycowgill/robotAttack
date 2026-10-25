@@ -43,6 +43,7 @@
   let hoveredOrder = null;
   let objectivesHidden = false;
   let lastPointer = 'mouse', pendingTap = -1;
+  let uplinkAnnounced = {};   // uplink id -> its 'strike ready' cue has played
 
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
@@ -56,7 +57,7 @@
       onRematch: () => state && state.mission ? startMission(state.mission) : state && state.daily ? startDaily() : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat), state && state.custom),
       onDaily: startDaily,
       onAchievements: () => { SND.play('uiClick'); const got = loadAch(); UI.showAchievements(ACHIEVEMENTS.map(a => Object.assign({ got: !!got[a.id] }, a))); },
-      onMission: id => { SND.play('uiClick'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
+      onMission: id => { SND.play('uiClick'); SND.play('radio'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
       onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n, bestMedals(n.id)); } },
@@ -233,7 +234,7 @@
     all[id] = Date.now();
     try { localStorage.setItem('ra_ach', JSON.stringify(all)); } catch (e) { /* ignore */ }
     const a = ACHIEVEMENTS.find(x => x.id === id);
-    if (a) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('select'); }
+    if (a) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('achievement'); }
   }
   // checked after every resolved turn
   function checkTurnAchievements(events) {
@@ -267,6 +268,7 @@
     tutorial = !hotseat && tut !== false;
     setActive(P1);
     handoffNext = null;
+    uplinkAnnounced = {};
     UI.hideHandoff();
     logs = {};
     lastReportP2 = null; roundStart = null; realState = null;
@@ -428,6 +430,12 @@
     SND.setTension(hq && hq.hp < hq.maxHp * 0.5);
     UI.banner(hotseat ? seatName(P).toUpperCase() : 'TURN ' + state.turn, hotseat ? 'Turn ' + state.turn + ' · planning' : first ? 'Plan your opening' : 'Planning phase');
     SND.play('turnStart');
+    // the Strike Uplink just finished charging
+    const up = R.buildingsOf(state, P, 'uplink')[0];
+    if (up && up.charge >= CONST.STRIKE_CHARGE && !uplinkAnnounced[up.id]) {
+      uplinkAnnounced[up.id] = true;
+      setTimeout(() => { if (phase === 'planning') SND.play('uplinkReady'); }, 900);
+    } else if (up && up.charge < CONST.STRIKE_CHARGE) delete uplinkAnnounced[up.id];
     const inc = R.detectedIncoming(state, P);
     if (inc.length) {
       setTimeout(() => { if (phase === 'planning') SND.play('alarm'); }, 500);
@@ -442,8 +450,10 @@
       UI.toast('Enemy mechs on your island! Arrows show where they go next. Gun Pods [8] shred them — or drop a garrison mech [E] on your own island.', 'warn');
     }
     // Gen. Hale warns a player who is falling behind on economy
-    if (!hotseat && state.turn === 5 && R.buildingsOf(state, P, 'depot').length < 2)
+    if (!hotseat && state.turn === 5 && R.buildingsOf(state, P, 'depot').length < 2) {
+      SND.play('radio');
       UI.toast('Gen. Hale: Only one Supply Depot? The enemy will out-build us. Get a second one up now.', 'warn');
+    }
     if (P === P1) saveGame(); // hot-seat saves at the start of a round, before either side has planned
     if (hotseat && P === P1) roundStart = JSON.stringify(state.cells);
     refreshAll();
@@ -502,18 +512,27 @@
   const lsPut = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } };
   let showIntents = lsGet('ra_intents', '1') !== '0';
   function currentSettings() {
-    return { vol: SND.getVolume(), music: SND.getMusicVolume(), sfx: SND.getSfxVolume(), quality: Renderer.getQuality(),
+    return { vol: SND.getVolume(), musicOn: SND.isMusicEnabled() ? 1 : 0, music: SND.getMusicVolume(), sfx: SND.getSfxVolume(),
+      ui: SND.getUiVolume(), amb: SND.getAmbVolume(), style: SND.getStyle(), bgMute: SND.getBgMute() ? 1 : 0, quality: Renderer.getQuality(),
       speed, shake: lsGet('ra_shake', '1') === '0' ? 0 : 1, intents: showIntents ? 1 : 0 };
   }
+  // a sample of the channel being adjusted, once the slider settles
+  let previewTimer = 0;
+  function preview(name) { clearTimeout(previewTimer); previewTimer = setTimeout(() => SND.play(name, { gain: 0.7 }), 160); }
   function applySetting(key, v) {
     if (key === 'vol') { SND.setVolume(v); UI.setVolume(v); }
     if (key === 'music') SND.setMusicVolume(v);
-    if (key === 'sfx') { SND.setSfxVolume(v); SND.play('select'); }
+    if (key === 'sfx') { SND.setSfxVolume(v); preview('explosion'); }
+    if (key === 'ui') { SND.setUiVolume(v); preview('select'); }
+    if (key === 'amb') SND.setAmbVolume(v);
+    if (key === 'musicOn') { SND.setMusicEnabled(!!v); UI.setMusicChecked(!!v); }
+    if (key === 'style') SND.setStyle(v);
+    if (key === 'bgMute') SND.setBgMute(!!v);
     if (key === 'quality') Renderer.setQuality(v);
     if (key === 'speed') { speed = v; lsPut('ra_speed', v); }
     if (key === 'shake') { Renderer.setShake(!!v); lsPut('ra_shake', v); }
     if (key === 'intents') { showIntents = !!v; lsPut('ra_intents', v); if (state && phase === 'planning') refreshMarkers(); }
-    if (key !== 'sfx' && key !== 'vol' && key !== 'music') SND.play('uiClick');
+    if (!['sfx', 'ui', 'amb', 'vol', 'music'].includes(key)) SND.play('uiClick');
     UI.paintSettings(currentSettings());
   }
   function cycleSpeed() {
@@ -891,7 +910,7 @@
     } else if (mode === 'fire') {
       const r = R.queueMissile(state, P, c);
       if (!r.ok) return fail(r.reason);
-      SND.play('select');
+      SND.play('targetLock', { pan: panAt(c) });
       UI.log('Missile targeted at ' + describeCell(c), 'player');
       const silo = R.buildingAt(state, r.order.from);
       if (silo) Renderer.aimTurret(silo.id, c);
@@ -902,13 +921,13 @@
     } else if (mode === 'strike') {
       const r = R.queueStrike(state, P, c);
       if (!r.ok) return fail(r.reason);
-      SND.play('select');
+      SND.play('strikeLock', { pan: panAt(c) });
       UI.log('Orbital strike locked on ' + describeCell(c), 'player');
       cancelMode();
     } else if (mode === 'drop') {
       const r = R.queueDrop(state, P, c);
       if (!r.ok) return fail(r.reason);
-      SND.play('select');
+      SND.play('dropOrder', { pan: panAt(c) });
       UI.log('Mech drop ordered at ' + cellName(c), 'player');
       if (R.dropReadyReason(state, P)) cancelMode();
     } else {
@@ -998,7 +1017,7 @@
         if (selectedCell < 0) return fail('Select one of your structures first');
         const r = R.upgrade(state, P, selectedCell);
         if (!r.ok) return fail(r.reason);
-        SND.play('build', { pan: panAt(selectedCell) });
+        SND.play('upgrade', { pan: panAt(selectedCell) });
         Renderer.setBuildingLevel(r.building.id, 2);
         Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
         Fx.heal(Renderer.cellCenter(selectedCell));
@@ -1032,7 +1051,7 @@
       case 'undo': {
         const r = R.undo(state, P);
         if (!r.ok) return fail(r.reason);
-        SND.play('uiClick');
+        SND.play('undo');
         if (r.kind === 'build') { Renderer.removeBuilding(r.building.id, true); if (r.building.type === 'radar') syncWorld(false); }
         if (r.kind === 'repair' || r.kind === 'upgrade') Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
         if (r.kind === 'upgrade') Renderer.setBuildingLevel(r.building.id, 1);
@@ -1043,7 +1062,7 @@
       }
       case 'cancel': {
         const r = R.cancelOrder(state, P, arg);
-        if (r.ok) { SND.play('uiClick'); UI.toast('Order cancelled — energy refunded', 'good'); }
+        if (r.ok) { SND.play('cancel'); UI.toast('Order cancelled — energy refunded', 'good'); }
         break;
       }
       case 'end': endTurn(); return;
@@ -1145,6 +1164,7 @@
     phase = 'handoff';
     logs[P] = UI.getLog();
     const resolving = next === P1;
+    SND.play('handoff');
     UI.showHandoff({
       side: next, title: seatName(next) + (resolving ? ' — battle' : ' — your turn'),
       sub: 'Pass the device to ' + seatName(next) + '. ' + seatName(R.enemyOf(next)) + ', no peeking!',
@@ -1198,6 +1218,9 @@
     preNames = {};
     for (let c = 0; c < R.N; c++) if (state.cells[c].building || state.sides[P].intel.seen[c]) preNames[c] = describeCell(c);
     const events = R.resolveTurn(state);
+    // either Command Center in the red: combat plays the climax track
+    const critical = side => { const hq = R.buildingsOf(state, side, 'hq')[0]; return !hq || hq.hp < hq.maxHp * 0.4; };
+    SND.setTension(critical(P) || critical(A));
     SND.setMode('combat');
     UI.setCombatHint(true, speed);
     frameView(false);
@@ -1211,7 +1234,7 @@
     const impacts = {};
     for (const e of byBeat(R.BEAT.IMPACT)) impacts[e.id] = e;
 
-    at(0, () => UI.banner('COMBAT', 'Turn ' + turn + ' resolution', true));
+    at(0, () => { UI.banner('COMBAT', 'Turn ' + turn + ' resolution', true); SND.play('combatStart', { gain: 0.8 }); });
     let t = 0.6;
     // camera director: ease toward where each beat's action is, if it's all on one island
     const direct = (time, cells) => at(Math.max(0, time - 0.1), () => focusAction(cells));
@@ -1279,6 +1302,7 @@
   }
 
   function logCancelled(e) {
+    if (e.side === P) SND.play('cancel');
     UI.log((e.side === P ? 'Your ' : 'Enemy ') + (e.kind === 'drop' ? 'drop' : e.kind === 'strike' ? 'orbital strike' : 'launch') + ' cancelled — launcher destroyed' + (e.side === P && e.refund ? ' (' + e.refund + ' energy refunded)' : ''), e.side === P ? 'bad' : 'good');
   }
 
@@ -1457,8 +1481,8 @@
     const hqHit = ev.hits.some(h => h.type === 'hq' && h.dmg > 0);
     const wet = !R.isLand(state, ev.cell);
     const big = ev.strike;
-    if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('explosion', { pan: panAt(ev.cell), gain: 0.5 }); }
-    else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play('explosion', { pan: panAt(ev.cell), big: hqHit || big }); }
+    if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('splash', { pan: panAt(ev.cell), gain: 0.8 }); }
+    else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play(big ? 'strikeImpact' : 'explosion', { pan: panAt(ev.cell), big: hqHit }); }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
     if (hqHit) slowMotion(0.55, 0.35);
@@ -1508,7 +1532,8 @@
       Fx.explosion(pos, h.type === 'hq' ? 2 : 1.2);
       if (h.type === 'hq') slowMotion(1.4, 0.25); // the killing blow
       Fx.setEmitter('ruin' + h.cell, { x: pos.x, y: 1, z: pos.z }, 'fire', 6);
-      SND.play('destroyed', { pan: panAt(h.cell), big: h.type === 'hq' });
+      if (h.type === 'decoy') SND.play('decoyPop', { pan: panAt(h.cell) });
+      else SND.play('destroyed', { pan: panAt(h.cell), big: h.type === 'hq' });
       Renderer.addTrauma(h.type === 'hq' ? 1 : 0.5, pos);
       floatAt(h.cell, 'DESTROYED', 'dmg big', 20);
       if (h.type === 'decoy') UI.log(h.side === P ? 'Your decoy at ' + cellName(h.cell) + ' soaked up the attack' : 'That was a DECOY at ' + cellName(h.cell) + '!', h.side === P ? 'good' : 'bad');
@@ -1536,7 +1561,7 @@
         Fx.muzzle(from, target.clone().sub(from).normalize(), 0xffcc66);
         Fx.tracer(from, target, e.side === P ? 0x66ccff : 0xff7744);
         Fx.smallBlast(target, 0xffaa44);
-        SND.play('gunfire', { pan: panAtPos(target) });
+        SND.play(e.gunType === 'hq' ? 'hqGun' : 'gunfire', { pan: panAtPos(target) });
         Renderer.hitRobot(s.robotId);
         Renderer.setRobotHp(s.robotId, s.hpAfter);
         if (rec && rec.group.visible) floatAt(s.cell, '-' + s.dmg, 'dmg', 14);
@@ -1611,7 +1636,7 @@
     Timeline.tween(0.22, () => {}, () => {
       const p = tp.clone().setY(6);
       Fx.smallBlast(p, 0xffcc66);
-      SND.play('robotPunch', { pan: panAtPos(p) });
+      SND.play('mechClash', { pan: panAtPos(p) });
       Renderer.hitRobot(e.targetId);
       Renderer.setRobotHp(e.targetId, e.hpAfter);
       if (foe && foe.group.visible) floatAt(e.targetCell, '-' + e.dmg, 'dmg', 16);

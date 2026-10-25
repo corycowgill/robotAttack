@@ -311,17 +311,50 @@ test('settings: gear opens them, choices apply and persist across a reload', asy
   await page.click('#settings button[data-set="shake"][data-v="0"]');
   await page.click('#settings button[data-set="intents"][data-v="0"]');
   await page.click('#settings button[data-set="quality"][data-v="0"]');
+  await page.click('#settings button[data-set="style"][data-v="retro"]');
+  await page.click('#settings button[data-set="bgMute"][data-v="0"]');
   await page.locator('#settings input[data-set="music"]').fill('0.3');
+  await page.locator('#settings input[data-set="ui"]').fill('0.4');
+  await page.locator('#settings input[data-set="amb"]').fill('0.2');
+  assert.strictEqual(await page.evaluate(() => GameAudio.getStyle()), 'retro');
   await page.click('#set-done');
   assert.ok(!(await page.isVisible('#settings')));
   await page.reload();
   await dismissSplash(page);
   await page.click('#m-settings');
   const on = await page.locator('#settings button.on').evaluateAll(bs => bs.map(b => b.dataset.set + '=' + b.dataset.v).sort().join(','));
-  assert.strictEqual(on, 'intents=0,quality=0,shake=0,speed=3');
+  assert.strictEqual(on, 'bgMute=0,intents=0,musicOn=1,quality=0,shake=0,speed=3,style=retro');
   assert.strictEqual(+(await page.locator('#settings input[data-set="music"]').inputValue()), 0.3);
+  assert.strictEqual(+(await page.locator('#settings input[data-set="ui"]').inputValue()), 0.4);
+  assert.strictEqual(+(await page.locator('#settings input[data-set="amb"]').inputValue()), 0.2);
+  // music off in Settings also unticks the menu's Music box
+  await page.click('#settings button[data-set="musicOn"][data-v="0"]');
+  assert.strictEqual(await page.isChecked('#m-music'), false);
+  assert.strictEqual(await page.evaluate(() => GameAudio.isMusicEnabled()), false);
   await page.keyboard.press('Escape');
   assert.ok(!(await page.isVisible('#settings')));
+  assert.deepStrictEqual(errors, []);
+});
+
+test('audio: generated clips load and each phase plays its music track', async t => {
+  const { page, errors } = await open(t);
+  const loaded = () => page.evaluate(() => GameAudio.loadedSamples());
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'menu', null, { timeout: 20000 });
+  await page.waitForFunction(() => ['explosion', 'missileLaunch', 'uiClick', 'victory'].every(n => GameAudio.loadedSamples().sfx.includes(n)), null, { timeout: 20000 });
+  assert.ok((await loaded()).amb.includes('ocean'));
+  await startSkirmish(page);
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planning', null, { timeout: 20000 });
+  // every sound the game asks for plays without throwing, in both styles
+  for (const style of ['studio', 'retro']) {
+    await page.evaluate(s => {
+      GameAudio.setStyle(s);
+      ['explosion', 'splash', 'strikeImpact', 'decoyPop', 'mechClash', 'hqGun', 'upgrade', 'targetLock', 'strikeLock', 'dropOrder',
+        'undo', 'cancel', 'combatStart', 'achievement', 'radio', 'handoff', 'uplinkReady'].forEach(n => GameAudio.play(n));
+    }, style);
+  }
+  assert.ok(!(await loaded()).track, 'retro style uses the synth score');
+  await page.evaluate(() => GameAudio.setStyle('studio'));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planning');
   assert.deepStrictEqual(errors, []);
 });
 
