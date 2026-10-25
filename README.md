@@ -27,6 +27,11 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 
 Skirmishes play in real time by default, the way Metal Marines did:
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
+- **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up, as factories did in Metal Marines:
+  - each factory makes construction 50% faster and silo reloads and mech production 15% faster;
+  - an upgraded factory (Assembly Line) counts as two.
+
+  The AI builds its first factory early in its opening and a second one about 2½ minutes in.
 - **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
   - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike) and click a target.
   - The attack panel lists every silo and hangar with its status. Toggle which loaded ones to send and see the energy cost and the known defences, then press `Enter` or **Launch**.

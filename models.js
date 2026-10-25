@@ -817,7 +817,31 @@
     g.userData.height = 13.5;
   }
 
+  // Factory (real-time battles): assembly hall with a sawtooth roof, smokestack and gantry crane
+  function buildFactory(g, side) {
+    var y0 = plinth(g, side, 10);
+    var C = MAT.concrete(), GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side);
+    add(g, box(8.2, 3.4, 6.4), C, -0.4, y0 + 1.7, -0.6);
+    for (var i = 0; i < 3; i++) {
+      var roof = add(g, box(2.9, 0.3, 6.5), GM, -3.0 + i * 2.6, y0 + 4.05, -0.6);
+      roof.rotation.z = 0.45;
+      addFlat(g, box(0.12, 1.2, 6.2), MAT.white(), -1.75 + i * 2.6, y0 + 4.0, -0.6);   // north-light glazing
+    }
+    addFlat(g, box(8.3, 0.3, 0.1), T, -0.4, y0 + 2.9, 2.66);
+    add(g, box(3.2, 2.4, 0.2), GM, -0.4, y0 + 1.2, 2.66);
+    add(g, cyl(0.6, 0.85, 6.6, 10), ST, 3.0, y0 + 3.3, -2.7);
+    add(g, cyl(0.78, 0.78, 0.35, 10), P, 3.0, y0 + 5.9, -2.7);
+    beam(g, V(-4.4, y0, 3.7), V(-4.4, y0 + 5.0, 3.7), 0.16, MAT.steelLight(), 6);
+    beam(g, V(3.6, y0, 3.7), V(3.6, y0 + 5.0, 3.7), 0.16, MAT.steelLight(), 6);
+    add(g, box(8.4, 0.45, 0.45), P, -0.4, y0 + 5.15, 3.7);
+    add(g, box(0.9, 0.7, 0.9), GM, 1.2, y0 + 4.6, 3.7);
+    vent(g, -2.6, y0 + 3.45, 1.9);
+    g.userData.parts.beacon = beacon(g, side, g, 3.0, y0 + 6.4, -2.7, 1.0);
+    g.userData.height = 9;
+  }
+
   var BUILDERS = {
+    factory: buildFactory,
     hq: buildHQ, depot: buildDepot, power: buildPower, radar: buildRadar, silo: buildSilo, uplink: buildUplink,
     aa: buildAA, shield: buildShield, hangar: buildHangar, gunpod: buildGunpod
   };
@@ -1144,6 +1168,7 @@
     shield: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.4, 1.0, 6, 0, 1.1, 0], ['c', 0.9, 1.3, 1.6, 6, 0, 2.8, 0], ['c', 1.4, 2.8, 4.8, 3, 0, 4.0, 0], ['c', 0.95, 0.95, 1.9, 8, 0, 5.7, 0]],
     hangar: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 9, 3.6, 7.6, 0, 2.4, -0.4], ['b', 6.6, 1.9, 7.6, 0, 5.1, -0.4], ['b', 8.4, 5.4, 0.9, 0, 3.3, 3.4]],
     uplink: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.2, 1.8, 6, 0, 1.5, 0], ['c', 0.9, 1.3, 4.6, 10, 0, 4.8, 0], ['c', 2.4, 2.4, 0.5, 12, 0, 9.0, 0]],
+    factory: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 8.2, 3.4, 6.4, -0.4, 2.3, -0.6], ['c', 0.6, 0.85, 6.6, 8, 3.0, 3.9, -2.7]],
     gunpod: [['b', 9.5, 0.6, 9.5, 0, 0.3, 0], ['c', 2.9, 3.6, 1.0, 6, 0, 1.1, 0], ['c', 1.2, 1.9, 1.6, 8, 0, 2.4, 0], ['b', 0.9, 0.9, 2.6, 0, 2.55, 3.2]]
   };
   function ghost(type) {

@@ -103,7 +103,13 @@ const RT = {
   AI_ATTACK_GAP: { patrol: [25, 45], commander: [14, 26], warlord: [12, 22] },  // random wait between AI waves
   OPENING_GRACE: { patrol: 45, commander: 25, warlord: 20 },  // no AI attack before this
   START_LOAD: 24,         // the starting silo is ready this many seconds in
-  RADAR_BOOT: 5,          // seconds before a new radar comes online
+  RADAR_BOOT: 5,          // seconds before a new radar comes online (after construction)
+  // Construction (Metal Marines style): a new structure does nothing until it is built.
+  // Each factory (an Assembly Line counts twice) adds FACTORY_BUILD_BOOST to construction
+  // speed and FACTORY_RELOAD_BOOST to silo reloading and mech production.
+  BUILD_TIME: { depot: 8, power: 8, radar: 8, silo: 14, aa: 9, shield: 12, hangar: 16, gunpod: 7, decoy: 3, uplink: 24, factory: 12 },
+  FACTORY_BUILD_BOOST: 0.5,
+  FACTORY_RELOAD_BOOST: 0.15,
   REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full
   REPAIR_PER_ROUND: 15    // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
 };
@@ -171,10 +177,16 @@ const BUILDINGS = {
     desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
     stats: () => ['Orbital strike: ' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area', 'Charges ' + CONST.STRIKE_CHARGE + ' turns, ' + CONST.STRIKE_ENERGY + ' energy to fire', 'Cannot be intercepted; Shields absorb it', 'Max 1'],
     counter: 'Strikes are always detected — spread out, shield and repair'
+  },
+  // Real-time battles only: construction takes time there, and factories speed it up
+  factory: {
+    name: 'Factory', short: 'FAC', key: 'B', cost: 150, hp: 50, max: 3, rtOnly: true,
+    desc: 'Speeds up construction, missile reloads and mech production. Real-time battles only.',
+    stats: () => ['Each factory: builds ' + Math.round(RT.FACTORY_BUILD_BOOST * 100) + '% faster, reloads ' + Math.round(RT.FACTORY_RELOAD_BOOST * 100) + '% faster', 'Max 3']
   }
 };
 
-const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'uplink'];
+const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'uplink', 'factory'];
 
 // One upgrade level per structure (Metal Marines style). Values replace the base stats.
 const UPGRADES = {
@@ -185,7 +197,8 @@ const UPGRADES = {
   gunpod: { name: 'Rotary Cannons',  desc: '3 shots per turn', shots: 3 },
   shield: { name: 'Hardened Field',  desc: 'Dome absorbs 90, regenerates 35', pool: 90, regen: 35 },
   hangar: { name: 'Heavy Mechs',     desc: 'Mechs get 75 HP and hit for 30', mechHp: 75, mechDmg: 30 },
-  radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 }
+  radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 },
+  factory: { name: 'Assembly Line',  desc: 'Counts as two factories', factories: 2 }
 };
 // Skirmish / two-player battle options: [value, label] choices and the default value
 const SKIRMISH_OPTIONS = {

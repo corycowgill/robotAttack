@@ -37,6 +37,7 @@ window.UI = (function () {
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
+    factory: '<path d="M3 21V10l5 3v-3l5 3v-3l5 3V4h3v17z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
     uplink: '<path d="M7 21l3-9h4l3 9"/><path d="M8.5 17h7"/><ellipse cx="12" cy="7" rx="6" ry="2"/><circle cx="12" cy="7" r="1"/><path d="M12 5V2"/>',
     strike: '<path d="M12 2v7"/><path d="M9 4l3 5 3-5"/><circle cx="12" cy="16" r="5"/><circle cx="12" cy="16" r="1.5"/><path d="M12 9v2M5 16h2M17 16h2"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
@@ -707,6 +708,7 @@ window.UI = (function () {
       <h4>Real-time battles (skirmish default)</h4>
       <ul>
         <li><b>Resources flow every second.</b> Build, repair and upgrade at any moment, and the enemy does the same.</li>
+        <li><b>Construction takes time.</b> A new structure is a building site (cyan bar) and does nothing until it's finished: a depot takes ${RT.BUILD_TIME.depot}s, a silo ${RT.BUILD_TIME.silo}s. Each <b>Factory</b> <kbd>B</kbd> makes construction ${Math.round(RT.FACTORY_BUILD_BOOST * 100)}% faster and silo reloads and mech production ${Math.round(RT.FACTORY_RELOAD_BOOST * 100)}% faster (max 3; upgraded, one counts as two).</li>
         <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>, click a target, then pick which loaded silos, mechs and strike to send. <kbd>Enter</kbd> launches.</li>
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
         <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through.</li>
@@ -731,7 +733,7 @@ window.UI = (function () {
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
       <div class="keys">
-        <div><kbd>1</kbd>–<kbd>0</kbd> select structure</div><div><kbd>Left click</kbd> place / target / select</div>
+        <div><kbd>1</kbd>–<kbd>0</kbd> select structure &nbsp; <kbd>B</kbd> factory (real time)</div><div><kbd>Left click</kbd> place / target / select</div>
         <div><kbd>Q</kbd> fire missile &nbsp; <kbd>E</kbd> drop mech</div><div><kbd>R</kbd> orbital strike</div>
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>

@@ -493,6 +493,7 @@
         if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
         if (b.type === 'uplink') Renderer.setBuildingCharge(b.id, playerSees(c) ? b.charge : 0);
         if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
+        if (state.realtime) Renderer.setBuildingProgress(b.id, b.progress);
         Renderer.setBuildingVisible(b.id, playerSees(c));
       }
       Renderer.setCrater(c, state.cells[c].crater > 0 && !state.cells[c].building);
@@ -740,6 +741,7 @@
       if (b.type === 'uplink') info.extra = b.charge >= CONST.STRIKE_CHARGE ? (own ? 'Strike READY — press R' : 'Fully charged — a strike can come any turn')
         : 'Charging ' + (state.realtime ? Math.floor(100 * b.charge / CONST.STRIKE_CHARGE) + '%' : b.charge + '/' + CONST.STRIKE_CHARGE);
       if (state.realtime && own && (b.type === 'silo' || b.type === 'hangar')) info.extra = launcherStatus(b, true);
+      if (state.realtime && !R.online(b)) info.extra = 'Under construction ' + Math.floor(100 * b.progress) + '%' + (own ? ' · ready in ' + Math.ceil(Realtime.buildLeft(state, b)) + 's' : '');
       // decoys disguised as AA show what a fresh AA would
       if (a.type === 'aa' || a.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + (b.type === 'decoy' ? 1 : b.shots);
       if (own) {
@@ -877,9 +879,13 @@
     const s = state ? state.sides[P] : null;
     const cost = state ? R.buildCost(state, P, type) : d.cost;
     const reason = s && s.credits < cost ? 'Need ' + cost + ' credits' : null;
+    const bt = state && state.realtime && RT.BUILD_TIME[type] ? (() => {
+      const f = Realtime.factories(state, P), t = RT.BUILD_TIME[type] / Realtime.buildSpeed(state, P);
+      return '<br><span class="k">Builds in ' + (Math.round(t * 10) / 10) + 's' + (f ? ' (' + f + ' factor' + (f > 1 ? 'ies' : 'y') + ' working)' : ' — Factories build faster') + '</span>';
+    })() : '';
     const step = d.costStep ? ' <span class="k">(+' + d.costStep + ' per depot owned)</span>' : state && state.realtime && d.rtCostStep ? ' <span class="k">(+' + d.rtCostStep + ' per ' + d.short + ' owned)</span>' : '';
     const r = e.currentTarget.getBoundingClientRect();
-    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(txt.desc)}<br><span class="k">${txt.stats.map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
+    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(txt.desc)}<br><span class="k">${txt.stats.map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${bt}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
   }
 
   function cellTooltip() {
@@ -1022,7 +1028,10 @@
       Renderer.addBuilding(r.building, true);
       Fx.buildDust(Renderer.cellCenter(c));
       floatAt(c, '-' + r.building.paid + 'c', 'info');
-      UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
+      if (state.realtime) {
+        Renderer.setBuildingProgress(r.building.id, 0);
+        UI.log('Construction started: ' + BUILDINGS[buildType].name + ' at ' + cellName(c) + ' — ready in ' + Math.ceil(Realtime.buildLeft(state, r.building)) + 's', 'player');
+      } else UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
       if (buildType === 'radar') UI.toast(state.realtime ? 'Radar comes online in ' + RT.RADAR_BOOT + 's' : 'Radar comes online next turn', 'warn');
       if (!keepMode) { mode = 'select'; buildType = null; selectedCell = c; }
     } else if (mode === 'fire') {
@@ -1227,6 +1236,7 @@
       return;
     }
     switch (e.code) {
+      case 'KeyB': if (!(state.locked || []).includes('factory')) selectBuild('factory'); break;
       case 'KeyQ': action('fire', 'key'); break;
       case 'KeyE': action('drop', 'key'); break;
       case 'KeyR': action('strike', 'key'); break;
@@ -2018,6 +2028,10 @@
 
   // HUD, dock, warnings and the attack panel follow the clock a few times a second
   function refreshLive() {
+    for (let c = 0; c < R.N; c++) {
+      const b = state.cells[c].building;
+      if (b && b.progress < 1) Renderer.setBuildingProgress(b.id, b.progress);
+    }
     refreshHUD();
     refreshDock();
     refreshOrders();
@@ -2235,6 +2249,13 @@
         return true;
       }
       case 'cancelled': logCancelled({ side: e.side, kind: e.kind === 'ship' ? 'drop' : e.kind, refund: e.refund }); return false;
+      case 'built':
+        if (own) {
+          SND.play('build', { pan: panAt(e.cell), gain: 0.6 });
+          floatAt(e.cell, 'ONLINE', 'info', 14);
+          UI.log(BUILDINGS[e.kind].name + ' at ' + cellName(e.cell) + ' is complete', 'player');
+        } else if (playerSees(e.cell)) UI.log('Enemy finished building ' + BUILDINGS[R.apparent(R.buildingAt(state, e.cell) || { type: e.kind }).type].name + ' at ' + cellName(e.cell), 'enemy');
+        return true;
       case 'destroyed': return true;
       case 'round': recordHistory(); saveGame(); return false;
     }
