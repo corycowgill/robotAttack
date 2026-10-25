@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { CONST, BUILDINGS, UPGRADES, CAMPAIGN, Rules: R } = require('./load');
+const { CONST, BUILDINGS, UPGRADES, CAMPAIGN, Rules: R, AI } = require('./load');
 
 const P = 'player', A = 'ai';
 const landCount = (land, side) => land.filter((v, i) => v && R.ownerOfCell(i) === side).length;
@@ -461,4 +461,19 @@ test('an AA Battery that fires at a missile is revealed to the attacker', () => 
   const d = ev.find(e => e.type === 'descend' && e.side === P);
   assert.ok(d.shots.some(x => x.by === cell && x.chance === BUILDINGS.aa.hitChance), 'the battery engaged, with its hit chance recorded');
   assert.ok(R.visibleEnemyCells(s, P).has(cell), 'its position is visible next planning phase');
+});
+
+test('opponent styles shape the AI build: blitz masses silos, fortress AA, raider hangars', () => {
+  const play = style => {
+    const s = R.newGame('commander', 77, { aiStyle: style });
+    for (let t = 0; t < 12 && !s.winner; t++) { AI.planTurn(s, 'player'); AI.planTurn(s, 'ai'); R.resolveTurn(s); }
+    return t => R.buildingsOf(s, 'ai', t).length;
+  };
+  const base = play('balanced'), blitz = play('blitz'), fort = play('fortress'), raid = play('raider');
+  assert.ok(blitz('silo') > base('silo'), 'blitz builds more silos');
+  assert.ok(fort('aa') + fort('shield') > base('aa') + base('shield'), 'fortress builds more AA and shields');
+  assert.ok(raid('hangar') > base('hangar'), 'raider builds more hangars');
+  // the style only drives the AI side: a player-side planner stays balanced
+  const s = R.newGame('commander', 77, { aiStyle: 'blitz' });
+  assert.equal(s.aiStyle, 'blitz');
 });

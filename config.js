@@ -154,8 +154,16 @@ const SKIRMISH_OPTIONS = {
   land:    { label: 'Islands',       choices: [[95, 'Small'], [120, 'Normal'], [150, 'Large']], def: 120 },
   credits: { label: 'Start credits', choices: [[250, 'Lean'], [350, 'Standard'], [600, 'Rich']], def: 350 },
   turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 30 },
-  uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 }
+  uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 },
+  style:   { label: 'Opponent',      choices: [[0, 'Balanced'], [1, 'Blitz'], [2, 'Fortress'], [3, 'Raider']], def: 0, solo: true }
 };
+// Opponent personalities for the 'style' option (index = option value); the AI reads the key
+const AI_STYLE_INFO = [
+  { key: 'balanced', name: 'Balanced', desc: 'Economy first, then missiles, mechs and the superweapon.' },
+  { key: 'blitz',    name: 'Blitz',    desc: 'Masses silos and heavy warheads to break you early. Get AA up fast.' },
+  { key: 'fortress', name: 'Fortress', desc: 'Turtles behind AA and shields, then calls down orbital strikes. Scout and out-build it.' },
+  { key: 'raider',   name: 'Raider',   desc: 'Swarms your economy with heavy mechs. Gun Pods and garrison mechs hold the line.' }
+];
 
 // Daily Operation: one seeded battle per calendar day, with one twist from this list
 const DAILY_TWISTS = [
@@ -255,4 +263,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS, DAILY_TWISTS, ACHIEVEMENTS };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };

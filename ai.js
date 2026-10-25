@@ -117,15 +117,40 @@
     return Object.keys(seen).filter(k => seen[k].type === type).length;
   }
 
+  // Skirmish personalities. Each swaps the opening and adds a priority that runs after
+  // the shared safety checks (mechs on our island, AA once missiles hurt, energy upkeep).
+  const AI_STYLES = {
+    balanced: { opening: ['depot', 'depot', 'power', 'silo', 'aa', 'hangar', 'power', 'depot', 'radar'] },
+    // missile pressure: silos and power first, heavy warheads early
+    blitz: {
+      opening: ['depot', 'power', 'silo', 'depot', 'power', 'silo', 'aa', 'silo', 'radar'],
+      after: (n, basic) => n('silo') < 5 ? 'silo' : basic('silo') ? 'up:silo' : n('power') < 4 ? 'power' : null
+    },
+    // turtle behind AA and shields, then win with the superweapon
+    fortress: {
+      opening: ['depot', 'aa', 'depot', 'power', 'shield', 'aa', 'silo', 'depot', 'radar'],
+      after: (n, basic, state) => state.turn >= 7 && n('uplink') < 1 && unlocked(state, 'uplink') ? 'uplink'
+        : n('aa') < 3 ? 'aa' : n('shield') < 2 ? 'shield' : n('silo') < 4 ? 'silo' : basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
+    },
+    // mech swarms on a second front: hangars and heavy mechs
+    raider: {
+      opening: ['depot', 'depot', 'power', 'hangar', 'power', 'aa', 'hangar', 'depot', 'radar'],
+      dropsFirst: true,
+      after: (n, basic) => n('silo') < 3 ? 'silo' : basic('hangar') ? 'up:hangar' : n('hangar') < 3 ? 'hangar' : null
+    }
+  };
+  function styleOf(state) { return (ME === C.SIDE_AI && AI_STYLES[state.aiStyle]) || AI_STYLES.balanced; }
+
   function nextSmartBuild(state, mem) {
     const n = t => count(state, t);
     const basic = t => R.buildingsOf(state, ME, t).some(b => b.level < 2);
+    const style = styleOf(state);
     // Mechs on our side come first, even during the opening
     const threats = enemyRobotsOnMySide(state);
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
     // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
     // opening beats a missiles-first one about 60/40)
-    const opening = ['depot', 'depot', 'power', 'silo', 'aa', 'hangar', 'power', 'depot', 'radar'];
+    const opening = style.opening;
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
@@ -140,6 +165,8 @@
     const need = n('silo') * C.MISSILE_ENERGY + n('hangar') * C.DROP_ENERGY;
     const inc = R.income(state, ME).energy;
     if (inc < need * 0.8 && state.sides[ME].energy < need * 1.5) return 'power';
+    const pick = style.after && style.after(n, basic, state);
+    if (pick) return pick;
     if (n('depot') < 2 + Math.floor(state.turn / 6)) return 'depot';
     if (state.turn >= 3 && n('decoy') < 1 + Math.floor(state.turn / 8)) return 'decoy';
     if (n('silo') < 3) return 'silo';
@@ -160,11 +187,13 @@
   function nextPatrolBuild(state) {
     if (enemyRobotsOnMySide(state).length && count(state, 'gunpod') < 2) return 'gunpod';
     const have = {};
-    for (const t of PATROL_ORDER) {
+    const style = styleOf(state);
+    const order = style === AI_STYLES.balanced ? PATROL_ORDER : style.opening;
+    for (const t of order) {
       have[t] = (have[t] || 0) + 1;
       if (count(state, t) < have[t]) {
         // ±1 jitter: occasionally skip ahead
-        return R.rand(state) < 0.2 ? PATROL_ORDER[Math.min(PATROL_ORDER.length - 1, PATROL_ORDER.indexOf(t) + 1)] : t;
+        return R.rand(state) < 0.2 ? order[Math.min(order.length - 1, order.indexOf(t) + 1)] : t;
       }
     }
     const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield', 'decoy', 'uplink'].filter(t => unlocked(state, t));
@@ -408,7 +437,7 @@
     planStrike(state, smart);
 
     // Alternate priority between drops and missiles so energy is shared
-    const robotsFirst = state.turn % 2 === 0 && R.freeLaunchers(state, ME, 'hangar').length > 0;
+    const robotsFirst = (styleOf(state).dropsFirst || state.turn % 2 === 0) && R.freeLaunchers(state, ME, 'hangar').length > 0;
     if (robotsFirst) {
       planDrops(state, smart);
       planMissiles(state, diff, smart, 0);

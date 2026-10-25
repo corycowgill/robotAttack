@@ -256,6 +256,7 @@
       sides: { player: newSide(P), ai: newSide(A) },
       locked: (opts.locked || []).slice(),  // structure types not available in this game
       hotseat: !!opts.hotseat,              // two humans: no AI income bonus
+      aiStyle: opts.aiStyle || 'balanced',  // skirmish opponent personality (see AI_STYLES in ai.js)
       maxTurns: opts.maxTurns || C.MAX_TURNS
     };
     state.mapSeed = (opts.mapSeed >>> 0) || ((state.rng * 7919 + 17) >>> 0);
