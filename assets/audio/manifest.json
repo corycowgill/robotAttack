@@ -15,22 +15,37 @@
   "music": {
     "climax": {
       "file": "music/climax.mp3",
-      "loopEnd": 80.49,
+      "loopEnd": 67.37,
       "loopStart": 0.5
     },
     "combat": {
       "file": "music/combat.mp3",
-      "loopEnd": 54.16,
+      "loopEnd": 56.43,
+      "loopStart": 0.5
+    },
+    "debriefLoss": {
+      "file": "music/debriefLoss.mp3",
+      "loopEnd": 41.64,
+      "loopStart": 0.5
+    },
+    "debriefWin": {
+      "file": "music/debriefWin.mp3",
+      "loopEnd": 48.5,
       "loopStart": 0.5
     },
     "menu": {
       "file": "music/menu.mp3",
-      "loopEnd": 60.5,
+      "loopEnd": 73.0,
       "loopStart": 0.5
     },
     "planning": {
       "file": "music/planning.mp3",
       "loopEnd": 64.5,
+      "loopStart": 0.5
+    },
+    "planningTense": {
+      "file": "music/planningTense.mp3",
+      "loopEnd": 50.89,
       "loopStart": 0.5
     }
   },
@@ -179,6 +194,9 @@
       "sfx/strikeImpact_1.mp3",
       "sfx/strikeImpact_2.mp3"
     ],
+    "strikeLock": [
+      "sfx/strikeLock_1.mp3"
+    ],
     "strikeUp": [
       "sfx/strikeUp_1.mp3",
       "sfx/strikeUp_2.mp3"
@@ -225,6 +243,8 @@
     "climax": "Stable Audio 3 Small (music): Desperate final battle music for a sci-fi war game, the base is about to fall. Huge hybrid orchestral score, D minor, 144 BPM: frantic racing strings, urgent brass fanfares, massive pounding percussion, roaring synth bass, rising tension and dramatic choir-like synth pads. Instrumental, no vocals.",
     "combat": "Stable Audio 3 Small (music): Intense battle music for a sci-fi mech and missile war game. Hybrid orchestral electronic action score, D minor, 132 BPM: driving staccato strings, aggressive distorted synth bass ostinato, pounding war drums and taiko, powerful brass stabs, relentless energy. Instrumental, no vocals, high quality cinematic recording.",
     "combatStart": "Stable Audio 3 Small (music): A short cinematic battle start hit: a huge orchestral and synth impact with a deep boom, a brass stab and a metallic reverb tail. Trailer hit, no melody, no vocals.",
+    "debriefLoss": "Stable Audio 3 Small (music): Quiet, mournful after-battle music for a sci-fi war game defeat debrief. Sparse hybrid score in D minor, 70 BPM: a lonely solo cello, soft low piano chords, a faint cold synth pad, distant wind, reflective and sad but not hopeless. Instrumental, no vocals.",
+    "debriefWin": "Stable Audio 3 Small (music): Calm, proud after-battle music for a sci-fi war game victory debrief. Warm hybrid orchestral score in D major, 80 BPM: a noble slow French horn melody, gentle strings, soft piano, a light steady synth pulse, hopeful and resolved. Instrumental, no vocals.",
     "decoyPop": "Stable Audio 3 Small (sfx): A big inflatable rubber decoy bursting: a loud rubbery pop followed by air hissing out as it deflates and flaps. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "defeat": "Stable Audio 3 Small (music): A short somber defeat cue for a sci-fi war game: a slow descending low brass phrase over dark strings and a distant muffled drum, fading to a bleak minor chord. Instrumental, no vocals.",
     "destroyed": "Stable Audio 3 Small (sfx): A large military building collapsing after an explosion: steel beams groaning and snapping, concrete crumbling, debris crashing down and settling. Isolated one-shot game sound effect, close and clean, no music, no speech.",
@@ -244,6 +264,7 @@
     "missileLaunch": "Stable Audio 3 Small (sfx): Heavy ballistic missile launching from an underground silo: a metal hatch clanks open, a rocket motor ignites with a deep roar and the missile whooshes up and away into the sky. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "ocean": "Stable Audio 3 Small (sfx): Calm ocean ambience on a remote island: gentle waves washing onto the shore, a soft steady sea wind, distant seabirds very faint. Continuous field recording, no music, no voices.",
     "planning": "Stable Audio 3 Small (music): Tense, thoughtful strategy game underscore for planning a military operation in a sci-fi island war. Minimal hybrid score in D minor, 90 BPM: soft pulsing synth arpeggio, deep warm pads, sparse low piano notes, light ticking percussion, subtle cello swells. Calm but suspenseful, steady energy, no climax. Instrumental, no vocals.",
+    "planningTense": "Stable Audio 3 Small (music): Suspenseful strategy game underscore: the base is badly damaged and the next move decides the war. Hybrid score in D minor, 100 BPM: an anxious ticking synth arpeggio, nervous tremolo violins, a repeating high piano ostinato, muted brass swells, light snare ticks, rising tension but no release. Clear and present mix. Instrumental, no vocals.",
     "podLaunch": "Stable Audio 3 Small (sfx): A sci-fi drop pod launched from a hangar: a pneumatic clamp release, a short powerful thruster burst and a whoosh flying away. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "radio": "Stable Audio 3 Small (sfx): A military field radio squelch: a short burst of crackling static and a click as the channel opens. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "repair": "Stable Audio 3 Small (sfx): A sci-fi repair tool fixing a metal structure: a short burst of crackling welding sparks and a quick soft rising hum. Isolated one-shot game sound effect, close and clean, no music, no speech.",
@@ -257,6 +278,7 @@
     "splash": "Stable Audio 3 Small (sfx): A missile plunging into the ocean and exploding underwater: a muffled deep boom and a tall column of water crashing back down with heavy splashing. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "strikeDown": "Stable Audio 3 Small (sfx): An orbital laser strike descending from the sky: an ominous growing electric roar with crackling plasma that builds up to the moment of impact. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "strikeImpact": "Stable Audio 3 Small (sfx): A devastating orbital laser strike hitting the ground: a blinding plasma blast, a massive explosion with a deep sub-bass shockwave, crackling energy and a long rumbling tail. Isolated one-shot game sound effect, close and clean, no music, no speech.",
+    "strikeLock": "Stable Audio 3 Small (sfx): A sci-fi orbital satellite weapon locking onto a ground target: a short rising electronic charge whine, three fast targeting beeps and a bright metallic lock-on chime. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "strikeUp": "Stable Audio 3 Small (sfx): A sci-fi orbital uplink cannon firing a beam of light straight up into space: rising electrical charge-up whine, powerful energy release and a fading shimmering tail. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "targetLock": "Stable Audio 3 Small (sfx): A military targeting computer locking on to a target: quick rising electronic beeps ending in a solid lock-on tone. Isolated one-shot game sound effect, close and clean, no music, no speech.",
     "titleSting": "Stable Audio 3 Small (music): A huge cinematic title logo reveal for a sci-fi war game: a deep sub-bass boom, a rising metallic whoosh, a wide powerful brass and synth chord that blooms and rings out. No vocals.",

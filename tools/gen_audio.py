@@ -49,8 +49,8 @@ ISO = ' Isolated one-shot game sound effect, close and clean, no music, no speec
 #   gen       seconds generated; keep: seconds kept (one-shots trim the tail early when it decays)
 #   n         variants kept (the game picks one at random each time); cand: takes sampled per kept variant
 #   db        RMS target (dBFS) of the active part; stereo: keep two channels (positional SFX are mono)
-# Names match GameAudio.play() names / music modes. Sounds left out (e.g. strikeLock)
-# use their procedural recipe in audio.js.
+# Names match GameAudio.play() names / music tracks. Sounds left out use their procedural
+# recipe in audio.js.
 SHEET = {
     # ── Missiles ──
     'missileLaunch': dict(kind='sfx', gen=4, keep=2.6, n=3, db=-17,
@@ -139,6 +139,9 @@ SHEET = {
     'targetLock': dict(kind='sfx', gen=2, keep=0.7, n=2, db=-22,
         prompt='A military targeting computer locking on to a target: quick rising electronic beeps ending in a solid lock-on tone.' + ISO,
         clap='an electronic target lock beep'),
+    'strikeLock': dict(kind='sfx', gen=2, keep=1.2, n=1, db=-21,
+        prompt='A sci-fi orbital satellite weapon locking onto a ground target: a short rising electronic charge whine, three fast targeting beeps and a bright metallic lock-on chime.' + ISO,
+        clap='electronic targeting beeps and a lock on chime'),
     'dropOrder': dict(kind='sfx', gen=2, keep=0.9, n=1, db=-21,
         prompt='A heavy steel hatch locking shut with one deep solid mechanical clunk, sci-fi military.' + ISO,
         clap='a heavy metal clunk'),
@@ -212,6 +215,17 @@ SHEET = {
     'climax': dict(kind='music', gen=95, db=-18, stereo=True,
         prompt='Desperate final battle music for a sci-fi war game, the base is about to fall. Huge hybrid orchestral score, D minor, 144 BPM: frantic racing strings, urgent brass fanfares, massive pounding percussion, roaring synth bass, rising tension and dramatic choir-like synth pads. Instrumental, no vocals.',
         clap='urgent dramatic final battle orchestral music'),
+    # planning while a Command Center is below 40%: the same world as 'planning', on edge
+    'planningTense': dict(kind='music', gen=95, db=-22, stereo=True,
+        prompt='Suspenseful strategy game underscore: the base is badly damaged and the next move decides the war. Hybrid score in D minor, 100 BPM: an anxious ticking synth arpeggio, nervous tremolo violins, a repeating high piano ostinato, muted brass swells, light snare ticks, rising tension but no release. Clear and present mix. Instrumental, no vocals.',
+        clap='dark suspenseful thriller music'),
+    # the after-action screen, after the victory / defeat stinger
+    'debriefWin': dict(kind='music', gen=95, db=-23, stereo=True,
+        prompt='Calm, proud after-battle music for a sci-fi war game victory debrief. Warm hybrid orchestral score in D major, 80 BPM: a noble slow French horn melody, gentle strings, soft piano, a light steady synth pulse, hopeful and resolved. Instrumental, no vocals.',
+        clap='calm hopeful proud orchestral music'),
+    'debriefLoss': dict(kind='music', gen=95, db=-24, stereo=True,
+        prompt='Quiet, mournful after-battle music for a sci-fi war game defeat debrief. Sparse hybrid score in D minor, 70 BPM: a lonely solo cello, soft low piano chords, a faint cold synth pad, distant wind, reflective and sad but not hopeless. Instrumental, no vocals.',
+        clap='sad slow reflective cello and piano music'),
 }
 
 NEG_CLAP = ['music with melody', 'a person speaking', 'silence', 'noise hiss static']
@@ -335,6 +349,13 @@ def level(x, target_db):
         x = np.where(np.abs(x) > 0.55, np.sign(x) * (0.55 + 0.45 * np.tanh((np.abs(x) - 0.55) / 0.45)), x)
         x *= CEIL / max(np.abs(x).max(), 1e-9)
     return x.astype(np.float32)
+
+
+def mid_share(x):
+    """Share of the energy in 300 Hz - 4 kHz, the range small speakers actually play."""
+    sp = np.abs(np.fft.rfft(x.mean(axis=1))) ** 2
+    f = np.fft.rfftfreq(len(x), 1 / SR)
+    return float(sp[(f > 300) & (f < 4000)].sum() / (sp.sum() + 1e-12))
 
 
 def bass_share(x, hz=150):
@@ -554,6 +575,8 @@ def main():
                     start, L, match = int(2.0 * SR), len(x) - int(4.0 * SR), 0.0
                 body = make_loop(x, start, L, 1.5 if kind == 'music' else 3.0)
                 pen = loop_seam(body) * 2 - match
+                # a track that is nearly all sub-bass is a murmur on phone and laptop speakers
+                pen += max(0.0, 0.12 - mid_share(body)) * 60
                 clip = level(body, spec['db'])
                 extra = {'match': round(float(match), 3), 'len': round(len(body) / SR, 2)}
             if clap:
