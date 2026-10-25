@@ -677,14 +677,15 @@ window.Renderer = (function () {
     }
     for (const m of incoming) {
       const b = cellCenter(m.to);
-      const rs = m.strike ? CELL * 3.2 : CELL * 1.6;
+      const rs = m.zone ? CELL * 5.2 : m.strike ? CELL * 3.2 : CELL * 1.6;
       const ret = new THREE.Mesh(new THREE.PlaneGeometry(rs, rs),
         new THREE.MeshBasicMaterial({ map: getReticleTex(), color: 0xff2222, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
       ret.rotation.x = -Math.PI / 2;
       ret.position.set(b.x, 1.25, b.z);
       ret.renderOrder = 10;
       scene.add(ret);
-      markers.push({ obj: ret, spin: -2, pulse: true });
+      markers.push(m.zone ? { obj: ret, pulse: true, base: 0.5 } : { obj: ret, spin: -2, pulse: true });
+      if (m.zone) continue;   // a mech raid's zone: no beam from the sky
       // warning beam from the sky
       const beamGeo = new THREE.CylinderGeometry(0.6, 2.2, 90, 12, 1, true);
       beamGeo.translate(0, 45, 0);

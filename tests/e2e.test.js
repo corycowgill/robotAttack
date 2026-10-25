@@ -200,7 +200,10 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   await clickCell(page, to);
   await page.waitForSelector('#attack.show');
   await page.click('#at-go');   // the panel takes clicks over the map (regression)
-  await page.waitForFunction(() => __game.state.robots.some(r => r.side === 'player') || /dropship was shot down/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
+  await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'player' && f.kind === 'ship') || __game.state.robots.some(r => r.side === 'player'), null, { timeout: 5000 })
+    .catch(async () => { throw new Error('no dropship launched: ' + await page.evaluate(() => document.getElementById('attack').innerText + ' | ' + document.getElementById('log').innerText.slice(-300))); });
+  // the dropship arrives: it lands its mechs or is shot down
+  await page.waitForFunction(() => /landed at|dropship was shot down/.test(document.getElementById('log').textContent), null, { timeout: 90000 });
   // don't wait out the full raid: shorten the landed mechs' timer
   await page.evaluate(() => { for (const r of __game.state.robots) if (r.side === 'player') r.leaveAt = Math.min(r.leaveAt, __game.state.rt.t + 4); });
   // landed, lost or shot down, they're gone again and the hangar is rebuilding

@@ -587,6 +587,8 @@
       // your attacks in flight and the inbound fire you can see (rebuilt only when that changes)
       const mine = state.rt.flights.filter(f => f.side === P).map(f => ({ kind: f.kind === 'ship' ? 'drop' : f.kind, from: f.from, to: f.to }));
       const inc = Realtime.inbound(state, P).filter(m => m.detected).map(m => ({ to: m.to, strike: m.kind === 'strike' }));
+      // the 5x5 an enemy raid is working through
+      for (const z of new Set(state.robots.filter(r => r.side === A && !r.garrison && r.zone !== undefined && playerSees(r.cell)).map(r => r.zone))) inc.push({ to: z, zone: true });
       const key = JSON.stringify([mine, inc]);
       if (key !== markerKey) { markerKey = key; Renderer.setMarkers(mine, inc, []); }
       return;
@@ -688,16 +690,28 @@
 
   function refreshOrders() {
     if (state.realtime) {
-      // what you have in the air, and every enemy launch with its countdown
-      const mine = state.rt.flights.filter(f => f.side === P).map(f => {
-        const eta = Math.ceil(f.launched ? f.launchAt + f.flight - state.rt.t : f.launchAt - state.rt.t + f.flight);
-        const what = f.kind === 'ship' ? 'Dropship ×' + f.mechs.length : f.kind === 'strike' ? 'Orbital strike' : 'Missile';
-        return { id: f.id, kind: f.kind === 'ship' ? 'drop' : f.kind, text: what + ' → ' + describeCell(f.to) + ' · ' + eta + 's', noCancel: true };
+      // one row per wave (same kind and target): your attacks and raids, and every enemy launch
+      // and raid with its countdown
+      const t = state.rt.t;
+      const waves = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return [...m.values()]; };
+      const span = etas => { const a = Math.ceil(Math.min(...etas)), b = Math.ceil(Math.max(...etas)); return (a === b ? a : a + '–' + b) + 's'; };
+      const name = { missile: 'Missile', ship: 'Dropship', strike: 'Orbital strike' };
+      const mine = waves(state.rt.flights.filter(f => f.side === P), f => f.kind + f.to).map(g => {
+        const f = g[0], n = f.kind === 'ship' ? f.mechs.length : g.length;
+        return { id: f.id, kind: f.kind === 'ship' ? 'drop' : f.kind, noCancel: true,
+          text: name[f.kind] + (n > 1 || f.kind === 'ship' ? ' ×' + n : '') + ' → ' + describeCell(f.to) + ' · ' + span(g.map(x => x.launchAt + x.flight - t)) };
       });
-      const inc = Realtime.inbound(state, P).map(m => ({
-        text: (m.kind === 'strike' ? 'ORBITAL STRIKE' : m.kind === 'ship' ? 'DROPSHIP ×' + m.mechs : 'MISSILE') + ' → ' + (m.detected ? describeCell(m.to) : 'target unknown') + ' · ' + Math.ceil(m.eta) + 's',
-        strike: m.kind === 'strike'
-      }));
+      for (const g of waves(state.robots.filter(r => r.side === P && r.zone !== undefined), r => r.zone)) {
+        mine.push({ id: g[0].id, kind: 'drop', noCancel: true, text: (g[0].garrison ? 'Garrison' : 'Mech raid') + ' ×' + g.length + ' · ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
+      }
+      const inc = waves(Realtime.inbound(state, P), m => m.kind + (m.detected ? m.to : '?')).map(g => {
+        const m = g[0], n = m.kind === 'ship' ? m.mechs : g.length;
+        return { strike: m.kind === 'strike',
+          text: name[m.kind].toUpperCase() + (n > 1 || m.kind === 'ship' ? ' ×' + n : '') + ' → ' + (m.detected ? describeCell(m.to) : 'target unknown') + ' · ' + span(g.map(x => x.eta)) };
+      });
+      for (const g of waves(state.robots.filter(r => r.side === A && !r.garrison && r.zone !== undefined && playerSees(r.cell)), r => r.zone)) {
+        inc.push({ text: 'MECH RAID ×' + g.length + ' at ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
+      }
       UI.setOrders(mine, inc);
       return;
     }
@@ -714,7 +728,7 @@
       const own = b.side === P;
       const a = own ? b : R.apparent(b);
       const def = BUILDINGS[a.type];
-      const info = { type: a.type, name: def.name, own, hp: a.hp, maxHp: a.maxHp, desc: def.desc, stats: def.stats(), ghost: false };
+      const info = { type: a.type, name: def.name, own, hp: Math.ceil(a.hp), maxHp: a.maxHp, desc: buildingText(a.type).desc, stats: buildingText(a.type).stats, ghost: false };
       if (own && b.type === 'decoy') info.extra = 'Disguised as ' + BUILDINGS[b.disguise].name;
       if ((a.level || 1) > 1 && UPGRADES[a.type]) {
         // the upgrade supersedes the structure's headline stat (always the first line)
@@ -738,7 +752,7 @@
     const g = state.sides[P].intel.seen[c];
     if (g && R.ownerOfCell(c) === A) {
       const def = BUILDINGS[g.type];
-      return { type: g.type, name: def.name, own: false, hp: g.hp, maxHp: g.maxHp, desc: def.desc, stats: def.stats(), ghost: true, extra: 'seen turn ' + g.turn };
+      return { type: g.type, name: def.name, own: false, hp: Math.ceil(g.hp), maxHp: g.maxHp, desc: buildingText(g.type).desc, stats: buildingText(g.type).stats, ghost: true, extra: state.realtime ? 'last seen' : 'seen turn ' + g.turn };
     }
     return null;
   }
@@ -837,14 +851,35 @@
   }
 
   // ── Tooltips ──────────────────────────────────────────────
+  // Structure text for tooltips and the selection panel: per turn, or per second in real time
+  function buildingText(type) {
+    const d = BUILDINGS[type];
+    if (!state || !state.realtime) return { desc: d.desc, stats: d.stats() };
+    const ps = v => (v / RT.ROUND).toFixed(1);
+    const rt = {
+      hq: { stats: ['+' + ps(CONST.BASE_CREDITS) + ' credits, +' + ps(CONST.BASE_ENERGY) + ' energy / s', 'Point defense: radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit, reloads ' + RT.HQ_PD_RELOAD + 's', 'Defense gun: ' + BUILDINGS.hq.gun.damage + ' dmg to a mech within 2', 'No enemy drops within 2 cells'] },
+      depot: { stats: ['+' + ps(BUILDINGS.depot.credits) + ' credits / s', 'Each depot you own makes the next cost ' + BUILDINGS.depot.costStep + ' more'] },
+      power: { stats: ['+' + ps(BUILDINGS.power.energy) + ' energy / s', '+' + BUILDINGS.power.cap + ' energy capacity'] },
+      radar: { desc: 'Reveals enemy territory and shows where inbound fire is aimed. Online ' + RT.RADAR_BOOT + 's after it is built.', stats: ['Scan radius ' + BUILDINGS.radar.range, 'Shows inbound targets'] },
+      silo: { desc: 'Fires a missile whenever it is loaded. Missiles fly about ' + RT.MISSILE_FLIGHT + 's, and the enemy sees them coming.', stats: [CONST.MISSILE_DAMAGE + ' damage + ' + CONST.MISSILE_SPLASH + ' splash', CONST.MISSILE_ENERGY + ' energy per launch', 'Reloads in ' + RT.SILO_RELOAD + 's', 'Max ' + BUILDINGS.silo.max + ' silos'] },
+      aa: { desc: 'Shoots at missiles and dropships aimed within its range, then reloads. Each AA you own makes the next ' + BUILDINGS.aa.rtCostStep + ' credits dearer.', stats: [Math.round(BUILDINGS.aa.hitChance * 100) + '% hit, reloads ' + RT.AA_RELOAD + 's', 'Covers radius ' + BUILDINGS.aa.range] },
+      shield: { stats: ['Absorbs ' + BUILDINGS.shield.pool + ' damage', 'Regenerates ' + ps(BUILDINGS.shield.regen) + ' / s'] },
+      hangar: { desc: 'Builds one mech at a time (' + RT.HANGAR_RELOAD + 's). Mechs ride a dropship behind your missiles (AA can shoot it down) and raid the 5×5 where they land for ' + RT.MECH_TIME + 's, then fly home.', stats: ['Mech: ' + CONST.ROBOT_HP + ' HP, hits for ' + Math.round(CONST.ROBOT_DAMAGE * RT.MECH_DAMAGE_MUL) + ' every ' + RT.MECH_STEP + 's', 'Up to ' + RT.MECHS_PER_SHIP + ' per dropship (' + RT.SHIP_HULL + ' hits to down, +1 per extra mech)'] },
+      gunpod: { stats: [BUILDINGS.gunpod.shots + ' shots x ' + BUILDINGS.gunpod.damage + ' damage every ' + RT.GUN_RELOAD + 's', 'Range ' + BUILDINGS.gunpod.range + ' (mechs only)'] },
+      uplink: { desc: 'Superweapon: charges for ' + RT.STRIKE_CHARGE_TIME + 's, then R calls down a strike that lands ' + RT.STRIKE_FLIGHT + 's later. AA can\'t stop it; shields absorb it.', stats: [CONST.STRIKE_DAMAGE + ' damage + ' + Math.round(CONST.STRIKE_SPLASH * RT.STRIKE_SPLASH_MUL) + ' to the 3x3', CONST.STRIKE_ENERGY + ' energy per strike', 'Max 1'] }
+    }[type] || {};
+    return { desc: rt.desc || d.desc, stats: rt.stats || d.stats() };
+  }
+
   function cardTooltip(type, e) {
     const d = BUILDINGS[type];
+    const txt = buildingText(type);
     const s = state ? state.sides[P] : null;
     const cost = state ? R.buildCost(state, P, type) : d.cost;
     const reason = s && s.credits < cost ? 'Need ' + cost + ' credits' : null;
-    const step = d.costStep ? ' <span class="k">(+' + d.costStep + ' per depot owned)</span>' : '';
+    const step = d.costStep ? ' <span class="k">(+' + d.costStep + ' per depot owned)</span>' : state && state.realtime && d.rtCostStep ? ' <span class="k">(+' + d.rtCostStep + ' per ' + d.short + ' owned)</span>' : '';
     const r = e.currentTarget.getBoundingClientRect();
-    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(d.desc)}<br><span class="k">${d.stats().map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
+    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(txt.desc)}<br><span class="k">${txt.stats.map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
   }
 
   function cellTooltip() {
@@ -854,6 +889,8 @@
       const reason = R.buildableReason(state, P, buildType, hoverCell);
       if (reason) html = '<span class="bad">' + UI.esc(reason) + '</span>';
       else html = placementPreview(buildType, hoverCell);
+    } else if (phase === 'live' && attack) {
+      html = null;   // the attack panel already describes the target; clicking retargets
     } else if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
       const reason = liveTargetReason(hoverCell, mode);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
@@ -902,6 +939,20 @@
 
   // Defences the player knows about around a missile target, and the odds one missile gets through
   function defenceOdds(cell) {
+    const known = knownDefences(cell);
+    if (!known.length) return '<br><span class="good">No known air defence covers this cell</span>';
+    const through = known.reduce((a, d) => a * (1 - d.p), 1);
+    return '<br><span class="k">Known defences: ' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ')
+      + ' — a lone missile gets through ~' + Math.round(through * 100) + '%</span>';
+  }
+  // Real time: each battery gets about one shot at a salvo, so more missiles than shots get through
+  function salvoOdds(cell, n) {
+    const known = knownDefences(cell);
+    if (!known.length) return '<span class="good">No known air defence covers this cell: all ' + n + ' should land</span>';
+    const stops = Math.min(n, known.reduce((a, d) => a + d.p, 0));
+    return n + ' missile' + (n > 1 ? 's' : '') + ' vs ' + known.length + ' known shot' + (known.length > 1 ? 's' : '') + ' (' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ') + ') → ~' + (n - stops).toFixed(1) + ' expected to land';
+  }
+  function knownDefences(cell) {
     const seen = state.sides[P].intel.seen;
     const known = [];
     const hq = R.hqCell(A);
@@ -912,10 +963,7 @@
       const range = lvl2 ? UPGRADES.aa.range : BUILDINGS.aa.range;
       if (R.dist(+k, cell) <= range + 0.01) known.push({ name: 'AA', p: lvl2 ? UPGRADES.aa.hitChance : BUILDINGS.aa.hitChance });
     }
-    if (!known.length) return '<br><span class="good">No known air defence covers this cell</span>';
-    const through = known.reduce((a, d) => a * (1 - d.p), 1);
-    return '<br><span class="k">Known defences: ' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ')
-      + ' — a lone missile gets through ~' + Math.round(through * 100) + '%</span>';
+    return known;
   }
 
   // ── Input ─────────────────────────────────────────────────
@@ -957,6 +1005,7 @@
 
   function clickCell(c, keepMode) {
     reportTimer = Math.min(reportTimer, 0.01);
+    if (phase === 'live' && livePaused && mode !== 'select') return fail('Paused: you can look around, but orders wait — Space resumes');
     if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
       const bad = liveTargetReason(c, mode);
       if (bad) return fail(bad);
@@ -974,7 +1023,7 @@
       Fx.buildDust(Renderer.cellCenter(c));
       floatAt(c, '-' + r.building.paid + 'c', 'info');
       UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
-      if (buildType === 'radar') UI.toast('Radar comes online next turn', 'warn');
+      if (buildType === 'radar') UI.toast(state.realtime ? 'Radar comes online in ' + RT.RADAR_BOOT + 's' : 'Radar comes online next turn', 'warn');
       if (!keepMode) { mode = 'select'; buildType = null; selectedCell = c; }
     } else if (mode === 'fire') {
       const r = R.queueMissile(state, P, c);
@@ -1038,6 +1087,7 @@
     if (def.max && R.buildingsOf(state, P, type).length >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
     SND.play('uiClick');
     pendingTap = -1;
+    if (phase === 'live' && livePaused) return fail('Paused: Space resumes the battle');
     if (UI.isCompact() && !(mode === 'build' && buildType === type)) UI.toast(def.name + ' · ' + cost + 'c — ' + def.stats()[0], 'good');
     if (mode === 'build' && buildType === type) { mode = 'select'; buildType = null; }
     else { mode = 'build'; buildType = type; selectedCell = -1; }
@@ -1057,6 +1107,7 @@
     }
     if (phase === 'resolving' && name === 'end') { slowmo = 0; Timeline.skip(); return; }
     if (!planning()) return;
+    if (phase === 'live' && livePaused && ['fire', 'drop', 'strike', 'upgrade', 'repair', 'sell'].includes(name)) return fail('Paused: Space resumes the battle');
     switch (name) {
       case 'fire': {
         const reason = state.realtime ? (R.buildingsOf(state, P, 'silo').length ? null : 'Build a Missile Silo first') : R.missileReason(state, P, R.hqCell(A));
@@ -1400,8 +1451,9 @@
   function animateStrikeLaunch(e) {
     const own = e.side === P;
     const pos = Renderer.cellCenter(e.from);
-    UI.log(own ? 'Orbital strike away — it lands on ' + describeCell(e.to) + ' next turn'
-      : 'ENEMY ORBITAL STRIKE launched — target ' + describeCell(e.to) + ', impact next turn', own ? 'player' : 'bad');
+    const when = state.realtime ? 'in ' + Math.round(e.flight) + 's' : 'next turn';
+    UI.log(own ? 'Orbital strike away — it lands on ' + describeCell(e.to) + ' ' + when
+      : 'ENEMY ORBITAL STRIKE launched — target ' + describeCell(e.to) + ', impact ' + when, own ? 'player' : 'bad');
     if (!playerSees(e.from)) { SND.play('strikeUp', { pan: 0.6, gain: 0.6, far: true }); return; }
     SND.play('strikeUp', { pan: panAt(e.from) });
     const beam = Renderer.strikeBeam(pos, own ? 0x66e8ff : 0xff7a55, 1.4, true);
@@ -1836,7 +1888,7 @@
     const ps = state.sides[P].stats, as = state.sides[A].stats;
     const mine = t => R.buildingsOf(state, P, t).length, theirs = t => R.buildingsOf(state, A, t).length;
     const landed = as.missilesFired - state.missiles.filter(m => m.side === A && !m.strike).length;
-    if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot in the first five turns.';
+    if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot ' + (state.realtime ? 'in the first minute.' : 'in the first five turns.');
     if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
     if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Gun Pod near your HQ, or a garrison mech, stops them.';
     if (ps.missilesFired >= 4 && ps.missilesHit / Math.max(1, ps.missilesFired) < 0.35) return 'Most of your missiles were shot down. Fire several in the same turn, or aim at targets outside the enemy\'s AA cover (the aim tooltip shows the odds).';
@@ -1857,6 +1909,8 @@
     if (daily) daily.prev = recordDaily(state.daily, daily.score);
     checkEndAchievements();
     UI.setDock(false);
+    UI.setOrders([], []);
+    Renderer.setMarkers([], []);
     const w = state.winner;
     // the stinger, then the after-action music under the debrief
     SND.setMode(w === P || (hotseat && w !== 'draw') ? 'won' : 'lost', false);
@@ -1883,6 +1937,7 @@
         medals: medals ? { got: medals, labels: UI.medalLabels(mission), newBest } : null,
         quote: mission ? (w === P ? { who: COMMANDERS.hale, text: mission.win } : { who: COMMANDERS[mission.enemy], text: w === A ? 'As expected. Go home, Commander.' : 'Stalemate... this time.' }) : null,
         history: state.history || [],
+        clockStep: state.realtime ? RT.ROUND : 0,
         rows: [
           ['Damage dealt', ps.damageDealt, as.damageDealt],
           ['Structures built', ps.built, as.built],
@@ -2049,8 +2104,10 @@
       strike: up ? { cell: up.cell, label: 'Strike', status: up.charge >= CONST.STRIKE_CHARGE ? 'ready' : Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strike } : null,
       cost: Realtime.attackCost(plan), energy: state.sides[P].energy,
       reason: plan.silos.length || plan.hangars.length || plan.strike ? reason : 'Pick missiles, mechs or the strike',
-      odds: (plan.silos.length ? defenceOdds(attack.to).replace(/^<br>/, '') : '')
-        + (plan.hangars.length ? (plan.silos.length ? '<br>' : '') + 'The dropship follows the missiles: AA can shoot it down (' + (RT.SHIP_HULL + plan.hangars.length - 1) + ' hits). Mechs fight within ' + RT.MECH_ZONE + ' cells for ' + RT.MECH_TIME + 's, then fly home.' : '')
+      odds: (plan.silos.length ? salvoOdds(attack.to, plan.silos.length) : '')
+        + (plan.hangars.length ? (plan.silos.length ? '<br>' : '') + 'The dropship follows the missiles. It takes ' + (RT.SHIP_HULL + plan.hangars.length - 1) + ' AA hits to shoot down'
+          + (knownDefences(attack.to).length ? ' (' + knownDefences(attack.to).length + ' known AA shot' + (knownDefences(attack.to).length > 1 ? 's' : '') + ' cover the drop zone)' : ', and no known AA covers the drop zone')
+          + '. Mechs raid within ' + RT.MECH_ZONE + ' cells for ' + RT.MECH_TIME + 's, then fly home.' : '')
     });
   }
   function closeAttack() {
@@ -2073,6 +2130,7 @@
       return;
     }
     if (what === 'launch') {
+      if (livePaused) return fail('Paused: Space resumes the battle');
       const plan = attackPlan();
       const r = Realtime.launchAttack(state, P, plan);
       if (!r.ok) return fail(r.reason);
@@ -2134,9 +2192,15 @@
       }
       case 'impact':
         dropVis(e.id);
-        // the board has already changed: the strike's beam and its blast arrive together
+        // the board has already changed: the strike's beam and its blast arrive together,
+        // and the target is named from what was hit (it may be rubble by now)
         if (e.strike) animateStrikeDescent({ side: e.side, to: e.cell }, null, idAt);
-        applyImpact(e, idAt);
+        {
+          const h = e.hits.find(x => x.cell === e.cell);
+          preNames = h ? { [e.cell]: (h.side === P ? '' : 'enemy ') + BUILDINGS[shownType(h)].name + ' ' + cellName(e.cell) } : null;
+          applyImpact(e, idAt);
+          preNames = null;
+        }
         return true;
       case 'deploy': {
         dropVis(e.id);
@@ -2149,6 +2213,10 @@
         else UI.log(own ? n + ' mech' + (n > 1 ? 's' : '') + ' landed at ' + cellName(e.to) + ' — ' + RT.MECH_TIME + 's to wreck the area' : 'ENEMY MECHS LANDED at ' + (seen ? cellName(e.to) : 'your island') + '! Gun Pods and garrison mechs stop them', own ? 'player' : 'bad');
         return true;
       }
+      case 'aaMiss':
+        if (e.lost) UI.log((own ? 'An enemy interceptor lost guidance' : 'Your interceptor lost guidance') + ' — its battery at ' + cellName(e.by) + ' was destroyed', own ? 'good' : 'bad');
+        else if (own) UI.log('Your missile slipped past ' + shotBy(e.by), 'good');
+        return false;
       case 'robotMove': animateRobotMove(e); return false;
       case 'robotHit': animateRobotHit(e, idAt); return false;
       case 'robotFight': animateRobotFight(e); return false;
