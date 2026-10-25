@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:   # "Run workflow" button on the Actions tab
 
 permissions:
   contents: read
@@ -28,7 +29,7 @@ jobs:
   # Publish the game to GitHub Pages once the tests pass on main
   deploy:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       pages: write
@@ -46,9 +47,8 @@ jobs:
           mkdir _site
           cp index.html manifest.webmanifest *.js _site/
           cp -r vendor assets _site/
+      # Pages must be enabled once by hand: Settings > Pages > Source > GitHub Actions
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
