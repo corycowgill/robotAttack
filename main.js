@@ -425,9 +425,8 @@
     mode = 'select'; buildType = null;
     UI.setDock(true);
     UI.setCombatHint(false);
-    SND.setMode('planning');
     const hq = R.buildingsOf(state, P, 'hq')[0];
-    SND.setTension(hq && hq.hp < hq.maxHp * 0.5);
+    SND.setMode('planning', hq && hq.hp < hq.maxHp * 0.5);
     UI.banner(hotseat ? seatName(P).toUpperCase() : 'TURN ' + state.turn, hotseat ? 'Turn ' + state.turn + ' · planning' : first ? 'Plan your opening' : 'Planning phase');
     SND.play('turnStart');
     // the Strike Uplink just finished charging
@@ -1781,9 +1780,9 @@
     if (daily) daily.prev = recordDaily(state.daily, daily.score);
     checkEndAchievements();
     UI.setDock(false);
-    SND.setMode('off');
-    SND.setTension(false);
     const w = state.winner;
+    // the stinger, then the after-action music under the debrief
+    SND.setMode(w === P || (hotseat && w !== 'draw') ? 'won' : 'lost', false);
     const title = hotseat ? (w === 'draw' ? 'DRAW' : seatName(w).toUpperCase() + ' WINS') : w === P ? 'VICTORY' : w === A ? 'DEFEAT' : 'DRAW';
     SND.play(w === P || (hotseat && w !== 'draw') ? 'victory' : 'defeat');
     const seatReason = w === 'draw' || /Turn limit/.test(state.endReason) ? state.endReason : seatName(R.enemyOf(w)) + '\'s Command Center destroyed';

@@ -639,12 +639,16 @@
     return bufs[i];
   }
 
-  // which track a mode plays: climax and menu borrow a neighbour's track when theirs is missing.
-  // null means the procedural music.
+  // which track a mode plays: the tense arrangements take over while a Command Center is in
+  // danger, and menu borrows the planning track when its own is missing. 'won' / 'lost' are the
+  // after-action screen. null means the procedural music.
+  var TRACK_FOR = { won: 'debriefWin', lost: 'debriefLoss' };
   function trackKey(m) {
     if (style === 'retro' || m === 'off') return null;
     if (m === 'combat' && tension && musicEntries.climax) return 'climax';
-    if (musicEntries[m]) return m;
+    if (m === 'planning' && tension && musicEntries.planningTense) return 'planningTense';
+    var k = TRACK_FOR[m] || m;
+    if (musicEntries[k]) return k;
     if (m === 'menu' && musicEntries.planning) return 'planning';
     return null;
   }
@@ -662,21 +666,22 @@
     }).catch(function () { delete musicLoading[key]; delete musicEntries[key]; applyMusic(); });   // that track falls back to procedural
   }
   // the track that usually comes next, decoded ahead of time
-  var NEXT = { menu: 'planning', planning: 'combat', combat: 'planning' };
+  var NEXT = { menu: 'planning', planning: 'combat', combat: 'planning', won: 'menu', lost: 'menu' };
 
-  function startLoop(clip, bus, level, fade, at) {
+  function startLoop(clip, bus, level, fade, at, delay) {
     var out = G(0.0001); out.connect(bus);
-    var src = ctx.createBufferSource();
+    var src = ctx.createBufferSource(), t0 = now() + (delay || 0);
     src.buffer = clip.buf; src.loop = true;
     src.loopStart = clip.loopStart; src.loopEnd = clip.loopEnd;
     var from = at > clip.loopStart && at < clip.loopEnd ? at : clip.loopStart;
-    src.connect(out); src.start(now(), from);
-    fadeTo(out.gain, level, fade);
-    return { clip: clip, src: src, out: out, t0: now(), from: from };
+    src.connect(out); src.start(t0, from);
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.setTargetAtTime(level, t0, Math.max(fade, 0.01) / 3);
+    return { clip: clip, src: src, out: out, t0: t0, from: from };
   }
   // where in the file a loop is playing now
   function loopPos(tr) {
-    var c = tr.clip, p = tr.from + (now() - tr.t0), len = c.loopEnd - c.loopStart;
+    var c = tr.clip, p = tr.from + Math.max(0, now() - tr.t0), len = c.loopEnd - c.loopStart;
     return p < c.loopEnd ? p : c.loopStart + (p - c.loopStart) % len;
   }
   function stopLoop(tr, fade) {
@@ -686,21 +691,27 @@
 
   // Crossfade to a track's looping clip (or to nothing). A track picks up where it left off,
   // so the planning music runs on across turns instead of restarting after every combat.
-  // Swapping between the combat and climax arrangements takes a longer blend.
+  // Swapping a track for its tense arrangement takes a longer blend; the debriefs start from
+  // the top once the victory / defeat stinger has had its moment.
   var musicPos = {};
+  var FAMILY = { climax: 'combat', planningTense: 'planning' };
+  var DEBRIEF = { debriefWin: 1, debriefLoss: 1 };
+  function family(k) { return FAMILY[k] || k; }
   function setTrack(key) {
     var clip = key ? musicBufs[key] : null;
     if (key) musicUsed[key] = Date.now();
     if (track && track.clip === clip) return;
-    var fade = track && key && (track.key === 'climax') !== (key === 'climax') ? 3.0 : 1.5;
-    if (track) { musicPos[track.key] = loopPos(track); stopLoop(track, fade); track = null; }
+    var fade = track && key && family(track.key) === family(key) ? 3.0 : 1.5;
+    if (track) { if (!DEBRIEF[track.key]) musicPos[track.key] = loopPos(track); stopLoop(track, fade); track = null; }
     if (!clip) return;
-    track = startLoop(clip, musicBus, sampleGain['music_' + key] || 1, fade, musicPos[key]);
+    var debrief = DEBRIEF[key];
+    track = startLoop(clip, musicBus, sampleGain['music_' + key] || 1, debrief ? 4.0 : fade, debrief ? 0 : musicPos[key], debrief ? 5.5 : 0);
     track.key = key;
   }
 
   // Ambience beds: surf around the islands while in a game, far-off fighting during combat
-  var AMB_FOR = { menu: { ocean: 0.5, battleAmb: 0.35 }, planning: { ocean: 1 }, combat: { ocean: 0.8, battleAmb: 0.8 } };
+  var AMB_FOR = { menu: { ocean: 0.5, battleAmb: 0.35 }, planning: { ocean: 1 }, combat: { ocean: 0.8, battleAmb: 0.8 },
+    won: { ocean: 0.8 }, lost: { ocean: 0.7, battleAmb: 0.3 } };
   function applyAmbience() {
     var want = (style === 'retro' ? null : AMB_FOR[mode]) || {};
     Object.keys(ambBufs).forEach(function (a) {
@@ -913,8 +924,8 @@
       setTrack(key && musicBufs[key] ? key : null);
       if (!clip && (m === 'menu' || m === 'planning' || m === 'combat')) startBed(); else stopBed();
       if (!clip && m === 'combat') startCombat(); else stopCombat();
-      // the climax track carries the tension in combat; elsewhere a high pulse warns of the HQ's state
-      updateTension(tension && m !== 'off' && key !== 'climax');
+      // the tense arrangements carry the danger themselves; without them a high pulse warns of it
+      updateTension(tension && m !== 'off' && key !== 'climax' && key !== 'planningTense');
     } catch (e) { /* ignore */ }
     try { applyAmbience(); } catch (e) { /* ignore */ }
   }
@@ -939,10 +950,12 @@
     } catch (e) { /* never throw */ }
   }
 
-  function setMode(m) {
-    if (m !== 'menu' && m !== 'planning' && m !== 'combat' && m !== 'off') return;
-    if (m === mode) return;
-    mode = m;
+  // t (optional) sets the tension flag in the same step, so the track switches only once
+  function setMode(m, t) {
+    if (m !== 'menu' && m !== 'planning' && m !== 'combat' && m !== 'won' && m !== 'lost' && m !== 'off') return;
+    var tn = t == null ? tension : !!t;
+    if (m === mode && tn === tension) return;
+    mode = m; tension = tn;
     applyMusic();
   }
 

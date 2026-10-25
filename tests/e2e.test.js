@@ -366,6 +366,13 @@ test('audio: generated clips load and each phase plays its music track', async t
   await page.evaluate(() => GameAudio.setMode('planning'));
   await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planning', null, { timeout: 20000 });
   assert.ok((await loaded()).pos >= before, 'planning resumed at ' + (await loaded()).pos + ', left at ' + before);
+  // a Command Center in danger brings in the tense arrangement; the debriefs follow the game
+  await page.evaluate(() => GameAudio.setTension(true));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'planningTense', null, { timeout: 20000 });
+  await page.evaluate(() => GameAudio.setMode('won', false));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'debriefWin', null, { timeout: 20000 });
+  await page.evaluate(() => GameAudio.setMode('lost'));
+  await page.waitForFunction(() => GameAudio.loadedSamples().track === 'debriefLoss', null, { timeout: 20000 });
   assert.deepStrictEqual(errors, []);
 });
 
