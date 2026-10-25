@@ -203,11 +203,11 @@ All music, ambience and sound effects in `assets/audio/` were generated locally 
 | `combat` | Combat playback |
 | `climax` | Combat while either Command Center is below 40% |
 
-Stingers: `titleSting` (press start), `combatStart` (each combat phase), `victory`, `defeat`, `achievement`. Ambience beds: `ocean` (all the time) and `battleAmb` (combat and the title flyover). Music dips briefly under big explosions.
+Stingers: `titleSting` (press start), `combatStart` (each combat phase), `victory`, `defeat`, `achievement`. Ambience beds: `ocean` (all the time) and `battleAmb` (combat and the title flyover). Music dips briefly under big explosions, and drops away when a Command Center falls. Each track picks up where it left off, so the planning music carries on across turns instead of restarting after every combat. Sounds heard from the fog (enemy launches and drop pods you can't see, your own missiles coming down on the far island) play muffled and roomy.
 
 Every gameplay event has its own sound: launches, the incoming whistle, flak, interceptions, impacts, sea splashes, shield hits, building collapses, decoys bursting, the Gun Pod and HQ guns, mech footsteps, landings, punches, mech-on-mech melee and mech deaths, drop pods, the orbital strike (charge-up, descent, impact and a cue when your Uplink is ready), building, upgrading, repairs, selling, undo, order confirmations (missile lock, strike lock, drop armed, cancel), turn start, end turn, alarms, radio chatter from Gen. Hale, the two-player hand-off, and interface clicks.
 
-`tools/gen_audio.py` regenerates them. It holds the prompt sheet, samples several takes per sound through a local ComfyUI server, ranks the takes with the CLAP audio-text model (`laion/larger_clap_general`), then trims, levels, finds a tempo-matched loop point for the music, crossfades it, encodes MP3s and writes the manifest. Raw takes are cached in `.audio-work/` (git-ignored).
+`tools/gen_audio.py` regenerates them. It holds the prompt sheet, samples several takes per sound through a local ComfyUI server, ranks the takes with the CLAP audio-text model (`laion/larger_clap_general`), then trims, levels, finds a tempo-matched loop point for the music, crossfades it, encodes MP3s and writes the manifest. Sounds whose energy sits below 150 Hz (big blasts, the HQ gun) get added harmonics of their bass so they still come through on phone and laptop speakers, and each MP3 is decoded again to check its peak stays below -0.8 dB. Raw takes are cached in `.audio-work/` (git-ignored).
 
 ```bash
 pip install numpy scipy soundfile torch transformers   # and ffmpeg on PATH
@@ -216,6 +216,7 @@ python ComfyUI/main.py --port 8191
 python tools/gen_audio.py --list                    # show the prompt sheet
 python tools/gen_audio.py                           # everything
 python tools/gen_audio.py --only explosion,combat --regen   # resample a few
+python tools/gen_audio.py --only alarm --more 6         # add 6 fresh takes per variant, keep the cached ones
 ```
 
 Stable Audio 3 is released under the Stability AI Community License; check it before shipping generated audio commercially.
