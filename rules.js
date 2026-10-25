@@ -877,7 +877,7 @@
           best.shots--;
           tried.add(best);
           const hit = rand(state) < stat(best, 'hitChance');
-          shots.push({ by: best.cell, hit });
+          shots.push({ by: best.cell, hit, chance: stat(best, 'hitChance') });
           if (hit) { m.interceptedBy = best.cell; sideOf(def).stats.intercepts++; break; }
           best = null; bd = Infinity;
           for (const bat of batteries) {
