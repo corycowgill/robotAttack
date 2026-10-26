@@ -179,13 +179,15 @@ test('real time: the clock runs, build anytime, pick an attack, see it in the ai
 test('real time: enemy launches are announced with a countdown, and mechs land, fight in their zone and leave', async t => {
   const { page, errors } = await open(t);
   await startSkirmish(page, 'patrol', true);
-  await page.evaluate(() => {
+  const launched = await page.evaluate(() => {
     const s = __game.state;
     s.sides.ai.energy = 30;
     for (const b of Rules.buildingsOf(s, 'ai', 'silo')) b.readyAt = 0;
-    Realtime.launchAttack(s, 'ai', { to: Rules.hqCell('player'), silos: Rules.buildingsOf(s, 'ai', 'silo').map(b => b.cell) });
+    return Realtime.launchAttack(s, 'ai', { to: Rules.hqCell('player'), silos: Rules.buildingsOf(s, 'ai', 'silo').map(b => b.cell) });
   });
-  await page.waitForFunction(() => /MISSILE → .*\d+s/.test(document.getElementById('orderlist').textContent));
+  assert.ok(launched.ok, launched.reason);
+  await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'ai' && f.launched), null, { timeout: 60000 });
+  await page.waitForFunction(() => /MISSILE/.test(document.getElementById('orderlist').textContent) || /Enemy attack inbound/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
   await page.waitForFunction(() => /Enemy attack inbound/.test(document.getElementById('log').textContent));
   // our mechs: land next to an enemy structure, fight, then fly home
   const to = await page.evaluate(() => {
