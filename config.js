@@ -112,7 +112,7 @@ const RT = {
   FACTORY_RELOAD_BOOST: 0.15,
   REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full
   REPAIR_PER_ROUND: 15,   // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
-  // Core rules
+  // Real-time rules
   BASES_PER_SIDE: 2,      // extra Bases besides the Command Center; all must fall to lose
   HQ_HP: 150,             // the Command Center is one base among several here (turn-based: 200)
   RADAR_AA_BOOST: 0.15,   // AA batteries within an online radar's range hit more often

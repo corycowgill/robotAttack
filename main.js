@@ -2038,7 +2038,7 @@
   }
 
   function liveTick(raw) {
-    // time stops while an attack is being planned (by design), paused, or in menus
+    // time stops while an attack is being planned, paused, or in menus
     if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) return;
     // ids by cell before the step, so effects can find structures that die during it
     const idAt = {};
