@@ -49,7 +49,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.
 - **Dropships can be shot down.** One ship carries up to 3 mechs and takes 3 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
-- **Mechs raid a zone and leave.** Landed mechs fight inside their 5×5 landing box for 30 seconds, then their dropship takes them home. They leave early if the box is clear. They fight mechs that close in first, then a base if one is within 2 cells, then gun pods, then the nearest building.
+- **Mechs raid a zone and leave.** Landed mechs fight inside their 5×5 landing box for 30 seconds, then their dropship takes them home. They leave early if the box is clear. They fight mechs that close in first, then a base if one is within 2 cells, then sentry turrets, then the nearest building.
 - **Mechs defend at home.** When enemy mechs land on your island, up to 3 ready mechs scramble from their hangars for free and hunt them down. They return when the raiders are gone. Enemy raids are outlined on the map, and every raid gets a row in the list with its time left. The hangar has a new mech ready 20 seconds after it returns or dies.
 - **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds. A new radar comes online 5 seconds after it is built.
 - **Orbital strikes** charge for 90 seconds and land 11 seconds after launch: a long, loud warning. Splash is 34, so a full-health depot or power plant survives it.
@@ -77,12 +77,12 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 2. **Resolve.** Both sides' orders play out at once, in this order:
    1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
    2. Missiles hit. Shields absorb damage first; each missile does 45 damage to its target and 15 to adjacent cells.
-   3. Gun Pods fire at mechs.
+   3. Sentry Turrets fire at mechs.
    4. Mechs move (2 cells) or smash an adjacent structure, Shields or not. Mechs raid: they chew through whatever structures are nearest, so they attack your economy and defences rather than the well-guarded HQ. Raiders fight enemy mechs when no structure is in reach. **Garrison** mechs, dropped on your own island, hunt down invaders.
    5. Drop pods land. New mechs wait one turn before they act.
    6. New missiles launch. They are in the air until next turn.
 3. **React.**
-   - During planning, arrows show where every mech you can see will walk next turn. A bracket marks the structure or mech it will attack: solid if the attack happens this turn, faint if it's still walking there. Hovering a mech says the same in words. Build a Gun Pod or drop a garrison mech in its way.
+   - During planning, arrows show where every mech you can see will walk next turn. A bracket marks the structure or mech it will attack: solid if the attack happens this turn, faint if it's still walking there. Hovering a mech says the same in words. Build a Sentry Turret or drop a garrison mech in its way.
    - Enemy missiles are in flight for a full turn.
    - **Red reticles** mark incoming missiles your Radar (or the area around your HQ) has detected. Build AA or shields, or repair, before they land.
 
@@ -110,7 +110,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 | 5 | AA Battery | 110 | 45 | 1 shot per turn (70% hit) at a missile aimed within radius 4; if it misses, other batteries in range get a shot |
 | 6 | Shield Generator | 120 | 50 | 50-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
-| 8 | Gun Pod | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
+| 8 | Sentry Turret | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
 | 0 | Strike Uplink | 200 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
@@ -127,7 +127,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 | AA Battery | Fire Control | 85% hit chance, radius 5 |
 | Supply Depot | Logistics Hub | +50 credits/turn |
 | Power Plant | Fusion Core | +11 energy/turn, +20 capacity |
-| Gun Pod | Rotary Cannons | 3 shots/turn |
+| Sentry Turret | Rotary Cannons | 3 shots/turn |
 | Shield Generator | Hardened Field | Absorbs 90, regenerates 35 |
 | Robot Hangar | Heavy Mechs | Mechs get 75 HP and hit for 30 |
 | Radar | Phased Array | Scan radius 15 |
@@ -139,7 +139,7 @@ Seven real-time missions, each on a fixed island map against a named enemy comma
 | # | Mission | Opponent | Twist |
 |---|---|---|---|
 | 1 | Operation Sandbar | Cmdr. Rusk (Patrol) | Tutorial checklist; a big, open island |
-| 2 | Coral Gate | Capt. Vey (Patrol) | Enemy starts behind two AA Batteries and a Gun Pod |
+| 2 | Coral Gate | Capt. Vey (Patrol) | Enemy starts behind two AA Batteries and a Sentry Turret |
 | 3 | Iron Strait | Marshal Kord (Commander) | Adaptive AI with an early Radar |
 | 4 | Fortress Isle | Capt. Vey (Commander) | Shielded fortress HQ; you get extra starting credits |
 | 5 | Black Tide | Overseer NYX (Warlord) | Full-vision AI with decoys |
@@ -188,7 +188,7 @@ The browser remembers your choices. The map options also apply to Two Players; t
   - 80% income.
   - Fixed build order and loose targeting.
 - **Commander:**
-  - Adapts its builds: AA when you shell it, Gun Pods when your mechs land.
+  - Adapts its builds: AA when you shell it, Sentry Turrets when your mechs land.
   - Opens with a Robot Hangar and raids your base with mechs on a second front while its missiles pressure your HQ.
   - Fires all its missiles at once to overwhelm your AA, picks off unprotected economy buildings, and repairs its HQ.
   - Builds a Strike Uplink from turn 10 where available and aims each strike at the 3×3 area that hurts you most.
@@ -250,7 +250,7 @@ All music, ambience and sound effects in `assets/audio/` were generated locally 
 
 Stingers: `titleSting` (press start), `combatStart` (each combat phase), `victory`, `defeat`, `achievement`. Ambience beds: `ocean` (all the time) and `battleAmb` (combat and the title flyover). Music dips briefly under big explosions, and drops away when a Command Center falls. Each track picks up where it left off, so the planning music carries on across turns instead of restarting after every combat. Sounds heard from the fog (enemy launches and drop pods you can't see, your own missiles coming down on the far island) play muffled and roomy.
 
-Every gameplay event has its own sound: launches, the incoming whistle, flak, interceptions, impacts, sea splashes, shield hits, building collapses, decoys bursting, the Gun Pod and HQ guns, mech footsteps, landings, punches, mech-on-mech melee and mech deaths, drop pods, the orbital strike (charge-up, descent, impact and a cue when your Uplink is ready), building, upgrading, repairs, selling, undo, order confirmations (missile lock, strike lock, drop armed, cancel), turn start, end turn, alarms, radio chatter from Gen. Hale, the two-player hand-off, and interface clicks.
+Every gameplay event has its own sound: launches, the incoming whistle, flak, interceptions, impacts, sea splashes, shield hits, building collapses, decoys bursting, the Sentry Turret and HQ guns, mech footsteps, landings, punches, mech-on-mech melee and mech deaths, drop pods, the orbital strike (charge-up, descent, impact and a cue when your Uplink is ready), building, upgrading, repairs, selling, undo, order confirmations (missile lock, strike lock, drop armed, cancel), turn start, end turn, alarms, radio chatter from Gen. Hale, the two-player hand-off, and interface clicks.
 
 `tools/gen_audio.py` regenerates them. It holds the prompt sheet, samples several takes per sound through a local ComfyUI server, ranks the takes with the CLAP audio-text model (`laion/larger_clap_general`), then trims, levels, finds a tempo-matched loop point for the music, crossfades it, encodes MP3s and writes the manifest. Music takes with almost nothing in the 300 Hz - 4 kHz range (a murmur on small speakers) are marked down. Sounds whose energy sits below 150 Hz (big blasts, the HQ gun) get added harmonics of their bass so they still come through on phone and laptop speakers, and each MP3 is decoded again to check its peak stays below -0.8 dB. Raw takes are cached in `.audio-work/` (git-ignored).
 
@@ -265,6 +265,10 @@ python tools/gen_audio.py --only alarm --more 6         # add 6 fresh takes per 
 ```
 
 Stable Audio 3 is released under the Stability AI Community License; check it before shipping generated audio commercially.
+
+## License and credits
+
+The game's code is under the MIT License (`LICENSE`). three.js, the fonts and the generated audio are under their own terms, listed in `THIRD_PARTY_NOTICES.md`. The same credits are shown in the game's help screen.
 
 ## Testing
 

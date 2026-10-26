@@ -2,6 +2,7 @@
   "name": "robot-attack-2026",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Real-time island war strategy game for the browser (Three.js).",
   "scripts": {
     "test": "node --test tests/rules.test.js tests/sim.test.js tests/realtime.test.js",

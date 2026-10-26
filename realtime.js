@@ -377,7 +377,7 @@
     state.missiles = rt.flights.filter(f => f.launched && f.kind !== 'ship')
       .map(f => ({ id: f.id, side: f.side, from: f.from, to: f.to, strike: f.kind === 'strike' }));
 
-    // 5. Gun pods and Command Center guns shoot at mechs in range
+    // 5. Sentry turrets and Command Center guns shoot at mechs in range
     gunnery(state, ev);
 
     // 6. Mechs
@@ -559,7 +559,7 @@
       return path && path.length ? { kind: 'move', path: path.slice(0, 1), facing: prey.cell } : { kind: 'hold' };
     }
     // Priorities: fight mechs that close in, then a base if one is close, then
-    // gun pods, then the nearest building, all inside the landing zone
+    // sentry turrets, then the nearest building, all inside the landing zone
     if (duel) return { kind: 'fight', robot: duel };
     const targets = R.buildingsOf(state, foe).filter(b => inZone(r, b.cell, 1));
     if (!targets.length) {

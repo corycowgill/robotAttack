@@ -933,9 +933,9 @@
       ev(BEAT.IMPACT, { type: 'impact', id: m.id, side: atk, cell: m.to, hits, reveal, strike: !!m.strike });
     }
 
-    // 3. GUN PODS fire at enemy robots
+    // 3. SENTRY TURRETS fire at enemy robots
     for (const side of [P, A]) {
-      // Gun Pods, plus the Command Center's own close-defense gun
+      // Sentry Turrets, plus the Command Center's own close-defense gun
       for (const g of buildingsOf(state, side).filter(b => b.type === 'gunpod' || b.type === 'hq')) {
         const gun = g.type === 'hq' ? B.hq.gun : { shots: stat(g, 'shots'), damage: B.gunpod.damage, range: B.gunpod.range };
         const shots = [];

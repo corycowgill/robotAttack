@@ -45,7 +45,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir _site
-          cp index.html manifest.webmanifest *.js _site/
+          cp index.html manifest.webmanifest LICENSE THIRD_PARTY_NOTICES.md *.js _site/
           cp -r vendor assets _site/
       # Pages must be enabled once by hand: Settings > Pages > Source > GitHub Actions
       - uses: actions/configure-pages@v5

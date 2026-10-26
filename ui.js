@@ -387,6 +387,8 @@ window.UI = (function () {
   #help h4 { margin: 16px 0 6px; color: var(--c-warn); letter-spacing: .14em; text-transform: uppercase; font-size: 13px; }
   #help p, #help li { font-size: 15px; color: #c5d2de; line-height: 1.4; }
   #help table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #help .credits { font-size: 12.5px; color: #8fa1b3; }
+  #help .credits a { color: inherit; }
   #help td, #help th { padding: 4px 6px; border-bottom: 1px solid var(--c-line); text-align: left; vertical-align: top; }
   #help th { color: var(--c-dim); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
   #help .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 20px; font-size: 14px; }
@@ -714,13 +716,13 @@ window.UI = (function () {
         <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>: <b>time stops</b> while you click a target for each missile (up to ${RT.MAX_MISSILES_PER_ATTACK}), the 5×5 box the mechs land in, and the strike's target. <kbd>Enter</kbd> launches.</li>
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
         <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through. A Radar guides the batteries in its range (+${Math.round(RT.RADAR_AA_BOOST * 100)}% to hit).</li>
-        <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside their 5×5 box for ${RT.MECH_TIME}s (gun pods and mechs first, or a base close by), then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later. Mechs waiting in your hangars scramble to defend when raiders land.</li>
+        <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside their 5×5 box for ${RT.MECH_TIME}s (sentry turrets and mechs first, or a base close by), then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later. Mechs waiting in your hangars scramble to defend when raiders land.</li>
         <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
       </ul>
       <h4>Each turn (turn-based games)</h4>
       <ol>
         <li><b>Plan.</b> Spend <span style="color:var(--c-credit)">credits</span> on buildings and repairs, and <span style="color:var(--c-energy)">energy</span> on missiles and mech drops. You can only build within ${CONST.BUILD_RADIUS} cells of your existing buildings.</li>
-        <li><b>End turn.</b> Both sides' orders resolve at the same time: missiles launched <i>last</i> turn come down, AA intercepts, gun pods fire, mechs fight, drop pods land, and new missiles launch.</li>
+        <li><b>End turn.</b> Both sides' orders resolve at the same time: missiles launched <i>last</i> turn come down, AA intercepts, sentry turrets fire, mechs fight, drop pods land, and new missiles launch.</li>
         <li><b>React.</b> Missiles are in the air for a full turn. Red reticles show enemy missiles your Radar (or HQ) has detected — build AA, shields or repair before they land.</li>
       </ol>
       <h4>Defenses</h4>
@@ -730,7 +732,7 @@ window.UI = (function () {
       <h4>Upgrades</h4>
       <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (about 75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
-      <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Gun Pods, or by <b>garrison mechs</b>: drop a mech on your own island and it hunts invaders. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
+      <p>Missiles &rarr; countered by AA Batteries and Shields. &nbsp; Mechs &rarr; countered by Sentry Turrets, or by <b>garrison mechs</b>: drop a mech on your own island and it hunts invaders. &nbsp; Radar reveals targets and incoming fire. Missile impacts also reveal the area around them.</p>
       <h4>Structures</h4>
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
@@ -742,6 +744,12 @@ window.UI = (function () {
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
         <div><kbd>Esc</kbd> cancel &nbsp; Touch: tap, drag to pan, pinch to zoom</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
+      <h4>Credits</h4>
+      <p class="credits">Robot Attack 2026 is an original game. Code &copy; 2026 Cory Cowgill, MIT License.
+        3D engine: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> r128 (MIT).
+        Fonts: Rajdhani, Russo One and Share Tech Mono (SIL Open Font License 1.1).
+        Music and sound effects generated with Stable Audio &mdash; Powered by Stability AI.
+        Not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.</p>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
     </div>`;
   }
