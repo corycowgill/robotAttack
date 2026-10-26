@@ -240,10 +240,10 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   await page.click('.mission:not(.locked)');
   await page.waitForSelector('#briefing.show');
   await page.click('#br-go');
-  await page.waitForFunction(() => __game.phase === 'planning' && __game.state.mission);
-  await page.evaluate(() => { __game.setSpeed && __game.setSpeed(3); Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
-  await page.click('#b-end');
-  await skipPlayback(page);
+  // campaign missions are real-time battles, with the real-time briefing checklist
+  await page.waitForFunction(() => __game.phase === 'live' && __game.state.mission && __game.state.realtime);
+  await page.waitForFunction(() => /construction takes/.test(document.getElementById('objectives')?.textContent || ''));
+  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
   assert.strictEqual(await page.evaluate(() => __game.state.winner), 'player');
   await page.waitForSelector('#go-next', { state: 'visible', timeout: 15000 });

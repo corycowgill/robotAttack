@@ -356,7 +356,9 @@
     side = side || P;
     const won = state.winner === side;
     const hq = buildingsOf(state, side, 'hq')[0];
-    return [won, won && state.turn <= mission.par, won && !!hq && hq.hp * 2 >= hq.maxHp];
+    // real time: par turns become clock time (CLOCK_PER_TURN seconds each)
+    const inPar = state.realtime ? state.rt.t <= mission.par * RTC.CLOCK_PER_TURN : state.turn <= mission.par;
+    return [won, won && inPar, won && !!hq && hq.hp * 2 >= hq.maxHp];
   }
 
   // Daily Operation score: wins score 1000 + 30 per turn under the limit + 5 per HQ health %;

@@ -257,7 +257,7 @@
     if (state.winner !== P) return;
     const hq = R.buildingsOf(state, P, 'hq')[0];
     if (hq && hq.hp >= hq.maxHp) unlock('untouched');
-    if (state.turn <= 10) unlock('blitz');
+    if (state.realtime ? state.rt.t <= 10 * RT.CLOCK_PER_TURN : state.turn <= 10) unlock('blitz');
     if (!state.mission && !state.daily && state.difficulty === 'warlord') unlock('warlord');
     if (state.daily) unlock('daily');
     if (campaignDone() >= CAMPAIGN.length) unlock('campaign');
@@ -290,9 +290,11 @@
     if (!saved && !mission && custom) state.custom = Object.assign({}, custom);   // kept for Rematch
     if (mission) state.mission = mission.id;
     if (daily) state.daily = daily.key;
-    // skirmish defaults to the real-time battle; two players, the campaign and the daily stay turn-based
-    if (!saved && !mission && !daily && !hotseat && custom && custom.pace !== 0) Realtime.init(state);
-    if (state.realtime) objectivesHidden = true;
+    // the campaign is always real time and skirmish defaults to it; two players and the daily are turn-based
+    if (!saved && !daily && !hotseat && (mission || (custom && custom.pace !== 0))) {
+      Realtime.init(state);
+      if (mission && mission.rtBonus) state.sides[P].credits += mission.rtBonus;
+    }
     UI.setEndLabel('End Turn');
     UI.setLiveMode(false);
     if (!saved) { state.history = []; recordHistory(); }   // turn 0: the starting position
@@ -843,11 +845,23 @@
     { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') },
     { text: 'Select one of your structures and press <kbd>U</kbd> to <b>upgrade</b> it', touch: 'Tap one of your structures, then <b>Upgrade</b>', done: s => R.buildingsOf(s, P).some(b => (b.level || 1) > 1) }
   ];
+  // Real-time battles: the same lessons, with attacks launched from the attack panel
+  const OBJECTIVES_RT = [
+    { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> next to your HQ: construction takes a few seconds', done: s => built(s, 'depot') },
+    { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => built(s, 'power') },
+    { text: 'Build a <b>Factory</b> <kbd>B</kbd>: everything builds and reloads faster', done: s => has(s, 'factory') },
+    { text: 'Attack: press <kbd>Q</kbd>, click the red <b>enemy HQ</b>, then <b>Launch</b> <kbd>Enter</kbd>', touch: 'Attack: tap <b>Fire Missile</b>, tap the red <b>enemy HQ</b> twice, then <b>Launch</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.rt.flights.some(f => f.side === P) },
+    { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
+    { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast to see what enemy fire is aimed at', done: s => has(s, 'radar') },
+    { text: 'Enemy launches come with a countdown: guard your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
+    { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
+  ];
+  function built(s, t) { return R.buildingsOf(s, P, t).some(R.online); }
   function has(s, t) { return R.buildingsOf(s, P, t).length > 0; }
   function refreshObjectives() {
     if (objectivesHidden || !state) { UI.setObjectives(null); return; }
     const touch = lastPointer === 'touch' || matchMedia('(hover: none)').matches;
-    const list = OBJECTIVES.map(o => ({ text: touch && o.touch ? o.touch : o.text, done: o.done(state) }));
+    const list = (state.realtime ? OBJECTIVES_RT : OBJECTIVES).map(o => ({ text: touch && o.touch ? o.touch : o.text, done: o.done(state) }));
     if (list.every(o => o.done)) { objectivesHidden = true; UI.setObjectives(null); UI.toast('Briefing complete — good luck, Commander', 'good'); return; }
     UI.setObjectives(list);
   }
@@ -2020,7 +2034,7 @@
     Timeline.update(raw);
     syncFlights();
     liveSync -= raw;
-    if (resync || liveSync <= 0) { liveSync = 1; syncWorld(true); }
+    if (resync || liveSync <= 0) { liveSync = 1; syncWorld(true); refreshObjectives(); }
     liveUi -= raw;
     if (liveUi <= 0) { liveUi = 0.2; refreshLive(); }
     if (state.winner) { recordHistory(); Timeline.cancel(); clearFlights(); closeAttack(); gameOver(); }

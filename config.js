@@ -235,7 +235,7 @@ const ACHIEVEMENTS = [
   { id: 'orbital',     name: 'Fire From Above',  desc: 'Land an orbital strike' },
   { id: 'garrison',    name: 'Home Guard',       desc: 'Destroy an invading mech with a garrison mech or Gun Pod' },
   { id: 'untouched',   name: 'Untouchable',      desc: 'Win with your Command Center at full health' },
-  { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10' },
+  { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10 (in real time: within 3:20)' },
   { id: 'tycoon',      name: 'Tycoon',           desc: 'Own 5 Supply Depots at once' },
   { id: 'warlord',     name: 'Warlord Slayer',   desc: 'Beat the Warlord in a skirmish' },
   { id: 'campaign',    name: 'Victory in the Pacific', desc: 'Complete the campaign' },
@@ -267,7 +267,7 @@ const CAMPAIGN = [
   },
   {
     id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18, locked: ['uplink'],
-    brief: 'Vey has dug in behind AA batteries and a gun pod. Saturate her air defense — fire several missiles in the same turn — or slip mechs past it.',
+    brief: 'Vey has dug in behind AA batteries and a gun pod. Saturate her air defense — send several missiles in one attack — or slip mechs past it.',
     taunt: 'My batteries have never let a missile through. Try your luck.',
     win: 'Her defenses cracked. Remember: volume beats precision against AA.',
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
@@ -294,6 +294,7 @@ const CAMPAIGN = [
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. Outstanding — but its orbital codes are already being sold.',
     credits: { player: 550 },
+    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }, { type: 'aa', dx: 1, dy: 2 }, { type: 'power', dx: 2, dy: 2 }], ai: [{ type: 'aa', dx: 2, dy: 1 }, { type: 'decoy', dx: 5, dy: -3 }, { type: 'decoy', dx: 5, dy: 3 }] }
   },
   {
@@ -310,6 +311,7 @@ const CAMPAIGN = [
     taunt: 'I have watched your little war from above. It ends today.',
     win: 'The network is down and the skies are clear. Now the war is over, Commander.',
     credits: { player: 740 },
+    rtBonus: 280,
     start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 2 }, { type: 'shield', dx: 1, dy: 0 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 1 }, { type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'decoy', dx: 5, dy: 0 }] }
   }
 ];
