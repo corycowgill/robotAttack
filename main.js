@@ -316,7 +316,7 @@
       UI.log((state.daily ? 'Daily Operation ' + state.daily : 'Operation started') + ' — opponent: ' + CONST.DIFFICULTY[diff].name + (style && style.key !== 'balanced' ? ' (' + style.name + ')' : '') + (state.realtime ? ' · real time, ' + fmtClock(state.rt.timeLimit) + ' on the clock' : ''), 'sys');
       if (style && style.key !== 'balanced') UI.log(style.name + ': ' + style.desc, 'enemy');
       if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
-      UI.log('Destroy the enemy Command Center (red, far right).', 'sys');
+      UI.log(state.realtime ? 'Destroy every enemy base: the Command Center and the ' + RT.BASES_PER_SIDE + ' bases marked on the red island. Lose all of yours and the war is lost.' : 'Destroy the enemy Command Center (red, far right).', 'sys');
     }
     if (saved && hotseat) {
       // a resumed two-player game opens on Player 1's turn: don't show their base to whoever holds the device
@@ -587,8 +587,16 @@
   let markerKey = '';
   function refreshMarkers() {
     if (state && phase === 'live') {
-      // your attacks in flight and the inbound fire you can see (rebuilt only when that changes)
+      // your attacks in flight and the inbound fire you can see (rebuilt only when that changes),
+      // plus the attack being planned: each missile's target, the mechs' landing box, the strike
       const mine = state.rt.flights.filter(f => f.side === P).map(f => ({ kind: f.kind === 'ship' ? 'drop' : f.kind, from: f.from, to: f.to }));
+      if (attack) {
+        const plan = attackPlan();
+        for (const m of plan.missiles) mine.push({ kind: 'missile', from: m.from, to: m.to });
+        if (plan.landing !== undefined) mine.push({ kind: 'drop', from: plan.hangars[0], to: plan.landing, zone: true });
+        const up = R.buildingsOf(state, P, 'uplink')[0];
+        if (plan.strikeTo !== undefined && up) mine.push({ kind: 'strike', from: up.cell, to: plan.strikeTo });
+      }
       const inc = Realtime.inbound(state, P).filter(m => m.detected).map(m => ({ to: m.to, strike: m.kind === 'strike' }));
       // the 5x5 an enemy raid is working through
       for (const z of new Set(state.robots.filter(r => r.side === A && !r.garrison && r.zone !== undefined && playerSees(r.cell)).map(r => r.zone))) inc.push({ to: z, zone: true });
@@ -624,14 +632,18 @@
     const s = state.sides[P];
     const inc = R.income(state, P);
     const hq = R.buildingsOf(state, P, 'hq')[0];
-    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : 'Live' }[phase] || '';
+    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : attack ? 'Planning' : 'Live' }[phase] || '';
     if (state.realtime) {
       const left = Math.max(0, state.rt.timeLimit - state.rt.t);
+      // the HQ bars follow every base, Command Center included
+      const sum = side => Realtime.bases(state, side).reduce((n, b) => n + b.hp, 0);
+      const myBases = Realtime.bases(state, P).length, foeBases = Realtime.bases(state, A).length;
       return {
+        hqLabel: 'Your bases · ' + myBases, enemyLabel: 'Enemy bases · ' + foeBases,
         red: false, credits: s.credits, creditInc: (inc.credits / RT.ROUND).toFixed(1) + '/s',
         energy: s.energy, energyCap: R.energyCap(state, P), energyInc: (inc.energy / RT.ROUND).toFixed(1) + '/s',
         clock: fmtClock(state.rt.t) + ' / ' + fmtClock(state.rt.timeLimit), late: left < 60, phase: phaseName,
-        hq: { hp: hq ? hq.hp : 0, max: BUILDINGS.hq.hp }, enemyHq: enemyHqView()
+        hq: { hp: sum(P), max: state.rt.baseMax[P] || BUILDINGS.hq.hp }, enemyHq: { hp: sum(A), max: state.rt.baseMax[A] || BUILDINGS.hq.hp, known: true }
       };
     }
     return ({
@@ -910,7 +922,10 @@
       if (reason) html = '<span class="bad">' + UI.esc(reason) + '</span>';
       else html = placementPreview(buildType, hoverCell);
     } else if (phase === 'live' && attack) {
-      html = null;   // the attack panel already describes the target; clicking retargets
+      const reason = liveTargetReason(hoverCell, attack.cursor);
+      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
+        : attack.cursor === 'drop' ? 'Mechs land at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">They fight inside the 5×5 box for ' + RT.MECH_TIME + 's</span>'
+          : (attack.cursor === 'strike' ? 'Strike' : 'Missile') + ' → <b>' + UI.esc(describeCell(hoverCell)) + '</b>' + (attack.cursor === 'fire' ? defenceOdds(hoverCell) : '');
     } else if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
       const reason = liveTargetReason(hoverCell, mode);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
@@ -1027,11 +1042,8 @@
     reportTimer = Math.min(reportTimer, 0.01);
     if (phase === 'live' && livePaused && mode !== 'select') return fail('Paused: you can look around, but orders wait — Space resumes');
     if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
-      const bad = liveTargetReason(c, mode);
-      if (bad) return fail(bad);
-      SND.play('select');
-      if (attack) attack.to = c; else openAttack(c, mode);
-      refreshAttack();
+      if (!attack) openAttack(mode);
+      attackTarget(c);
       refreshAll();
       return;
     }
@@ -1133,7 +1145,8 @@
     if (phase === 'live' && livePaused && ['fire', 'drop', 'strike', 'upgrade', 'repair', 'sell'].includes(name)) return fail('Paused: Space resumes the battle');
     switch (name) {
       case 'fire': {
-        const reason = state.realtime ? (R.buildingsOf(state, P, 'silo').length ? null : 'Build a Missile Silo first') : R.missileReason(state, P, R.hqCell(A));
+        if (state.realtime && R.buildingsOf(state, P, 'silo').length) { liveAim('fire'); return; }
+        const reason = state.realtime ? 'Build a Missile Silo first' : R.missileReason(state, P, R.hqCell(A));
         if (reason && reason !== 'Target must be in enemy territory') return fail(reason);
         SND.play('uiClick');
         // the hotkey always (re-)arms; only the button toggles, Esc / right-click cancel
@@ -1142,6 +1155,7 @@
         break;
       }
       case 'strike': {
+        if (state.realtime && !liveStrikeReason()) { liveAim('strike'); return; }
         const reason = state.realtime ? liveStrikeReason() : R.strikeReadyReason(state, P);
         if (reason) return fail(reason);
         SND.play('uiClick');
@@ -1150,7 +1164,8 @@
         break;
       }
       case 'drop': {
-        const reason = state.realtime ? (R.buildingsOf(state, P, 'hangar').length ? null : 'Build a Robot Hangar first') : R.dropReadyReason(state, P);
+        if (state.realtime && R.buildingsOf(state, P, 'hangar').length) { liveAim('drop'); return; }
+        const reason = state.realtime ? 'Build a Robot Hangar first' : R.dropReadyReason(state, P);
         if (reason) return fail(reason);
         SND.play('uiClick');
         mode = mode === 'drop' && arg !== 'key' ? 'select' : 'drop'; selectedCell = -1;
@@ -2003,7 +2018,7 @@
     if (first) {
       UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true);
       UI.log('Real-time battle: credits and energy flow every second, and silos and hangars reload on their own.', 'sys');
-      UI.log('To attack, press Q (missiles), E (mechs) or R (orbital strike), click a target, choose what to send, then Launch.', 'sys');
+      UI.log('To attack, press Q (missiles), E (mechs) or R (orbital strike): time stops while you click a target for each missile, where the mechs land and where the strike falls. Enter launches.', 'sys');
       UI.log('Enemy launches are announced with a countdown: repair, shield or build AA before they land. Space pauses.', 'sys');
     } else {
       UI.banner('RESUMED', fmtClock(state.rt.t) + ' of ' + fmtClock(state.rt.timeLimit), false);
@@ -2023,7 +2038,8 @@
   }
 
   function liveTick(raw) {
-    if (livePaused || UI.isHelpOpen() || UI.isSettingsOpen()) return;
+    // time stops while an attack is being planned (as in Metal Marines), paused, or in menus
+    if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) return;
     // ids by cell before the step, so effects can find structures that die during it
     const idAt = {};
     for (let c = 0; c < R.N; c++) { const b = state.cells[c].building; if (b) idAt[c] = b.id; }
@@ -2104,72 +2120,139 @@
     });
   }
 
-  // ── The attack panel: choose which loaded silos, mechs and strike to send ──
-  function openAttack(to, preset) {
-    const s = state.sides[P];
-    attack = { to, silos: new Set(), hangars: new Set(), strike: false };
-    let e = s.energy;
-    if (preset === 'fire') for (const b of Realtime.readyLaunchers(state, P, 'silo')) if (e >= CONST.MISSILE_ENERGY) { attack.silos.add(b.cell); e -= CONST.MISSILE_ENERGY; }
-    if (preset === 'drop') for (const b of Realtime.readyLaunchers(state, P, 'hangar').slice(0, RT.MECHS_PER_SHIP)) if (e >= CONST.DROP_ENERGY) { attack.hangars.add(b.cell); e -= CONST.DROP_ENERGY; }
-    if (preset === 'strike') attack.strike = true;
+  // ── The attack panel (Metal Marines): time stops while you plan; each missile gets its own
+  // target, the mechs share one landing zone, and the strike has its own target ──
+  function openAttack(m) {
+    attack = { arm: [], targets: {}, hangars: new Set(), landing: undefined, strikeOn: false, strikeTo: undefined, cursor: m };
+    setCursor(m);
+    UI.banner('PLANNING', 'Time stopped: pick targets, then Launch', false);
+  }
+  function energyLeft() { return state.sides[P].energy - Realtime.attackCost(attackPlan()); }
+  // switching to missiles/mechs/strike also arms what's loaded, if nothing is yet
+  function setCursor(m) {
+    attack.cursor = m;
+    if (m === 'fire' && !attack.arm.length) {
+      for (const b of Realtime.readyLaunchers(state, P, 'silo')) {
+        if (attack.arm.length >= RT.MAX_MISSILES_PER_ATTACK || energyLeft() < CONST.MISSILE_ENERGY) break;
+        attack.arm.push(b.cell);
+      }
+    }
+    if (m === 'drop' && !attack.hangars.size) {
+      for (const b of Realtime.readyLaunchers(state, P, 'hangar').slice(0, RT.MECHS_PER_SHIP)) if (energyLeft() >= CONST.DROP_ENERGY) attack.hangars.add(b.cell);
+    }
+    if (m === 'strike') attack.strikeOn = true;
+  }
+  function liveAim(m) {
+    if (!attack) openAttack(m); else setCursor(m);
+    mode = m; selectedCell = -1;
+    SND.play('uiClick');
+    refreshAttack();
+    refreshAll();
   }
   function attackPlan() {
-    return { to: attack.to, silos: [...attack.silos], hangars: [...attack.hangars], strike: attack.strike };
+    if (!attack) return { missiles: [] };
+    return {
+      missiles: attack.arm.filter(c => attack.targets[c] !== undefined).map(c => ({ from: c, to: attack.targets[c] })),
+      hangars: [...attack.hangars],
+      landing: attack.hangars.size ? attack.landing : undefined,
+      strikeTo: attack.strikeOn ? attack.strikeTo : undefined
+    };
+  }
+  function attackTarget(c) {
+    const m = attack.cursor;
+    const bad = liveTargetReason(c, m);
+    if (bad) return fail(bad);
+    if (m === 'fire') {
+      let silo = attack.arm.find(x => attack.targets[x] === undefined);
+      if (silo === undefined && attack.arm.length < RT.MAX_MISSILES_PER_ATTACK && energyLeft() >= CONST.MISSILE_ENERGY) {
+        silo = Realtime.readyLaunchers(state, P, 'silo').map(b => b.cell).find(x => !attack.arm.includes(x));
+        if (silo !== undefined) attack.arm.push(silo);
+      }
+      if (silo === undefined) return fail('Every armed missile has a target: click a silo to free it, or Launch');
+      attack.targets[silo] = c;
+    } else if (m === 'drop') attack.landing = c;
+    else { attack.strikeOn = true; attack.strikeTo = c; }
+    SND.play('select');
+    refreshAttack();
   }
   function refreshAttack() {
     if (!attack) return;
     // launchers can be destroyed while the panel is open
-    for (const c of attack.silos) if (!R.buildingAt(state, c)) attack.silos.delete(c);
+    attack.arm = attack.arm.filter(c => R.buildingAt(state, c));
     for (const c of attack.hangars) if (!R.buildingAt(state, c)) attack.hangars.delete(c);
-    const item = (b, label) => ({ cell: b.cell, label, status: launcherStatus(b), ready: Realtime.isReady(state, b), on: (b.type === 'silo' ? attack.silos : attack.hangars).has(b.cell) });
     const up = R.buildingsOf(state, P, 'uplink')[0];
     const plan = attackPlan();
-    const reason = Realtime.attackReason(state, P, plan);
+    const siloItem = b => {
+      const armed = attack.arm.includes(b.cell), to = attack.targets[b.cell];
+      return { cell: b.cell, label: 'Silo ' + cellName(b.cell) + (b.level > 1 ? ' ★' : ''), ready: Realtime.isReady(state, b), on: armed,
+        status: !Realtime.isReady(state, b) ? launcherStatus(b) : armed ? (to !== undefined ? '→ ' + cellName(to) : 'click map') : 'ready' };
+    };
+    const hangarItem = b => ({ cell: b.cell, label: (b.level > 1 ? 'Heavy mech ' : 'Mech ') + cellName(b.cell), status: launcherStatus(b), ready: Realtime.isReady(state, b), on: attack.hangars.has(b.cell) });
+    const unaimed = attack.arm.length - plan.missiles.length;
+    let reason = Realtime.attackReason(state, P, plan);
+    if (!plan.missiles.length && !plan.hangars.length && plan.strikeTo === undefined) reason = attack.arm.length ? 'Click the map to give each missile a target' : 'Pick missiles, mechs or the strike';
+    else if (attack.strikeOn && attack.strikeTo === undefined) reason = 'Click a target for the strike';
+    const byTarget = {};
+    for (const m of plan.missiles) byTarget[m.to] = (byTarget[m.to] || 0) + 1;
+    const odds = Object.keys(byTarget).map(to => describeCell(+to) + ': ' + salvoOdds(+to, byTarget[to])).join('<br>');
+    const hint = { fire: 'Click a target for each missile', drop: 'Click where the mechs land: they fight inside the 5×5 box', strike: 'Click the strike\'s target' }[attack.cursor];
     UI.showAttack({
-      target: describeCell(attack.to),
-      silos: R.buildingsOf(state, P, 'silo').map(b => item(b, 'Silo ' + cellName(b.cell) + (b.level > 1 ? ' ★' : ''))),
-      hangars: R.buildingsOf(state, P, 'hangar').map(b => item(b, (b.level > 1 ? 'Heavy mech ' : 'Mech ') + cellName(b.cell))),
-      strike: up ? { cell: up.cell, label: 'Strike', status: up.charge >= CONST.STRIKE_CHARGE ? 'ready' : Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strike } : null,
+      target: hint + ' · time stopped',
+      silos: R.buildingsOf(state, P, 'silo').map(siloItem),
+      hangars: R.buildingsOf(state, P, 'hangar').map(hangarItem),
+      strike: up ? { cell: up.cell, label: 'Strike', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strikeOn,
+        status: up.charge < CONST.STRIKE_CHARGE ? Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%' : attack.strikeTo !== undefined ? '→ ' + cellName(attack.strikeTo) : attack.strikeOn ? 'click map' : 'ready' } : null,
       cost: Realtime.attackCost(plan), energy: state.sides[P].energy,
-      reason: plan.silos.length || plan.hangars.length || plan.strike ? reason : 'Pick missiles, mechs or the strike',
-      odds: (plan.silos.length ? salvoOdds(attack.to, plan.silos.length) : '')
-        + (plan.hangars.length ? (plan.silos.length ? '<br>' : '') + 'The dropship follows the missiles. It takes ' + (RT.SHIP_HULL + plan.hangars.length - 1) + ' AA hits to shoot down'
-          + (knownDefences(attack.to).length ? ' (' + knownDefences(attack.to).length + ' known AA shot' + (knownDefences(attack.to).length > 1 ? 's' : '') + ' cover the drop zone)' : ', and no known AA covers the drop zone')
-          + '. Mechs raid within ' + RT.MECH_ZONE + ' cells for ' + RT.MECH_TIME + 's, then fly home.' : '')
+      reason,
+      odds: odds + (unaimed > 0 ? (odds ? '<br>' : '') + unaimed + ' armed missile' + (unaimed > 1 ? 's have' : ' has') + ' no target yet and will stay home' : '')
+        + (plan.hangars.length && plan.landing !== undefined ? (odds ? '<br>' : '') + 'Dropship to ' + cellName(plan.landing) + ': ' + (RT.SHIP_HULL + plan.hangars.length - 1) + ' AA hits bring it down'
+          + (knownDefences(plan.landing).length ? ', and ' + knownDefences(plan.landing).length + ' known AA cover the drop zone' : ', no known AA covers the drop zone')
+          + '. Mechs fight inside the box for ' + RT.MECH_TIME + 's, then fly home.' : '')
     });
+    refreshMarkers();
   }
   function closeAttack() {
     attack = null;
     UI.hideAttack();
+    markerKey = '';
   }
   function attackAction(what, kind, cell) {
     if (!attack || phase !== 'live') return;
     if (what === 'cancel') { SND.play('cancel'); closeAttack(); mode = 'select'; refreshAll(); return; }
     if (what === 'toggle') {
       SND.play('uiClick');
-      if (kind === 'strike') attack.strike = !attack.strike;
-      else {
-        const set = kind === 'silo' ? attack.silos : attack.hangars;
-        if (set.has(cell)) set.delete(cell);
-        else if (kind === 'hangar' && set.size >= RT.MECHS_PER_SHIP) return fail('A dropship carries ' + RT.MECHS_PER_SHIP + ' mechs');
-        else set.add(cell);
+      if (kind === 'silo') {
+        mode = 'fire'; attack.cursor = 'fire';
+        if (attack.arm.includes(cell)) { attack.arm = attack.arm.filter(c => c !== cell); delete attack.targets[cell]; }
+        else if (attack.arm.length >= RT.MAX_MISSILES_PER_ATTACK) return fail('Up to ' + RT.MAX_MISSILES_PER_ATTACK + ' missiles per attack');
+        else attack.arm.push(cell);
+      } else if (kind === 'hangar') {
+        mode = 'drop'; attack.cursor = 'drop';
+        if (attack.hangars.has(cell)) attack.hangars.delete(cell);
+        else if (attack.hangars.size >= RT.MECHS_PER_SHIP) return fail('A dropship carries ' + RT.MECHS_PER_SHIP + ' mechs');
+        else attack.hangars.add(cell);
+      } else {
+        mode = 'strike'; attack.cursor = 'strike';
+        attack.strikeOn = !attack.strikeOn;
       }
       refreshAttack();
+      refreshAll();
       return;
     }
     if (what === 'launch') {
       if (livePaused) return fail('Paused: Space resumes the battle');
       const plan = attackPlan();
+      if (attack.strikeOn && attack.strikeTo === undefined) return fail('Click a target for the strike');
       const r = Realtime.launchAttack(state, P, plan);
       if (!r.ok) return fail(r.reason);
       SND.play('select');
-      for (const c of plan.silos) { const b = R.buildingAt(state, c); if (b) Renderer.aimTurret(b.id, plan.to); }
+      for (const m of plan.missiles) { const b = R.buildingAt(state, m.from); if (b) Renderer.aimTurret(b.id, m.to); }
       const parts = [];
-      if (plan.strike) parts.push('orbital strike');
-      if (plan.silos.length) parts.push(plan.silos.length + ' missile' + (plan.silos.length > 1 ? 's' : ''));
-      if (plan.hangars.length) parts.push(plan.hangars.length + ' mech' + (plan.hangars.length > 1 ? 's' : ''));
-      UI.log('Attack launched at ' + describeCell(plan.to) + ': ' + parts.join(', '), 'player');
-      UI.toast('Attack away: ' + parts.join(' + '), 'good');
+      if (plan.strikeTo !== undefined) parts.push('orbital strike → ' + describeCell(plan.strikeTo));
+      if (plan.missiles.length) parts.push(plan.missiles.length + ' missile' + (plan.missiles.length > 1 ? 's' : '') + ' → ' + [...new Set(plan.missiles.map(m => describeCell(m.to)))].join(', '));
+      if (plan.hangars.length) parts.push(plan.hangars.length + ' mech' + (plan.hangars.length > 1 ? 's' : '') + ' → ' + cellName(plan.landing));
+      UI.log('Attack launched: ' + parts.join('; '), 'player');
+      UI.toast('Attack away', 'good');
       UI.hideTip();
       closeAttack();
       mode = 'select';
@@ -2263,6 +2346,21 @@
         return true;
       }
       case 'cancelled': logCancelled({ side: e.side, kind: e.kind === 'ship' ? 'drop' : e.kind, refund: e.refund }); return false;
+      case 'baseLost': {
+        const own = e.side === P;
+        if (e.left > 0) {
+          UI.toast((own ? 'Base lost! ' : 'Enemy base destroyed! ') + e.left + ' ' + (own ? 'of yours' : 'enemy base' + (e.left > 1 ? 's' : '')) + ' left', own ? 'bad' : 'good');
+          UI.log((own ? 'You lost your ' : 'Destroyed the enemy ') + (e.kind === 'hq' ? 'Command Center' : 'base') + ' at ' + cellName(e.cell) + ' — ' + e.left + ' ' + (own ? 'of your bases remain' : 'enemy bases remain'), own ? 'bad' : 'good');
+          SND.play(own ? 'alarm' : 'achievement');
+        }
+        return true;
+      }
+      case 'scramble': {
+        const own = e.side === P, n = e.robots.length;
+        UI.log(own ? 'Your hangars scramble ' + n + ' mech' + (n > 1 ? 's' : '') + ' to meet the raiders!' : 'Enemy defenders scramble from their hangars', own ? 'player' : 'enemy');
+        if (own) SND.play('robotLand', { gain: 0.5 });
+        return true;
+      }
       case 'built':
         if (own) {
           SND.play('build', { pan: panAt(e.cell), gain: 0.6 });

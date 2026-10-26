@@ -188,3 +188,68 @@ test('every campaign mission plays out as a real-time battle', () => {
     assert.equal(R.missionMedals(s, m, P).length, 3);
   }
 });
+
+test('Metal Marines bases: several per side, always on the map, all must fall', () => {
+  const s = game(21);
+  for (const side of [P, A]) assert.equal(RTE.bases(s, side).length, 1 + RT.BASES_PER_SIDE, side + ' has its HQ and its bases');
+  const enemyBases = RTE.bases(s, A).filter(b => b.type === 'base');
+  for (const b of enemyBases) assert.ok(R.visibleEnemyCells(s, P).has(b.cell), 'enemy bases are marked like the HQ');
+  assert.match(R.repairInfo(s, P, RTE.bases(s, P)[1].cell).reason || 'full', /full|can't be repaired/);
+  RTE.bases(s, P)[1].hp -= 10;
+  assert.match(R.repairInfo(s, P, RTE.bases(s, P)[1].cell).reason, /can't be repaired/);
+  // the HQ alone falling is not the end
+  R.buildingsOf(s, A, 'hq')[0].dead = true;
+  let ev = run(s, 0.2);
+  assert.ok(!s.winner, 'bases still stand');
+  assert.ok(ev.some(e => e.type === 'baseLost' && e.kind === 'hq' && e.left === RT.BASES_PER_SIDE));
+  for (const b of enemyBases) b.dead = true;
+  ev = run(s, 0.2);
+  assert.equal(s.winner, P);
+  assert.match(s.endReason, /All enemy bases destroyed/);
+});
+
+test('one attack, a target per missile; mechs land together', () => {
+  const s = game(12);
+  s.sides[P].credits = 9999;
+  const silos = [R.buildingsOf(s, P, 'silo')[0], buildAt(s, P, 'silo')];
+  run(s, RT.START_LOAD);
+  s.sides[P].energy = 40;
+  const targets = RTE.bases(s, A).slice(0, 2).map(b => b.cell);
+  const plan = { missiles: [{ from: silos[0].cell, to: targets[0] }, { from: silos[1].cell, to: targets[1] }] };
+  assert.equal(RTE.attackCost(plan), 2 * CONST.MISSILE_ENERGY);
+  assert.equal(RTE.attackReason(s, P, { missiles: [{ from: silos[0].cell, to: R.hqCell(P) }] }), 'Missiles must target enemy territory');
+  assert.equal(RTE.attackReason(s, P, { missiles: [{ from: silos[0].cell, to: targets[0] }, { from: silos[0].cell, to: targets[1] }] }), 'Each silo fires once per attack');
+  assert.ok(RTE.launchAttack(s, P, plan).ok);
+  const ev = run(s, 0.6);
+  const aims = ev.filter(e => e.type === 'launch').map(e => e.to).sort();
+  assert.deepEqual(aims, targets.slice().sort(), 'each missile flies at its own target');
+});
+
+test('raiders landing wake the defenders in their hangars; radar guides AA', () => {
+  const s = game(31);
+  s.sides[A].credits = 9999; s.sides[P].credits = 9999;
+  const hA = buildAt(s, A, 'hangar');
+  const hP = buildAt(s, P, 'hangar');
+  run(s, RT.HANGAR_RELOAD);
+  s.sides[P].energy = 30;
+  let to = -1;
+  for (let c = 0; c < R.N && to < 0; c++) if (R.ownerOfCell(c) === A && R.isLand(s, c) && R.cheb(c, R.hqCell(A)) > 4 && RTE.landingCells(s, P, c).length) to = c;
+  const la = RTE.launchAttack(s, P, { hangars: [hP.cell], landing: to });
+  assert.ok(la.ok, la.reason);
+  const ev = run(s, RT.SHIP_FLIGHT + 2);
+  if (ev.some(e => e.type === 'deploy')) {
+    const sc = ev.find(e => e.type === 'scramble');
+    assert.ok(sc && sc.side === A && sc.robots.length >= 1, 'the defender scrambles');
+    assert.ok(!RTE.isReady(s, hA), 'its hangar is empty while it fights');
+  }
+  // radar boost: a guided battery's shot carries the higher hit chance
+  const s2 = game(32);
+  s2.sides[A].credits = 9999; s2.sides[P].credits = 9999;
+  const radar = buildAt(s2, A, 'radar'); radar.doneAt = -99;
+  const aa = buildAt(s2, A, 'aa');
+  run(s2, RT.START_LOAD);
+  s2.sides[P].energy = 30;
+  assert.ok(RTE.launchAttack(s2, P, { missiles: [{ from: R.buildingsOf(s2, P, 'silo')[0].cell, to: aa.cell }] }).ok);
+  const shots = run(s2, RT.MISSILE_FLIGHT + 2).filter(e => e.type === 'aaShot' && e.by === aa.cell);
+  if (R.dist(radar.cell, aa.cell) <= BUILDINGS.radar.range) for (const sh of shots) assert.equal(sh.chance, BUILDINGS.aa.hitChance + RT.RADAR_AA_BOOST);
+});

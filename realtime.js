@@ -42,7 +42,38 @@
     };
     // a short calm before the first salvo: the starting silo finishes loading START_LOAD in
     for (const side of [P, A]) for (const b of R.buildingsOf(state, side)) if (b.type === 'silo' || b.type === 'hangar') b.readyAt = b.type === 'silo' ? T.START_LOAD : reloadOf(b) / 2;
+    // Metal Marines: several bases per side, spread out; all of them must fall
+    state.rt.baseMax = {};
+    for (const side of [P, A]) {
+      for (const hq of R.buildingsOf(state, side, 'hq')) { hq.maxHp = T.HQ_HP; hq.hp = Math.min(hq.hp, T.HQ_HP); }
+      placeBases(state, side, T.BASES_PER_SIDE);
+      state.rt.baseMax[side] = bases(state, side).reduce((n, b) => n + b.maxHp, 0);
+    }
     return state;
+  }
+
+  // The structures that count for victory: the Command Center and every Base
+  function bases(state, side) { return R.buildingsOf(state, side).filter(b => b.type === 'hq' || b.type === 'base'); }
+
+  // Bases go as far as possible from each other (and the HQ), on open ground with room around
+  function placeBases(state, side, n) {
+    const taken = bases(state, side).map(b => b.cell);
+    for (let k = 0; k < n; k++) {
+      let best = -1, bd = -1;
+      for (let c = 0; c < R.N; c++) {
+        if (R.ownerOfCell(c) !== side || !R.isLand(state, c) || state.cells[c].building) continue;
+        const ring = R.neighbors(c, 1);
+        if (ring.length < 8 || ring.some(x => !R.isLand(state, x) || state.cells[x].building)) continue;
+        const d = Math.min(...taken.map(x => R.dist(x, c)));
+        if (d > bd + 1e-9) { bd = d; best = c; }
+      }
+      if (best < 0) return;
+      const id = state.nextId++;
+      const b = { id, type: 'base', side, cell: best, hp: B.base.hp, maxHp: B.base.hp, shots: 0, pool: 0, level: 1,
+        fired: false, deployed: false, repaired: 0, dead: false, builtTurn: 0, progress: 1 };
+      state.cells[best].building = b;
+      taken.push(best);
+    }
   }
 
   // ── Factories and construction ────────────────────────────
@@ -96,41 +127,53 @@
   }
 
   // ── Attacks ───────────────────────────────────────────────
-  // a = { to, silos: [cells], hangars: [cells], strike: bool }
+  // As in Metal Marines, one attack sends each missile at its own target, and all its mechs
+  // land together:  a = { missiles: [{ from: siloCell, to }], hangars: [cells], landing, strikeTo }
+  // The short form { to, silos, hangars, strike } sends everything at one cell.
+  function norm(a) {
+    if (a.missiles || a.landing !== undefined || a.strikeTo !== undefined) return { missiles: a.missiles || [], hangars: a.hangars || [], landing: a.landing, strikeTo: a.strikeTo };
+    return { missiles: (a.silos || []).map(c => ({ from: c, to: a.to })), hangars: a.hangars || [], landing: a.to, strikeTo: a.strike ? a.to : undefined };
+  }
   function attackCost(a) {
-    return (a.silos || []).length * C.MISSILE_ENERGY + (a.hangars || []).length * C.DROP_ENERGY + (a.strike ? C.STRIKE_ENERGY : 0);
+    a = norm(a);
+    return a.missiles.length * C.MISSILE_ENERGY + a.hangars.length * C.DROP_ENERGY + (a.strikeTo !== undefined ? C.STRIKE_ENERGY : 0);
   }
 
-  function attackReason(state, side, a) {
-    const silos = a.silos || [], hangars = a.hangars || [];
-    if (!silos.length && !hangars.length && !a.strike) return 'Pick at least one missile, mech or strike';
-    const owner = R.ownerOfCell(a.to);
+  function attackReason(state, side, raw) {
+    const a = norm(raw);
     const foe = R.enemyOf(side);
-    if (owner === side) {
-      if (silos.length || a.strike) return 'Missiles must target enemy territory';
-    } else if (owner !== foe) return 'Target must be on an island';
-    for (const c of silos) {
-      const b = R.buildingAt(state, c);
+    if (!a.missiles.length && !a.hangars.length && a.strikeTo === undefined) return 'Pick at least one missile, mech or strike';
+    if (a.missiles.length > T.MAX_MISSILES_PER_ATTACK) return 'Up to ' + T.MAX_MISSILES_PER_ATTACK + ' missiles per attack';
+    const used = new Set();
+    for (const m of a.missiles) {
+      const b = R.buildingAt(state, m.from);
       if (!b || b.side !== side || b.type !== 'silo') return 'Not one of your silos';
+      if (used.has(m.from)) return 'Each silo fires once per attack';
+      used.add(m.from);
       if (!R.online(b)) return 'That silo is still under construction';
-      if (!isReady(state, b)) return 'Silo ' + c + ' is reloading';
+      if (!isReady(state, b)) return 'Silo ' + m.from + ' is reloading';
+      if (m.to === undefined || R.ownerOfCell(m.to) !== foe) return 'Missiles must target enemy territory';
     }
-    if (hangars.length) {
-      if (hangars.length > T.MECHS_PER_SHIP) return 'A dropship carries ' + T.MECHS_PER_SHIP + ' mechs';
-      for (const c of hangars) {
+    if (a.hangars.length) {
+      if (a.hangars.length > T.MECHS_PER_SHIP) return 'A dropship carries ' + T.MECHS_PER_SHIP + ' mechs';
+      for (const c of a.hangars) {
         const b = R.buildingAt(state, c);
         if (!b || b.side !== side || b.type !== 'hangar') return 'Not one of your hangars';
         if (!isReady(state, b)) return 'Hangar is not ready';
       }
-      if (mechsCommitted(state, side) + hangars.length > C.MAX_ROBOTS) return 'Max ' + C.MAX_ROBOTS + ' mechs in the field';
-      if (!R.isLand(state, a.to)) return 'Mechs need land to drop on';
-      if (!landingCells(state, side, a.to).length) return owner === foe ? 'No landing zone there (enemy HQ air defense)' : 'No free ground there';
+      if (a.landing === undefined) return 'Pick where the mechs land';
+      const owner = R.ownerOfCell(a.landing);
+      if (owner !== side && owner !== foe) return 'Mechs must land on an island';
+      if (mechsCommitted(state, side) + a.hangars.length > C.MAX_ROBOTS) return 'Max ' + C.MAX_ROBOTS + ' mechs in the field';
+      if (!R.isLand(state, a.landing)) return 'Mechs need land to drop on';
+      if (!landingCells(state, side, a.landing).length) return owner === foe ? 'No landing zone there (enemy HQ air defense)' : 'No free ground there';
     }
-    if (a.strike) {
+    if (a.strikeTo !== undefined) {
       const up = R.buildingsOf(state, side, 'uplink')[0];
       if (!up) return 'Build a Strike Uplink first';
       if (!R.online(up)) return 'The uplink is still under construction';
       if (up.charge < C.STRIKE_CHARGE) return 'Uplink charging';
+      if (R.ownerOfCell(a.strikeTo) !== foe) return 'The strike must target enemy territory';
     }
     const cost = attackCost(a);
     if (state.sides[side].energy < cost) return 'Need ' + cost + ' energy';
@@ -142,31 +185,32 @@
     return base + (kind === 'strike' ? 0 : R.dist(from, to) * 0.03);
   }
 
-  function launchAttack(state, side, a) {
-    const reason = attackReason(state, side, a);
+  function launchAttack(state, side, raw) {
+    const reason = attackReason(state, side, raw);
     if (reason) return { ok: false, reason };
+    const a = norm(raw);
     const rt = state.rt, t = rt.t, s = state.sides[side];
     s.energy -= attackCost(a);
     const ids = [];
     let at = t;
     // the strike first (it never misses), then missiles one after another, then the dropship
-    if (a.strike) {
+    if (a.strikeTo !== undefined) {
       const up = R.buildingsOf(state, side, 'uplink')[0];
       up.charge = 0;
-      rt.flights.push(newFlight(state, 'strike', side, up.cell, a.to, at, { dmg: C.STRIKE_DAMAGE, splash: Math.round(C.STRIKE_SPLASH * T.STRIKE_SPLASH_MUL), cost: C.STRIKE_ENERGY }));
+      rt.flights.push(newFlight(state, 'strike', side, up.cell, a.strikeTo, at, { dmg: C.STRIKE_DAMAGE, splash: Math.round(C.STRIKE_SPLASH * T.STRIKE_SPLASH_MUL), cost: C.STRIKE_ENERGY }));
       ids.push(rt.flights[rt.flights.length - 1].id);
       at += T.SALVO_GAP;
     }
-    for (const c of a.silos || []) {
-      const silo = R.buildingAt(state, c);
+    for (const m of a.missiles) {
+      const c = m.from, silo = R.buildingAt(state, c);
       silo.readyAt = at + T.SILO_RELOAD / reloadSpeed(state, side);
-      rt.flights.push(newFlight(state, 'missile', side, c, a.to, at, {
+      rt.flights.push(newFlight(state, 'missile', side, c, m.to, at, {
         dmg: R.stat(silo, 'dmg') || C.MISSILE_DAMAGE, splash: R.stat(silo, 'splash') || C.MISSILE_SPLASH, cost: C.MISSILE_ENERGY
       }));
       ids.push(rt.flights[rt.flights.length - 1].id);
       at += T.SALVO_GAP;
     }
-    if ((a.hangars || []).length) {
+    if (a.hangars.length) {
       const mechs = a.hangars.map(c => {
         const h = R.buildingAt(state, c);
         h.out = true;
@@ -175,8 +219,8 @@
         return { hangar: c, hp, maxHp: hp, dmg: heavy ? UP.hangar.mechDmg : C.ROBOT_DAMAGE, heavy };
       });
       // the ship leaves from the hangar nearest the target
-      const from = a.hangars.slice().sort((x, y) => R.dist(x, a.to) - R.dist(y, a.to))[0];
-      rt.flights.push(newFlight(state, 'ship', side, from, a.to, at + T.SHIP_DELAY - T.SALVO_GAP, {
+      const from = a.hangars.slice().sort((x, y) => R.dist(x, a.landing) - R.dist(y, a.landing))[0];
+      rt.flights.push(newFlight(state, 'ship', side, from, a.landing, at + T.SHIP_DELAY - T.SALVO_GAP, {
         mechs, hull: T.SHIP_HULL + mechs.length - 1, cost: C.DROP_ENERGY * mechs.length
       }));
       ids.push(rt.flights[rt.flights.length - 1].id);
@@ -373,6 +417,7 @@
     const rt = state.rt, t = rt.t;
     for (const def of [P, A]) {
       const batteries = R.buildingsOf(state, def).filter(b => (b.type === 'aa' || b.type === 'hq') && R.online(b));
+      const radars = R.onlineRadars(state, def);
       for (const bat of batteries) {
         if ((bat.reloadAt || 0) > t) continue;
         const range = R.stat(bat, 'range');
@@ -388,7 +433,9 @@
         }
         if (!best) continue;
         bat.reloadAt = t + (bat.type === 'hq' ? T.HQ_PD_RELOAD : T.AA_RELOAD * (bat.level > 1 ? 0.75 : 1));
-        const chance = R.stat(bat, 'hitChance');
+        // Metal Marines: radar guides the batteries in its range
+        const guided = bat.type === 'aa' && radars.some(r => R.dist(r.cell, bat.cell) <= R.stat(r, 'range') + 0.01);
+        const chance = Math.min(T.AA_MAX_CHANCE, R.stat(bat, 'hitChance') + (guided ? T.RADAR_AA_BOOST : 0));
         const hit = R.rand(state) < chance;
         rt.shots.push({ by: bat.cell, byId: bat.id, flight: best.id, hit, chance, at: t + T.SHOT_TIME });
         if (bat.type === 'aa') reveal(state, best.side, [bat.cell]);
@@ -433,6 +480,29 @@
       robots.push(Object.assign({}, r));
     });
     ev({ type: 'deploy', id: f.id, side: f.side, to: f.to, garrison, robots });
+    if (!garrison && robots.length) scramble(state, R.enemyOf(f.side), f.to, ev);
+  }
+
+  // Metal Marines: mechs waiting in their hangars activate to defend the base (up to three)
+  function scramble(state, side, zone, ev) {
+    const out = [];
+    const ready = readyLaunchers(state, side, 'hangar').sort((a, b) => R.dist(a.cell, zone) - R.dist(b.cell, zone));
+    for (const h of ready) {
+      if (out.length >= T.DEFENDERS || mechsCommitted(state, side) >= C.MAX_ROBOTS) break;
+      const cell = R.neighbors(h.cell, 1).filter(c => R.passable(state, c, null)).sort((a, b) => R.dist(a, zone) - R.dist(b, zone))[0];
+      if (cell === undefined) continue;
+      h.out = true;
+      const heavy = h.level > 1, hp = heavy ? UP.hangar.mechHp : C.ROBOT_HP;
+      const r = {
+        id: state.nextId++, side, cell, hp, maxHp: hp, dmg: heavy ? UP.hangar.mechDmg : C.ROBOT_DAMAGE, heavy,
+        hangar: h.cell, zone, garrison: true, defender: true, step: T.DEFENDER_STEP,
+        leaveAt: state.rt.t + T.DEFENDER_TIME, nextAct: state.rt.t + 0.5
+      };
+      state.robots.push(r);
+      state.sides[side].stats.robotsDeployed++;
+      out.push(Object.assign({}, r));
+    }
+    if (out.length) ev({ type: 'scramble', side, zone, robots: out });
   }
 
   // A mech came home (or was lost): its hangar starts building the next one
@@ -481,34 +551,39 @@
     }
     if (r.garrison) {
       if (duel) return { kind: 'fight', robot: duel };
-      const prey = state.robots.filter(o => o.side === foe && o.hp > 0 && R.ownerOfCell(o.cell) === r.side && R.dist(o.cell, r.zone) <= T.MECH_ZONE + 3)
+      // defenders hunt raiders anywhere on their island; a dropped garrison guards its zone
+      const prey = state.robots.filter(o => o.side === foe && o.hp > 0 && R.ownerOfCell(o.cell) === r.side && (r.defender || R.dist(o.cell, r.zone) <= T.MECH_ZONE + 3))
         .sort((a, b) => R.dist(a.cell, r.cell) - R.dist(b.cell, r.cell))[0];
-      if (!prey) return { kind: 'hold' };
+      if (!prey) return r.defender ? { kind: 'done' } : { kind: 'hold' };
       const path = R.bfsPath(state, r, c => R.cheb(c, prey.cell) <= 1);
       return path && path.length ? { kind: 'move', path: path.slice(0, 1), facing: prey.cell } : { kind: 'hold' };
     }
-    const targets = R.buildingsOf(state, foe).filter(b => inZone(r, b.cell, 1));
-    let adj = null;
-    for (const b of targets) {
-      if (R.cheb(b.cell, r.cell) > 1) continue;
-      if (!adj || (b.type === 'hq' && adj.type !== 'hq') || (adj.type !== 'hq' && b.hp / b.maxHp < adj.hp / adj.maxHp)) adj = b;
-    }
-    if (adj) return { kind: 'hit', building: adj };
+    // Metal Marines priorities: fight mechs that close in, then a base if one is close, then
+    // gun pods, then the nearest building, all inside the landing zone
     if (duel) return { kind: 'fight', robot: duel };
-    if (!targets.length) return { kind: 'done' };
-    targets.sort((a, b) => R.dist(a.cell, r.cell) - R.dist(b.cell, r.cell));
+    const targets = R.buildingsOf(state, foe).filter(b => inZone(r, b.cell, 1));
+    if (!targets.length) {
+      const foeMech = state.robots.filter(o => o.side === foe && o.hp > 0 && inZone(r, o.cell, 1)).sort((a, b) => R.dist(a.cell, r.cell) - R.dist(b.cell, r.cell))[0];
+      if (!foeMech) return { kind: 'done' };
+      const path = R.bfsPath(state, r, c => R.cheb(c, foeMech.cell) <= 1 && inZone(r, c, 1));
+      return path && path.length ? { kind: 'move', path: path.slice(0, 1), facing: foeMech.cell } : { kind: 'done' };
+    }
+    const rank = b => ((b.type === 'hq' || b.type === 'base') && R.cheb(b.cell, r.cell) <= 2 ? 0 : b.type === 'gunpod' ? 1 : 2) * 100 + R.dist(b.cell, r.cell);
+    targets.sort((a, b) => rank(a) - rank(b));
     for (const tgt of targets) {
+      if (R.cheb(tgt.cell, r.cell) <= 1) return { kind: 'hit', building: tgt };
       const path = R.bfsPath(state, r, c => R.cheb(c, tgt.cell) <= 1 && inZone(r, c, 1));
       if (path && path.length) return { kind: 'move', path: path.slice(0, 1), facing: tgt.cell };
     }
-    return { kind: 'done' };
+    const adj = targets.find(b => R.cheb(b.cell, r.cell) <= 1);
+    return adj ? { kind: 'hit', building: adj } : { kind: 'done' };
   }
 
   function mechs(state, ev, events) {
     const t = state.rt.t;
     for (const r of state.robots.slice().sort((a, b) => a.id - b.id)) {
       if (r.hp <= 0 || t < r.nextAct) continue;
-      r.nextAct = t + T.MECH_STEP;
+      r.nextAct = t + (r.step || T.MECH_STEP);
       const act = t >= r.leaveAt ? { kind: 'done' } : mechIntent(state, r);
       if (act.kind === 'done') {
         r.hp = 0;   // lifts off: removed in cleanup, not counted as lost
@@ -531,21 +606,28 @@
     }
   }
 
+  // Integrity: what is left of a side's bases (Command Center included), 0..1
+  function baseIntegrity(state, side) {
+    const max = (state.rt.baseMax && state.rt.baseMax[side]) || B.hq.hp;
+    return bases(state, side).reduce((n, b) => n + b.hp, 0) / max;
+  }
+
   function endCheck(state, destroyed, ev) {
-    const pDead = destroyed.some(b => b.type === 'hq' && b.side === P);
-    const aDead = destroyed.some(b => b.type === 'hq' && b.side === A);
+    const lostBase = destroyed.filter(b => b.type === 'hq' || b.type === 'base');
+    for (const b of lostBase) ev({ type: 'baseLost', side: b.side, cell: b.cell, kind: b.type, left: bases(state, b.side).length });
+    const pDead = lostBase.length && !bases(state, P).length;
+    const aDead = lostBase.length && !bases(state, A).length;
     if (pDead && aDead) { state.winner = 'draw'; state.endReason = 'Mutual destruction'; }
-    else if (pDead) { state.winner = A; state.endReason = 'Your Command Center was destroyed'; }
-    else if (aDead) { state.winner = P; state.endReason = 'Enemy Command Center destroyed'; }
+    else if (pDead) { state.winner = A; state.endReason = 'All your bases were destroyed'; }
+    else if (aDead) { state.winner = P; state.endReason = 'All enemy bases destroyed'; }
     else if (state.rt.t >= state.rt.timeLimit - 1e-6) {
-      const ph = R.buildingsOf(state, P, 'hq')[0], ah = R.buildingsOf(state, A, 'hq')[0];
-      const pp = ph.hp / ph.maxHp, ap = ah.hp / ah.maxHp;
+      const pp = baseIntegrity(state, P), ap = baseIntegrity(state, A);
       if (Math.abs(pp - ap) < 0.005) {
         const val = side => R.buildingsOf(state, side).reduce((tot, b) => tot + B[b.type].cost + (b.level > 1 ? R.upgradeCost(b.type) : 0), 0);
         const pv = val(P), av = val(A);
         state.winner = pv === av ? 'draw' : (pv > av ? P : A);
       } else state.winner = pp > ap ? P : A;
-      state.endReason = 'Time up — decided on Command Center integrity';
+      state.endReason = 'Time up — decided on what is left of the bases';
     }
     if (state.winner) ev({ type: 'end', winner: state.winner });
   }
@@ -562,7 +644,7 @@
   const api = {
     init, step, attackReason, attackCost, launchAttack, readyLaunchers, readyIn, isReady,
     factories, buildSpeed, reloadSpeed, buildLeft,
-    landingCells, inbound, progress, detects, mechsCommitted
+    landingCells, inbound, progress, detects, mechsCommitted, bases, baseIntegrity
   };
   root.Realtime = api;
   if (typeof module !== 'undefined') module.exports = api;

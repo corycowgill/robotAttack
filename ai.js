@@ -15,7 +15,7 @@
   const MID = (C.GRID_W - 1) / 2;
   function depth(cell) { return Math.abs(R.xy(cell).x - MID); } // distance from the front line
 
-  const TARGET_SCORE = { hq: 10, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, factory: 5, shield: 4, radar: 3, gunpod: 2 };
+  const TARGET_SCORE = { hq: 10, base: 9, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, factory: 5, shield: 4, radar: 3, gunpod: 2 };
 
   function count(state, type) { return R.buildingsOf(state, ME, type).length; }
   function unlocked(state, type) { return !(state.locked || []).includes(type); }
@@ -296,6 +296,15 @@
     return cover;
   }
 
+  // Where to aim when nothing better is known: the enemy HQ while it stands, then a base we
+  // have seen, else a probe into unexplored ground (real-time battles have several bases)
+  function mainTarget(state) {
+    const hq = R.hqCell(FOE);
+    if (R.buildingAt(state, hq)) return hq;
+    const seenBase = knownTargets(state).find(t => t.type === 'base');
+    return seenBase ? seenBase.cell : randomEnemyCell(state);
+  }
+
   function randomEnemyCell(state) {
     for (let k = 0; k < 50; k++) {
       const span = C.PLAYER_MAX_X + 1;
@@ -321,7 +330,7 @@
         if (R.rand(state) > diff.fireChance) continue;
         const roll = R.rand(state);
         const others = targets.filter(t => t.type !== 'hq');
-        if (roll < 0.5 || !others.length) fire(roll < 0.75 ? R.hqCell(FOE) : randomEnemyCell(state));
+        if (roll < 0.5 || !others.length) fire(roll < 0.75 ? mainTarget(state) : randomEnemyCell(state));
         else fire(others[Math.floor(R.rand(state) * others.length)].cell);
       }
       return;
@@ -331,6 +340,7 @@
     const ranked = targets.map(t => {
       let score = TARGET_SCORE[t.type] || 1;
       if (t.type === 'hq' && t.hp < t.maxHp * 0.5) score += 4;
+      if (t.type === 'base' && t.hp < t.maxHp * 0.5) score += 3;   // finish off a damaged base
       if (t.type === 'aa' && R.dist(t.cell, R.hqCell(FOE)) <= B.aa.range) score += 1;
       const cover = knownCover(state, targets, t.cell);
       const need = t.type === 'hq' ? Infinity : Math.ceil(cover) + Math.max(1, Math.ceil(t.hp / C.MISSILE_DAMAGE));
@@ -350,7 +360,7 @@
     // Leftover: pressure the HQ (drains interceptors) or probe unknown territory
     while (shots > 0) {
       const before = shots;
-      fire(R.rand(state) < 0.8 ? R.hqCell(FOE) : randomEnemyCell(state));
+      fire(R.rand(state) < (state.realtime ? 0.6 : 0.8) ? mainTarget(state) : randomEnemyCell(state));
       if (shots === before) break;
     }
   }
@@ -358,7 +368,7 @@
   // Orbital strike: the 3x3 that hurts the most known structures (Patrol just aims at the HQ)
   function planStrike(state, smart) {
     if (R.strikeReadyReason(state, ME)) return;
-    let best = R.hqCell(FOE);
+    let best = mainTarget(state);
     if (smart) {
       const targets = knownTargets(state);
       let bs = -Infinity;
@@ -369,7 +379,7 @@
         for (const t of targets) {
           if (R.cheb(t.cell, c) > 1) continue;
           const dmg = t.cell === c ? C.STRIKE_DAMAGE : C.STRIKE_SPLASH;
-          const w = (TARGET_SCORE[t.type] || 1) * (t.type === 'hq' ? 1.5 : 1);
+          const w = (TARGET_SCORE[t.type] || 1) * (t.type === 'hq' || t.type === 'base' ? 1.5 : 1);
           sc += w * Math.min(1, dmg / Math.max(1, t.hp)) + (t.type === 'hq' ? dmg / 40 : 0);
         }
         if (sc > bs) { bs = sc; best = c; }
@@ -398,7 +408,7 @@
     const gunpods = targets.filter(t => t.type === 'gunpod');
     for (const hangar of R.freeLaunchers(state, ME, 'hangar')) {
       if (s.energy < C.DROP_ENERGY) return;
-      let goal = R.hqCell(FOE);
+      let goal = mainTarget(state);
       if (smart) {
         let best = null, bs = -Infinity;
         for (const t of targets) {
@@ -482,12 +492,7 @@
     planUpgrades(state, smart);
     s.undo = [];
 
-    // invaders on our island: scramble ready mechs to meet them
-    const invaders = enemyRobotsOnMySide(state).filter(r => R.ownerOfCell(r.cell) === ME);
-    if (invaders.length && smart) {
-      const hangars = RTE.readyLaunchers(state, ME, 'hangar').slice(0, 2).map(h => h.cell);
-      if (hangars.length) RTE.launchAttack(state, ME, { to: invaders[0].cell, hangars });
-    }
+    // (mechs in our hangars scramble at raiders on their own: the engine handles it)
 
     const rtc = typeof RT !== 'undefined' ? RT : require('./config.js').RT;
     const level = (state.rt.aiDiff || {})[ME] || state.difficulty;

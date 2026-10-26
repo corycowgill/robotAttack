@@ -26,6 +26,7 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 ## Real-time battles
 
 The campaign is always played in real time, and skirmishes play in real time by default, the way Metal Marines did:
+- **Destroy every enemy base.** Each side has its Command Center (150 HP in real time) and 2 more Bases (120 HP), spread across its island. Bases are always marked on the map, like the Command Center, but decoys often pose as one (a Dummy Base). You win when all the enemy's bases are gone, and lose when all of yours are. Bases can't be built or repaired.
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
 - **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up, as factories did in Metal Marines:
   - each factory makes construction 50% faster and silo reloads and mech production 15% faster;
@@ -33,8 +34,9 @@ The campaign is always played in real time, and skirmishes play in real time by 
 
   The AI builds its first factory early in its opening and a second one about 2½ minutes in.
 - **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
-  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike) and click a target.
-  - The attack panel lists every silo and hangar with its status. Toggle which loaded ones to send and see the energy cost and the known defences, then press `Enter` or **Launch**.
+  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**, as it did in Metal Marines.
+  - Each click on the map gives the next loaded missile its own target, up to 4 missiles per attack. With `E`, the click picks where the mechs land: the 5×5 box they will fight in, outlined on the map. With `R`, it picks the strike's target. `Q`/`E`/`R` switch what the next click aims.
+  - The attack panel lists every silo and hangar with its status (ready, reloading, or its target). Click a chip to add or free a silo, mech or the strike. It shows the energy cost and, for each target, how many missiles should get past the defences you know about. `Enter` or **Launch** sends it all; `Esc` cancels.
   - Missiles leave one after another. The dropship carrying the mechs follows them.
 - **Every launch is announced.** The moment an enemy missile or dropship lifts off:
   - an alarm sounds;
@@ -42,24 +44,25 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
-- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games, but as in Metal Marines an **online Radar guides the batteries in its range**: +15% to hit.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.
 - **Dropships can be shot down.** One ship carries up to 3 mechs and takes 3 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
-- **Mechs raid a zone and leave.** Landed mechs fight inside the 5×5 area around their landing point for 30 seconds, then their dropship takes them home. They leave early if the zone is clear. Enemy raids are outlined on the map, and every raid gets a row in the list with its time left. The hangar has a new mech ready 20 seconds after it returns or dies.
+- **Mechs raid a zone and leave.** Landed mechs fight inside their 5×5 landing box for 30 seconds, then their dropship takes them home. They leave early if the box is clear. They fight mechs that close in first, then a base if one is within 2 cells, then gun pods, then the nearest building.
+- **Mechs defend at home.** When enemy mechs land on your island, up to 3 ready mechs scramble from their hangars for free and hunt them down. They return when the raiders are gone. Enemy raids are outlined on the map, and every raid gets a row in the list with its time left. The hangar has a new mech ready 20 seconds after it returns or dies.
 - **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds. A new radar comes online 5 seconds after it is built.
 - **Orbital strikes** charge for 90 seconds and land 11 seconds after launch: a long, loud warning. Splash is 34, so a full-health depot or power plant survives it.
-- **Repairs** restore up to 15 HP per structure every 15 seconds. A structure sold within 5 seconds of building refunds in full.
-- **The clock:** the turn-limit option becomes a battle clock (30 turns = 10 minutes). When time runs out, the healthier Command Center wins.
+- **Repairs** restore up to 15 HP per structure every 15 seconds; bases and the Command Center can't be repaired. A structure sold within 5 seconds of building refunds in full.
+- **The clock:** the turn-limit option becomes a battle clock (30 turns = 15 minutes). When time runs out, the side with more of its bases' health left wins.
 - **Pause:** `Space` pauses, and the game also pauses when you switch tabs. While paused you can look around and inspect, but building and attacking wait until you resume.
 - **Saving:** the battle autosaves every 15 seconds, and **Continue** resumes it, missiles in flight included.
 
-The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. Smart AIs scramble ready mechs to meet raiders on their island. In AI-vs-AI simulations, a Commander mirror lasts about 6–7 minutes, about 70% of missiles are intercepted, and about a third of dropships are shot down.
+The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about two thirds of Commander mirrors end with one side's bases all destroyed, in a median of about 11 minutes; the rest are decided on the clock.
 
 Two Players and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 20 seconds (for example, mission 1 is 4:00). Missions 5 and 7 give you 250 and 280 extra starting credits, because Warlord's speed matters more in real time. In simulations the campaign keeps about the same difficulty curve as the turn-based version. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Mission 3 gives you 250 extra starting credits in real time. In simulations (a Commander-level player) the win rates run about 96, 100, 57, 46, 43, 38 and 43% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
 
 ## How a turn works
 
@@ -145,7 +148,7 @@ Seven real-time missions, each on a fixed island map against a named enemy comma
 
 **Medals:** each mission awards up to three stars:
 - one for winning;
-- one for winning within the mission's par time (4:00, 6:00, 6:20, 5:40, 5:20, 8:40 and 5:20);
+- one for winning within the mission's par time (6:00, 9:00, 9:30, 8:30, 8:00, 13:00 and 8:00);
 - one for finishing with your HQ at 50% health or more.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.

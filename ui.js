@@ -38,6 +38,7 @@ window.UI = (function () {
     log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
     factory: '<path d="M3 21V10l5 3v-3l5 3v-3l5 3V4h3v17z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
+    base: '<path d="M4 20h16"/><path d="M6 20v-6a6 6 0 0 1 12 0v6"/><path d="M12 8V3l4 1.5L12 6"/><path d="M10 20v-3h4v3"/>',
     uplink: '<path d="M7 21l3-9h4l3 9"/><path d="M8.5 17h7"/><ellipse cx="12" cy="7" rx="6" ry="2"/><circle cx="12" cy="7" r="1"/><path d="M12 5V2"/>',
     strike: '<path d="M12 2v7"/><path d="M9 4l3 5 3-5"/><circle cx="12" cy="16" r="5"/><circle cx="12" cy="16" r="1.5"/><path d="M12 9v2M5 16h2M17 16h2"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
@@ -707,12 +708,13 @@ window.UI = (function () {
       <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive the turn limit (${CONST.MAX_TURNS} by default), the healthier HQ wins.</p>
       <h4>Real-time battles (the campaign, and skirmish by default)</h4>
       <ul>
+        <li><b>Destroy every enemy base.</b> Each side has its Command Center and ${RT.BASES_PER_SIDE} more Bases, all marked on the map (decoys may pose as one). Lose all yours and the war is lost. Bases can't be repaired.</li>
         <li><b>Resources flow every second.</b> Build, repair and upgrade at any moment, and the enemy does the same.</li>
         <li><b>Construction takes time.</b> A new structure is a building site (cyan bar) and does nothing until it's finished: a depot takes ${RT.BUILD_TIME.depot}s, a silo ${RT.BUILD_TIME.silo}s. Each <b>Factory</b> <kbd>B</kbd> makes construction ${Math.round(RT.FACTORY_BUILD_BOOST * 100)}% faster and silo reloads and mech production ${Math.round(RT.FACTORY_RELOAD_BOOST * 100)}% faster (max 3; upgraded, one counts as two).</li>
-        <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>, click a target, then pick which loaded silos, mechs and strike to send. <kbd>Enter</kbd> launches.</li>
+        <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>: <b>time stops</b> while you click a target for each missile (up to ${RT.MAX_MISSILES_PER_ATTACK}), the 5×5 box the mechs land in, and the strike's target. <kbd>Enter</kbd> launches.</li>
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
-        <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through.</li>
-        <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside the 5×5 around the landing point for ${RT.MECH_TIME}s, then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later.</li>
+        <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through. A Radar guides the batteries in its range (+${Math.round(RT.RADAR_AA_BOOST * 100)}% to hit).</li>
+        <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside their 5×5 box for ${RT.MECH_TIME}s (gun pods and mechs first, or a base close by), then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later. Mechs waiting in your hangars scramble to defend when raiders land.</li>
         <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
       </ul>
       <h4>Each turn (turn-based games)</h4>
@@ -774,6 +776,9 @@ window.UI = (function () {
     // hot-seat Player 2 plays red: "your" colours follow the seat
     const mine = h.red ? 'var(--c-ai)' : 'var(--c-player)', theirs = h.red ? 'var(--c-player)' : 'var(--c-ai)';
     $('h-hql').style.color = $('h-hqb').style.background = mine;
+    // real time: the HQ bars cover every base (Command Center included)
+    $('h-hql').textContent = h.hqLabel || 'Your HQ';
+    $('h-ehql').textContent = h.enemyLabel || 'Enemy HQ';
     $('h-ehql').style.color = $('h-ehqb').style.background = theirs;
     $('h-ehq').textContent = (h.enemyHq.known ? '' : '~') + Math.ceil(h.enemyHq.hp) + ' / ' + h.enemyHq.max;
     $('h-ehqb').style.width = (100 * h.enemyHq.hp / h.enemyHq.max) + '%';
@@ -997,7 +1002,7 @@ window.UI = (function () {
     const shape = JSON.stringify([d.silos.map(x => x.cell + x.label), d.hangars.map(x => x.cell + x.label), !!d.strike]);
     if (shape !== attackShape) {
       attackShape = shape;
-      p.innerHTML = `<div class="ah"><b>ATTACK</b> &rarr; <span class="tg"></span><span class="k">Click another cell to retarget</span></div>`
+      p.innerHTML = `<div class="ah"><b>ATTACK</b> &rarr; <span class="tg"></span><span class="k">Esc cancels</span></div>`
         + row('Missiles', 'silo', d.silos, 'No silos built')
         + row('Mechs', 'hangar', d.hangars, 'No hangars built')
         + (d.strike ? row('Orbital', 'strike', [d.strike], '') : '')

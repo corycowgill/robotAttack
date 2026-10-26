@@ -307,8 +307,10 @@
     if (type === 'decoy') {
       // pre-rolled per side and put back if the build is undone, so build / undo / build can't re-roll it
       const sd = state.sides[side];
-      b.disguise = sd.nextDisguise || def.disguises[Math.floor(rand(state) * def.disguises.length)];
-      sd.nextDisguise = def.disguises[Math.floor(rand(state) * def.disguises.length)];
+      // real time: decoys often pose as a base (Metal Marines' Dummy Base)
+      const pool = state.realtime ? def.disguises.concat(['base', 'base', 'base']) : def.disguises;
+      b.disguise = sd.nextDisguise || pool[Math.floor(rand(state) * pool.length)];
+      sd.nextDisguise = pool[Math.floor(rand(state) * pool.length)];
     }
     state.cells[cell].building = b;
     return b;
@@ -396,8 +398,9 @@
       for (const c of cellsInRadius(r.cell, stat(r, 'range'))) if (ownerOfCell(c) === foe) out.add(c);
     }
     for (const c of state.sides[side].intel.reveal) out.add(c);
-    // Enemy HQ position is always known
+    // Enemy HQ position is always known (real time: every base too, and the decoys posing as one)
     out.add(hqCell(foe));
+    if (state.realtime) for (const b of buildingsOf(state, foe)) if (b.type === 'base' || (b.type === 'decoy' && b.disguise === 'base')) out.add(b.cell);
     // Own robots see around themselves
     for (const r of robotsOf(state, side)) {
       for (const c of [r.cell].concat(neighbors(r.cell, 1))) if (ownerOfCell(c) === foe) out.add(c);
@@ -484,6 +487,8 @@
     if (!b || b.side !== side) return { amount: 0, cost: 0, reason: 'Nothing to repair' };
     const missing = b.maxHp - b.hp;
     if (missing <= 0) return { amount: 0, cost: 0, reason: 'Already at full HP' };
+    // real time (as in Metal Marines): bases and the Command Center can't be patched up
+    if (state.realtime && (b.type === 'hq' || b.type === 'base')) return { amount: 0, cost: 0, reason: 'Bases can\'t be repaired in a real-time battle' };
     const left = (state.realtime ? RTC.REPAIR_PER_ROUND : C.REPAIR_MAX_PER_TURN) - b.repaired;
     if (left <= 0) return { amount: 0, cost: 0, reason: state.realtime ? 'Repair crews busy — ready in ' + Math.ceil(state.rt.nextRound - state.rt.t) + 's' : 'Repair limit reached this turn' };
     const credits = state.sides[side].credits;
@@ -762,7 +767,7 @@
   function targetValue(state, cell) {
     const b = buildingAt(state, cell);
     if (!b) return 0;
-    return { hq: 10, silo: 8, aa: 7, hangar: 6, power: 5, factory: 5, depot: 4, shield: 4, radar: 3, gunpod: 3 }[b.type] || 1;
+    return { hq: 10, base: 9, silo: 8, aa: 7, hangar: 6, power: 5, factory: 5, depot: 4, shield: 4, radar: 3, gunpod: 3 }[b.type] || 1;
   }
 
   // ── Robot pathfinding (8-way BFS avoiding buildings and robots) ──

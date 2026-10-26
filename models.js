@@ -840,7 +840,24 @@
     g.userData.height = 9;
   }
 
+  // Base (real-time battles): a domed command bunker with a mast and team banner
+  function buildBase(g, side) {
+    var y0 = plinth(g, side, 10);
+    var C = MAT.concrete(), GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side);
+    add(g, cyl(4.2, 4.8, 1.6, 8), C, 0, y0 + 0.8, 0);
+    addFlat(g, cyl(4.35, 4.35, 0.2, 8, true), T, 0, y0 + 1.3, 0);
+    var dome = add(g, sph(3.3, 20, 10, 0, PI / 2), C, 0, y0 + 1.6, 0);
+    dome.scale.y = 0.8;
+    add(g, box(2.4, 1.6, 1.2), GM, 0, y0 + 2.2, 3.4);
+    add(g, cyl(0.12, 0.12, 4.6, 6), MAT.steelLight(), 1.6, y0 + 5.4, -1.2);
+    add(g, box(0.06, 0.9, 1.5), P, 1.6, y0 + 7.0, -0.45);
+    add(g, cyl(0.6, 0.6, 0.25, 12), ST, -1.4, y0 + 4.2, -1.0);
+    g.userData.parts.beacon = beacon(g, side, g, 1.6, y0 + 7.8, -1.2, 1.0);
+    g.userData.height = 9;
+  }
+
   var BUILDERS = {
+    base: buildBase,
     factory: buildFactory,
     hq: buildHQ, depot: buildDepot, power: buildPower, radar: buildRadar, silo: buildSilo, uplink: buildUplink,
     aa: buildAA, shield: buildShield, hangar: buildHangar, gunpod: buildGunpod
@@ -1168,6 +1185,7 @@
     shield: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.4, 1.0, 6, 0, 1.1, 0], ['c', 0.9, 1.3, 1.6, 6, 0, 2.8, 0], ['c', 1.4, 2.8, 4.8, 3, 0, 4.0, 0], ['c', 0.95, 0.95, 1.9, 8, 0, 5.7, 0]],
     hangar: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 9, 3.6, 7.6, 0, 2.4, -0.4], ['b', 6.6, 1.9, 7.6, 0, 5.1, -0.4], ['b', 8.4, 5.4, 0.9, 0, 3.3, 3.4]],
     uplink: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.2, 1.8, 6, 0, 1.5, 0], ['c', 0.9, 1.3, 4.6, 10, 0, 4.8, 0], ['c', 2.4, 2.4, 0.5, 12, 0, 9.0, 0]],
+    base: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 4.2, 4.8, 1.6, 8, 0, 1.4, 0], ['c', 2.6, 3.3, 2.6, 8, 0, 3.4, 0]],
     factory: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 8.2, 3.4, 6.4, -0.4, 2.3, -0.6], ['c', 0.6, 0.85, 6.6, 8, 3.0, 3.9, -2.7]],
     gunpod: [['b', 9.5, 0.6, 9.5, 0, 0.3, 0], ['c', 2.9, 3.6, 1.0, 6, 0, 1.1, 0], ['c', 1.2, 1.9, 1.6, 8, 0, 2.4, 0], ['b', 0.9, 0.9, 2.6, 0, 2.55, 3.2]]
   };

@@ -76,7 +76,7 @@ const CONST = {
 const RT = {
   TICK: 0.1,              // simulation step, seconds
   ROUND: 15,              // seconds over which one turn's income, regen and repair allowance arrive
-  CLOCK_PER_TURN: 20,     // the turn-limit option becomes a clock: 30 turns = 10 minutes
+  CLOCK_PER_TURN: 30,     // the turn-limit option becomes a clock: 30 turns = 15 minutes
   SILO_RELOAD: 16,        // seconds before a silo can fire again
   HANGAR_RELOAD: 20,      // seconds to ready a new mech after the last one came home or died
   MISSILE_FLIGHT: 8,      // launch to impact, plus a little per cell travelled
@@ -111,7 +111,16 @@ const RT = {
   FACTORY_BUILD_BOOST: 0.5,
   FACTORY_RELOAD_BOOST: 0.15,
   REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full
-  REPAIR_PER_ROUND: 15    // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
+  REPAIR_PER_ROUND: 15,   // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
+  // Metal Marines rules
+  BASES_PER_SIDE: 2,      // extra Bases besides the Command Center; all must fall to lose
+  HQ_HP: 150,             // the Command Center is one base among several here (turn-based: 200)
+  RADAR_AA_BOOST: 0.15,   // AA batteries within an online radar's range hit more often
+  AA_MAX_CHANCE: 0.95,
+  DEFENDERS: 3,           // ready mechs that scramble from their hangars when raiders land
+  DEFENDER_STEP: 1.0,     // defenders hurry: seconds per move or blow
+  DEFENDER_TIME: 60,
+  MAX_MISSILES_PER_ATTACK: 4
 };
 
 // Building table — single source of truth for costs, HP and descriptions.
@@ -177,6 +186,13 @@ const BUILDINGS = {
     desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
     stats: () => ['Orbital strike: ' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area', 'Charges ' + CONST.STRIKE_CHARGE + ' turns, ' + CONST.STRIKE_ENERGY + ' energy to fire', 'Cannot be intercepted; Shields absorb it', 'Max 1'],
     counter: 'Strikes are always detected — spread out, shield and repair'
+  },
+  // Real-time battles: each side has extra Bases besides its Command Center. Destroy every
+  // enemy base (the Command Center included) to win. Bases can't be built.
+  base: {
+    name: 'Base', short: 'BSE', key: null, cost: 0, hp: 120, rtOnly: true,
+    desc: 'One of your bases. Lose all of them, Command Center included, and you lose the war.',
+    stats: () => ['Win: destroy every enemy base', 'Can\'t be built — protect the ones you have']
   },
   // Real-time battles only: construction takes time there, and factories speed it up
   factory: {
@@ -274,6 +290,7 @@ const CAMPAIGN = [
   },
   {
     id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
+    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
@@ -294,7 +311,6 @@ const CAMPAIGN = [
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. Outstanding — but its orbital codes are already being sold.',
     credits: { player: 550 },
-    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     start: { player: [{ type: 'depot', dx: 1, dy: -2 }, { type: 'aa', dx: 1, dy: 2 }, { type: 'power', dx: 2, dy: 2 }], ai: [{ type: 'aa', dx: 2, dy: 1 }, { type: 'decoy', dx: 5, dy: -3 }, { type: 'decoy', dx: 5, dy: 3 }] }
   },
   {
@@ -311,7 +327,6 @@ const CAMPAIGN = [
     taunt: 'I have watched your little war from above. It ends today.',
     win: 'The network is down and the skies are clear. Now the war is over, Commander.',
     credits: { player: 740 },
-    rtBonus: 280,
     start: { player: [{ type: 'uplink', dx: -1, dy: 3, charge: 2 }, { type: 'shield', dx: 1, dy: 0 }, { type: 'depot', dx: 1, dy: -2 }], ai: [{ type: 'uplink', dx: -1, dy: -3, charge: 1 }, { type: 'shield', dx: 1, dy: 1 }, { type: 'aa', dx: 2, dy: -2 }, { type: 'decoy', dx: 5, dy: 0 }] }
   }
 ];

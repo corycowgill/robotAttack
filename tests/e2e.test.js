@@ -136,7 +136,7 @@ test('real time: the clock runs, build anytime, pick an attack, see it in the ai
   await page.waitForFunction(() => __game.state.rt.t > 2);
   const c0 = await page.evaluate(() => __game.state.sides.player.credits);
   await page.waitForFunction(c => __game.state.sides.player.credits > c, c0);
-  assert.match(await page.textContent('#hud'), /\d:\d\d \/ 10:00/, 'a battle clock instead of turns');
+  assert.match(await page.textContent('#hud'), /\d:\d\d \/ 15:00/, 'a battle clock instead of turns');
   // building works while the clock runs
   await page.click('.card[data-type="depot"]');
   await clickCell(page, await freeCell(page, 'depot'));
@@ -169,7 +169,7 @@ test('real time: the clock runs, build anytime, pick an attack, see it in the ai
   await page.waitForFunction(() => __game.phase === 'live' && __game.state.rt.t >= 15);
   assert.strictEqual(await page.evaluate(() => Rules.buildingsOf(__game.state, 'player', 'depot').length), 1);
   // the battle ends when a Command Center falls
-  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
+  await page.evaluate(() => { for (const b of Realtime.bases(__game.state, 'ai')) b.dead = true; });   // every enemy base falls
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 30000 });
   await page.waitForSelector('#go-reason', { state: 'visible', timeout: 15000 });
   assert.match(await page.textContent('#go-reason'), /real time/);
@@ -243,7 +243,7 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   // campaign missions are real-time battles, with the real-time briefing checklist
   await page.waitForFunction(() => __game.phase === 'live' && __game.state.mission && __game.state.realtime);
   await page.waitForFunction(() => /construction takes/.test(document.getElementById('objectives')?.textContent || ''));
-  await page.evaluate(() => { Rules.buildingsOf(__game.state, 'ai', 'hq')[0].dead = true; });
+  await page.evaluate(() => { for (const b of Realtime.bases(__game.state, 'ai')) b.dead = true; });   // every enemy base falls
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
   assert.strictEqual(await page.evaluate(() => __game.state.winner), 'player');
   await page.waitForSelector('#go-next', { state: 'visible', timeout: 15000 });

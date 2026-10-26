@@ -659,7 +659,7 @@ window.Renderer = (function () {
       const a = cellCenter(o.from), b = cellCenter(o.to);
       a.y = 5;
       // a strike's reticle covers its whole 3x3 blast area, and it comes from orbit: no arc
-      const size = strike ? CELL * 3.1 : CELL * 1.1;
+      const size = strike ? CELL * 3.1 : o.zone ? CELL * 5.1 : CELL * 1.1;   // zone: a mech landing box
       const ret = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
         new THREE.MeshBasicMaterial({ map: getReticleTex(), color, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
       ret.rotation.x = -Math.PI / 2;
