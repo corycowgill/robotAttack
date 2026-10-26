@@ -442,7 +442,7 @@
     const s = state.sides[ME];
     state.aiMem = state.aiMem || {};
     const mem = state.aiMem[ME] || (state.aiMem[ME] = { lastTaken: 0, missileDamageTaken: 0 });
-    // only missile damage calls for AA (mech raids are answered by gun pods and garrisons)
+    // only missile damage calls for AA (mech raids are answered by sentry turrets and garrisons)
     const taken = s.stats.missileDamageTaken || 0;
     mem.missileDamageTaken = taken - mem.lastTaken;
     mem.lastTaken = taken;

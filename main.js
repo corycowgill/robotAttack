@@ -464,7 +464,7 @@
     const raiders = R.robotsOf(state, A).filter(r => R.ownerOfCell(r.cell) === P && playerSees(r.cell));
     if (raiders.length && !mechHintShown) {
       mechHintShown = true;
-      UI.toast('Enemy mechs on your island! Arrows show where they go next. Gun Pods [8] shred them — or drop a garrison mech [E] on your own island.', 'warn');
+      UI.toast('Enemy mechs on your island! Arrows show where they go next. Sentry Turrets [8] shred them — or drop a garrison mech [E] on your own island.', 'warn');
     }
     // Gen. Hale warns a player who is falling behind on economy
     if (!hotseat && state.turn === 5 && R.buildingsOf(state, P, 'depot').length < 2) {
@@ -854,7 +854,7 @@
     { text: 'HQs and AA shoot missiles down (40% / 70%). Fire <b>several at once</b> to break through — build more silos', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast — each structure extends your build zone, so build eastward first. The placement tip shows how many enemy cells it reveals', touch: 'Build a <b>Radar</b> on your east coast (build eastward first) — the placement tip shows how many enemy cells it reveals', done: s => has(s, 'radar') },
     { text: 'Protect your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
-    { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') },
+    { text: 'Enemy mechs? A <b>Sentry Turret</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') },
     { text: 'Select one of your structures and press <kbd>U</kbd> to <b>upgrade</b> it', touch: 'Tap one of your structures, then <b>Upgrade</b>', done: s => R.buildingsOf(s, P).some(b => (b.level || 1) > 1) }
   ];
   // Real-time battles: the same lessons, with attacks launched from the attack panel
@@ -866,7 +866,7 @@
     { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast to see what enemy fire is aimed at', done: s => has(s, 'radar') },
     { text: 'Enemy launches come with a countdown: guard your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
-    { text: 'Enemy mechs? A <b>Gun Pod</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
+    { text: 'Enemy mechs? A <b>Sentry Turret</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
   ];
   function built(s, t) { return R.buildingsOf(s, P, t).some(R.online); }
   function has(s, t) { return R.buildingsOf(s, P, t).length > 0; }
@@ -1417,7 +1417,7 @@
     }
     if (desc.length) t += 0.2;
 
-    // Gun pods
+    // Sentry turrets
     const guns = byBeat(R.BEAT.GUNFIRE);
     const botsAhead = byBeat(R.BEAT.ROBOTS);
     if (guns.length || botsAhead.length) direct(t, [].concat(...guns.map(e => e.shots.map(s => s.cell)), botsAhead.map(e => e.cell !== undefined ? e.cell : e.from)));
@@ -1731,7 +1731,7 @@
         Renderer.hitRobot(s.robotId);
         Renderer.setRobotHp(s.robotId, s.hpAfter);
         if (rec && rec.group.visible) floatAt(s.cell, '-' + s.dmg, 'dmg', 14);
-        const gun = e.gunType === 'hq' ? 'Command Center gun' : 'gun pod';
+        const gun = e.gunType === 'hq' ? 'Command Center gun' : 'sentry turret';
         if (s.killed) {
           Fx.explosion(target.setY(2), 0.7);
           SND.play('robotDie', { pan: panAtPos(target) });
@@ -1929,7 +1929,7 @@
     const landed = as.missilesFired - state.missiles.filter(m => m.side === A && !m.strike).length;
     if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot ' + (state.realtime ? 'in the first minute.' : 'in the first five turns.');
     if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
-    if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Gun Pod near your HQ, or a garrison mech, stops them.';
+    if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Sentry Turret near your HQ, or a garrison mech, stops them.';
     if (ps.missilesFired >= 4 && ps.missilesHit / Math.max(1, ps.missilesFired) < 0.35) return 'Most of your missiles were shot down. Fire several in the same turn, or aim at targets outside the enemy\'s AA cover (the aim tooltip shows the odds).';
     if (ps.missilesFired < state.turn / 2) return 'You fired only ' + ps.missilesFired + ' missiles. More silos and power plants keep the pressure on.';
     return 'Diversify: mix missile salvos with a mech drop or an orbital strike so the enemy can\'t defend against everything.';
@@ -2321,7 +2321,7 @@
         SND.play('robotLand', { pan: panAt(e.to), gain: seen ? 1 : 0.6, far: !seen });
         const n = e.robots.length;
         if (e.garrison) UI.log((own ? 'Garrison mechs' : 'Enemy garrison') + ' deployed at ' + cellName(e.to), own ? 'player' : 'enemy');
-        else UI.log(own ? n + ' mech' + (n > 1 ? 's' : '') + ' landed at ' + cellName(e.to) + ' — ' + RT.MECH_TIME + 's to wreck the area' : 'ENEMY MECHS LANDED at ' + (seen ? cellName(e.to) : 'your island') + '! Gun Pods and garrison mechs stop them', own ? 'player' : 'bad');
+        else UI.log(own ? n + ' mech' + (n > 1 ? 's' : '') + ' landed at ' + cellName(e.to) + ' — ' + RT.MECH_TIME + 's to wreck the area' : 'ENEMY MECHS LANDED at ' + (seen ? cellName(e.to) : 'your island') + '! Sentry Turrets and garrison mechs stop them', own ? 'player' : 'bad');
         return true;
       }
       case 'aaMiss':

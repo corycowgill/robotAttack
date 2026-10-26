@@ -168,10 +168,10 @@ const BUILDINGS = {
     name: 'Robot Hangar', short: 'HGR', key: '7', cost: 160, hp: 60,
     desc: 'Drops 1 battle mech per turn into enemy territory. Mechs walk to and smash enemy buildings.',
     stats: () => ['Mech: ' + CONST.ROBOT_HP + ' HP, ' + CONST.ROBOT_DAMAGE + ' dmg, moves 2', CONST.DROP_ENERGY + ' energy per drop', 'Drop pods cannot be intercepted', 'Drop on your own island to garrison it'],
-    counter: 'Countered by Gun Pods'
+    counter: 'Countered by Sentry Turrets'
   },
   gunpod: {
-    name: 'Gun Pod', short: 'GUN', key: '8', cost: 90, hp: 50, range: 3, shots: 2, damage: 12,
+    name: 'Sentry Turret', short: 'GUN', key: '8', cost: 90, hp: 50, range: 3, shots: 2, damage: 12,
     desc: 'Auto-turret that shreds enemy mechs in range.',
     stats: () => ['2 shots x 12 damage / turn', 'Range 3 (mechs only)']
   },
@@ -230,7 +230,7 @@ const AI_STYLE_INFO = [
   { key: 'balanced', name: 'Balanced', desc: 'Economy first, then missiles, mechs and the superweapon.' },
   { key: 'blitz',    name: 'Blitz',    desc: 'Masses silos and heavy warheads to break you early. Get AA up fast.' },
   { key: 'fortress', name: 'Fortress', desc: 'Turtles behind AA and shields, then calls down orbital strikes. Scout and out-build it.' },
-  { key: 'raider',   name: 'Raider',   desc: 'Swarms your economy with heavy mechs. Gun Pods and garrison mechs hold the line.' }
+  { key: 'raider',   name: 'Raider',   desc: 'Swarms your economy with heavy mechs. Sentry Turrets and garrison mechs hold the line.' }
 ];
 
 // Daily Operation: one seeded battle per calendar day, with one twist from this list
@@ -249,7 +249,7 @@ const ACHIEVEMENTS = [
   { id: 'iron_dome',   name: 'Iron Dome',        desc: 'Shoot down 10 missiles in one battle' },
   { id: 'fooled',      name: 'Fooled You',       desc: 'Have a decoy soak up an enemy attack' },
   { id: 'orbital',     name: 'Fire From Above',  desc: 'Land an orbital strike' },
-  { id: 'garrison',    name: 'Home Guard',       desc: 'Destroy an invading mech with a garrison mech or Gun Pod' },
+  { id: 'garrison',    name: 'Home Guard',       desc: 'Destroy an invading mech with a garrison mech or Sentry Turret' },
   { id: 'untouched',   name: 'Untouchable',      desc: 'Win with your Command Center at full health' },
   { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10 (in real time: within 3:20)' },
   { id: 'tycoon',      name: 'Tycoon',           desc: 'Own 5 Supply Depots at once' },
@@ -283,7 +283,7 @@ const CAMPAIGN = [
   },
   {
     id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18, locked: ['uplink'],
-    brief: 'Vey has dug in behind AA batteries and a gun pod. Saturate her air defense — send several missiles in one attack — or slip mechs past it.',
+    brief: 'Vey has dug in behind AA batteries and a sentry turret. Saturate her air defense — send several missiles in one attack — or slip mechs past it.',
     taunt: 'My batteries have never let a missile through. Try your luck.',
     win: 'Her defenses cracked. Remember: volume beats precision against AA.',
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
@@ -299,7 +299,7 @@ const CAMPAIGN = [
   },
   {
     id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 17, locked: ['uplink'],
-    brief: 'Vey is back with a fortress: shields, layered AA and gun pods around her HQ. Starve her economy first, then break the walls.',
+    brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
     win: 'The fortress fell. Only one enemy remains.',
     credits: { player: 600 },
