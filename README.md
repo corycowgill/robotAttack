@@ -25,7 +25,7 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 
 ## Real-time battles
 
-Skirmishes play in real time by default, the way Metal Marines did:
+The campaign is always played in real time, and skirmishes play in real time by default, the way Metal Marines did:
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
 - **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up, as factories did in Metal Marines:
   - each factory makes construction 50% faster and silo reloads and mech production 15% faster;
@@ -57,7 +57,9 @@ Skirmishes play in real time by default, the way Metal Marines did:
 
 The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. Smart AIs scramble ready mechs to meet raiders on their island. In AI-vs-AI simulations, a Commander mirror lasts about 6–7 minutes, about 70% of missiles are intercepted, and about a third of dropships are shot down.
 
-Two Players, the campaign and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
+Two Players and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
+
+In the campaign, a mission's par medal is a clock time: its par in turns × 20 seconds (for example, mission 1 is 4:00). Missions 5 and 7 give you 250 and 280 extra starting credits, because Warlord's speed matters more in real time. In simulations the campaign keeps about the same difficulty curve as the turn-based version. Mission 1's briefing checklist teaches the real-time controls.
 
 ## How a turn works
 
@@ -129,7 +131,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 
 ## Campaign
 
-Seven missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
+Seven real-time missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
 
 | # | Mission | Opponent | Twist |
 |---|---|---|---|
@@ -143,7 +145,7 @@ Seven missions, each on a fixed island map against a named enemy commander. Each
 
 **Medals:** each mission awards up to three stars:
 - one for winning;
-- one for winning within the mission's par turn count (12, 18, 19, 17, 16, 26 and 16 turns);
+- one for winning within the mission's par time (4:00, 6:00, 6:20, 5:40, 5:20, 8:40 and 5:20);
 - one for finishing with your HQ at 50% health or more.
 
 Your best medals show on the mission cards and in the briefing. Replay a mission to complete the set.

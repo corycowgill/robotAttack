@@ -174,3 +174,17 @@ test('construction takes time, and factories speed up building, reloading and me
   assert.ok(R.newGame('commander', 1).locked.includes('factory'), 'turn-based games have no factories');
   assert.ok(!s.locked.includes('factory'));
 });
+
+test('every campaign mission plays out as a real-time battle', () => {
+  const { CAMPAIGN } = require('./load');
+  for (const m of CAMPAIGN) {
+    const s = RTE.init(R.newGame(m.difficulty, 77 + m.id, { mapSeed: m.mapSeed, landTarget: m.land, start: m.start, credits: m.credits, locked: m.locked }));
+    s.sides[P].credits += m.rtBonus || 0;
+    s.rt.aiDiff = { player: 'commander' };
+    let guard = 0;
+    while (!s.winner && guard++ < 2000) RTE.step(s, 1, { ai: [P, A] });
+    assert.ok(['player', 'ai', 'draw'].includes(s.winner), 'mission ' + m.id + ' finished');
+    for (const t of m.locked || []) assert.ok(s.locked.includes(t), 'mission ' + m.id + ' keeps ' + t + ' locked');
+    assert.equal(R.missionMedals(s, m, P).length, 3);
+  }
+});

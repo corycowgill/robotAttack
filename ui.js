@@ -705,7 +705,7 @@ window.UI = (function () {
     return `<div class="menu-box panel">
       <h2>How to play</h2>
       <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive the turn limit (${CONST.MAX_TURNS} by default), the healthier HQ wins.</p>
-      <h4>Real-time battles (skirmish default)</h4>
+      <h4>Real-time battles (the campaign, and skirmish by default)</h4>
       <ul>
         <li><b>Resources flow every second.</b> Build, repair and upgrade at any moment, and the enemy does the same.</li>
         <li><b>Construction takes time.</b> A new structure is a building site (cyan bar) and does nothing until it's finished: a depot takes ${RT.BUILD_TIME.depot}s, a silo ${RT.BUILD_TIME.silo}s. Each <b>Factory</b> <kbd>B</kbd> makes construction ${Math.round(RT.FACTORY_BUILD_BOOST * 100)}% faster and silo reloads and mech production ${Math.round(RT.FACTORY_RELOAD_BOOST * 100)}% faster (max 3; upgraded, one counts as two).</li>
@@ -1131,7 +1131,11 @@ window.UI = (function () {
   let briefingId = 0;
   function closeBriefing() { $('briefing').classList.remove('show'); H.onBriefingBack(); }
   function isBriefingOpen() { return $('briefing').classList.contains('show'); }
-  function medalLabels(m) { return ['Win the mission', 'Win by turn ' + m.par, 'Keep your HQ at 50%+']; }
+  // campaign missions are real-time battles: par turns become clock time
+  function medalLabels(m) {
+    const sec = m.par * RT.CLOCK_PER_TURN;
+    return ['Win the mission', 'Win within ' + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'), 'Keep your HQ at 50%+'];
+  }
   const medalRow = (got, labels) => got.map((on, i) => `<div class="medal${on ? ' on' : ''}"><span class="star${on ? ' on' : ''}">★</span>${esc(labels[i])}</div>`).join('');
   function showBriefing(m, best) {
     briefingId = m.id;
