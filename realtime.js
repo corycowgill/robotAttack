@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Real-time engine (Metal Marines style)
+// Robot Attack 2026 — Real-time engine
 // ============================================================
 // The turn-based rules (rules.js) settle a whole turn at once. This engine runs the same
 // board continuously: credits and energy flow every second, silos and hangars reload on
@@ -42,7 +42,7 @@
     };
     // a short calm before the first salvo: the starting silo finishes loading START_LOAD in
     for (const side of [P, A]) for (const b of R.buildingsOf(state, side)) if (b.type === 'silo' || b.type === 'hangar') b.readyAt = b.type === 'silo' ? T.START_LOAD : reloadOf(b) / 2;
-    // Metal Marines: several bases per side, spread out; all of them must fall
+    // Several bases per side, spread out; all of them must fall
     state.rt.baseMax = {};
     for (const side of [P, A]) {
       for (const hq of R.buildingsOf(state, side, 'hq')) { hq.maxHp = T.HQ_HP; hq.hp = Math.min(hq.hp, T.HQ_HP); }
@@ -127,7 +127,7 @@
   }
 
   // ── Attacks ───────────────────────────────────────────────
-  // As in Metal Marines, one attack sends each missile at its own target, and all its mechs
+  // One attack sends each missile at its own target, and all its mechs
   // land together:  a = { missiles: [{ from: siloCell, to }], hangars: [cells], landing, strikeTo }
   // The short form { to, silos, hangars, strike } sends everything at one cell.
   function norm(a) {
@@ -433,7 +433,7 @@
         }
         if (!best) continue;
         bat.reloadAt = t + (bat.type === 'hq' ? T.HQ_PD_RELOAD : T.AA_RELOAD * (bat.level > 1 ? 0.75 : 1));
-        // Metal Marines: radar guides the batteries in its range
+        // Radar guides the batteries in its range
         const guided = bat.type === 'aa' && radars.some(r => R.dist(r.cell, bat.cell) <= R.stat(r, 'range') + 0.01);
         const chance = Math.min(T.AA_MAX_CHANCE, R.stat(bat, 'hitChance') + (guided ? T.RADAR_AA_BOOST : 0));
         const hit = R.rand(state) < chance;
@@ -483,7 +483,7 @@
     if (!garrison && robots.length) scramble(state, R.enemyOf(f.side), f.to, ev);
   }
 
-  // Metal Marines: mechs waiting in their hangars activate to defend the base (up to three)
+  // Mechs waiting in their hangars activate to defend the base (up to three)
   function scramble(state, side, zone, ev) {
     const out = [];
     const ready = readyLaunchers(state, side, 'hangar').sort((a, b) => R.dist(a.cell, zone) - R.dist(b.cell, zone));
@@ -558,7 +558,7 @@
       const path = R.bfsPath(state, r, c => R.cheb(c, prey.cell) <= 1);
       return path && path.length ? { kind: 'move', path: path.slice(0, 1), facing: prey.cell } : { kind: 'hold' };
     }
-    // Metal Marines priorities: fight mechs that close in, then a base if one is close, then
+    // Priorities: fight mechs that close in, then a base if one is close, then
     // gun pods, then the nearest building, all inside the landing zone
     if (duel) return { kind: 'fight', robot: duel };
     const targets = R.buildingsOf(state, foe).filter(b => inZone(r, b.cell, 1));

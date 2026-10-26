@@ -70,7 +70,7 @@ const CONST = {
   }
 };
 
-// Real-time mode (Metal Marines style): resources flow every second, attacks launch whenever
+// Real-time mode: resources flow every second, attacks launch whenever
 // launchers are ready, and the defender sees them coming. Per-turn values in CONST/BUILDINGS
 // (income, shield regen, uplink charge) are paid out smoothly over one ROUND.
 const RT = {
@@ -104,7 +104,7 @@ const RT = {
   OPENING_GRACE: { patrol: 45, commander: 25, warlord: 20 },  // no AI attack before this
   START_LOAD: 24,         // the starting silo is ready this many seconds in
   RADAR_BOOT: 5,          // seconds before a new radar comes online (after construction)
-  // Construction (Metal Marines style): a new structure does nothing until it is built.
+  // Construction: a new structure does nothing until it is built.
   // Each factory (an Assembly Line counts twice) adds FACTORY_BUILD_BOOST to construction
   // speed and FACTORY_RELOAD_BOOST to silo reloading and mech production.
   BUILD_TIME: { depot: 8, power: 8, radar: 8, silo: 14, aa: 9, shield: 12, hangar: 16, gunpod: 7, decoy: 3, uplink: 24, factory: 12 },
@@ -112,7 +112,7 @@ const RT = {
   FACTORY_RELOAD_BOOST: 0.15,
   REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full
   REPAIR_PER_ROUND: 15,   // HP a structure can be repaired per ROUND (turn-based: 30 per turn)
-  // Metal Marines rules
+  // Real-time rules
   BASES_PER_SIDE: 2,      // extra Bases besides the Command Center; all must fall to lose
   HQ_HP: 150,             // the Command Center is one base among several here (turn-based: 200)
   RADAR_AA_BOOST: 0.15,   // AA batteries within an online radar's range hit more often
@@ -204,7 +204,7 @@ const BUILDINGS = {
 
 const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'uplink', 'factory'];
 
-// One upgrade level per structure (Metal Marines style). Values replace the base stats.
+// One upgrade level per structure. Values replace the base stats.
 const UPGRADES = {
   silo:   { name: 'Heavy Warheads',  desc: 'Missiles deal 60 damage + 20 splash', dmg: 60, splash: 20 },
   aa:     { name: 'Fire Control',    desc: '85% hit chance, radius 5', hitChance: 0.85, range: 5 },

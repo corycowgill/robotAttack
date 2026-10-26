@@ -307,7 +307,7 @@
     if (type === 'decoy') {
       // pre-rolled per side and put back if the build is undone, so build / undo / build can't re-roll it
       const sd = state.sides[side];
-      // real time: decoys often pose as a base (Metal Marines' Dummy Base)
+      // real time: decoys often pose as a base
       const pool = state.realtime ? def.disguises.concat(['base', 'base', 'base']) : def.disguises;
       b.disguise = sd.nextDisguise || pool[Math.floor(rand(state) * pool.length)];
       sd.nextDisguise = pool[Math.floor(rand(state) * pool.length)];
@@ -487,7 +487,7 @@
     if (!b || b.side !== side) return { amount: 0, cost: 0, reason: 'Nothing to repair' };
     const missing = b.maxHp - b.hp;
     if (missing <= 0) return { amount: 0, cost: 0, reason: 'Already at full HP' };
-    // real time (as in Metal Marines): bases and the Command Center can't be patched up
+    // real time: bases and the Command Center can't be patched up
     if (state.realtime && (b.type === 'hq' || b.type === 'base')) return { amount: 0, cost: 0, reason: 'Bases can\'t be repaired in a real-time battle' };
     const left = (state.realtime ? RTC.REPAIR_PER_ROUND : C.REPAIR_MAX_PER_TURN) - b.repaired;
     if (left <= 0) return { amount: 0, cost: 0, reason: state.realtime ? 'Repair crews busy — ready in ' + Math.ceil(state.rt.nextRound - state.rt.t) + 's' : 'Repair limit reached this turn' };

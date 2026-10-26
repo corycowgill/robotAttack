@@ -1,8 +1,8 @@
 # Robot Attack 2026
 
-*Inspired by Namco's Metal Marines (SNES).*
+*Inspired by classic 1990s island-war strategy games. Robot Attack 2026 is an original work and is not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.*
 
-A base-building artillery strategy game in the browser, played in real time (the Metal Marines way) or turn by turn, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
+A base-building artillery strategy game in the browser, played in real time or turn by turn, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
 
 Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
 
@@ -25,16 +25,16 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 
 ## Real-time battles
 
-The campaign is always played in real time, and skirmishes play in real time by default, the way Metal Marines did:
+The campaign is always played in real time, and skirmishes play in real time by default:
 - **Destroy every enemy base.** Each side has its Command Center (150 HP in real time) and 2 more Bases (120 HP), spread across its island. Bases are always marked on the map, like the Command Center, but decoys often pose as one (a Dummy Base). You win when all the enemy's bases are gone, and lose when all of yours are. Bases can't be built or repaired.
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
-- **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up, as factories did in Metal Marines:
+- **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up:
   - each factory makes construction 50% faster and silo reloads and mech production 15% faster;
   - an upgraded factory (Assembly Line) counts as two.
 
   The AI builds its first factory early in its opening and a second one about 2½ minutes in.
 - **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
-  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**, as it did in Metal Marines.
+  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**.
   - Each click on the map gives the next loaded missile its own target, up to 4 missiles per attack. With `E`, the click picks where the mechs land: the 5×5 box they will fight in, outlined on the map. With `R`, it picks the strike's target. `Q`/`E`/`R` switch what the next click aims.
   - The attack panel lists every silo and hangar with its status (ready, reloading, or its target). Click a chip to add or free a silo, mech or the strike. It shows the energy cost and, for each target, how many missiles should get past the defences you know about. `Enter` or **Launch** sends it all; `Esc` cancels.
   - Missiles leave one after another. The dropship carrying the mechs follows them.
@@ -44,7 +44,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
-- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games, but as in Metal Marines an **online Radar guides the batteries in its range**: +15% to hit.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games, but an **online Radar guides the batteries in its range**: +15% to hit.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.

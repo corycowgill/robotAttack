@@ -189,7 +189,7 @@ test('every campaign mission plays out as a real-time battle', () => {
   }
 });
 
-test('Metal Marines bases: several per side, always on the map, all must fall', () => {
+test('Bases: several per side, always on the map, all must fall', () => {
   const s = game(21);
   for (const side of [P, A]) assert.equal(RTE.bases(s, side).length, 1 + RT.BASES_PER_SIDE, side + ' has its HQ and its bases');
   const enemyBases = RTE.bases(s, A).filter(b => b.type === 'base');

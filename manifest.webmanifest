@@ -1,7 +1,7 @@
 {
   "name": "Robot Attack 2026",
   "short_name": "Robot Attack",
-  "description": "Island war strategy game inspired by Metal Marines.",
+  "description": "Real-time island war strategy game.",
   "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "landscape",

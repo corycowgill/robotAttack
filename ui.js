@@ -552,7 +552,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'menu', class: 'screen' }, `
       <div class="menu-box">
         <div class="title">${logoHTML()}</div>
-        <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war in the spirit of Metal Marines</div>
+        <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war fought in real time</div>
         <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
         <div id="m-warn" class="warnline"></div>
         <div class="sect">Campaign</div>
@@ -1064,7 +1064,7 @@ window.UI = (function () {
     const touch = matchMedia('(pointer: coarse)').matches;
     sp.innerHTML = `<div class="black"></div><div class="bars"></div>${logoHTML('reveal sweep' + (fast ? ' skip' : ''))}
       <div class="press"><span>${touch ? 'TAP TO START' : 'PRESS START'}</span></div>
-      <div class="foot">An island war in the spirit of Metal Marines</div>`;
+      <div class="foot">An island war fought in real time</div>`;
     sp.className = 'screen show' + (fast ? ' skip' : '');
     document.body.classList.add('splash-on');
     const t0 = performance.now();

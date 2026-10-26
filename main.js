@@ -1991,7 +1991,7 @@
     }, 2600);
   }
 
-  // ══ Real-time battle (Metal Marines style) ═════════════════
+  // ══ Real-time battle ═════════════════
   // The board runs continuously (realtime.js): resources flow, launchers reload, either side
   // can attack at any moment and every launch is announced to its target with a countdown.
   // Building, repairs, upgrades and sales work exactly as in planning.
@@ -2038,7 +2038,7 @@
   }
 
   function liveTick(raw) {
-    // time stops while an attack is being planned (as in Metal Marines), paused, or in menus
+    // time stops while an attack is being planned, paused, or in menus
     if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) return;
     // ids by cell before the step, so effects can find structures that die during it
     const idAt = {};
@@ -2120,7 +2120,7 @@
     });
   }
 
-  // ── The attack panel (Metal Marines): time stops while you plan; each missile gets its own
+  // ── The attack panel: time stops while you plan; each missile gets its own
   // target, the mechs share one landing zone, and the strike has its own target ──
   function openAttack(m) {
     attack = { arm: [], targets: {}, hangars: new Set(), landing: undefined, strikeOn: false, strikeTo: undefined, cursor: m };
