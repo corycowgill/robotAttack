@@ -244,7 +244,7 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   await page.click('#br-go');
   // campaign missions are real-time battles, with the real-time briefing checklist
   await page.waitForFunction(() => __game.phase === 'live' && __game.state.mission && __game.state.realtime);
-  await page.waitForFunction(() => /construction takes/.test(document.getElementById('objectives')?.textContent || ''));
+  await page.waitForFunction(() => /hits splash onto neighbours/.test(document.getElementById('objectives')?.textContent || ''));
   await page.evaluate(() => { for (const b of Realtime.bases(__game.state, 'ai')) b.dead = true; });   // every enemy base falls
   await page.waitForFunction(() => __game.phase === 'gameover', null, { timeout: 60000 });
   assert.strictEqual(await page.evaluate(() => __game.state.winner), 'player');
