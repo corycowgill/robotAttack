@@ -253,3 +253,19 @@ test('raiders landing wake the defenders in their hangars; radar guides AA', () 
   const shots = run(s2, RT.MISSILE_FLIGHT + 2).filter(e => e.type === 'aaShot' && e.by === aa.cell);
   if (R.dist(radar.cell, aa.cell) <= BUILDINGS.radar.range) for (const sh of shots) assert.equal(sh.chance, BUILDINGS.aa.hitChance + RT.RADAR_AA_BOOST);
 });
+
+test('minefields go off under raiding mechs in real time', () => {
+  const s = game(5);
+  // a raider on enemy land a few cells from the HQ, with hidden mines all around it
+  const hq = R.hqCell(A);
+  const cell = R.cellsInRadius(hq, 3).find(c => R.cheb(c, hq) === 3 && R.isLand(s, c) && R.cellsInRadius(c, 1).every(n => !s.cells[n].building));
+  s.robots.push({ id: 9000, side: P, cell, hp: 50, maxHp: 50, dmg: 20, zone: cell, leaveAt: 999, nextAct: 0 });
+  for (const c of R.cellsInRadius(cell, 2)) if (c !== cell && R.ownerOfCell(c) === A && R.isLand(s, c) && !s.cells[c].building) s.mines.push({ id: 7000 + c, side: A, cell: c });
+  const before = s.mines.length;
+  const ev = run(s, RT.MECH_STEP * 2 + 0.2);
+  const boom = ev.find(e => e.type === 'mine');
+  assert.ok(boom, 'the mech steps on a mine');
+  assert.equal(boom.robotSide, P);
+  assert.equal(s.mines.length, before - ev.filter(e => e.type === 'mine').length);
+  assert.ok(!s.robots.some(r => r.id === 9000) || s.robots.find(r => r.id === 9000).hp <= 50 - BUILDINGS.mine.damage);
+});

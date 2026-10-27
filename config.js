@@ -181,6 +181,13 @@ const BUILDINGS = {
     stats: () => ['Disguised as a random silo, hangar, power plant, depot or AA', 'Exposed only when destroyed'],
     disguises: ['silo', 'hangar', 'power', 'depot', 'aa']
   },
+  // Hidden in a separate list (state.mines), never a structure: the enemy can't see, target or
+  // count them. A mine blows up under the first enemy mech that steps on it.
+  mine: {
+    name: 'Minefield', short: 'MIN', key: 'N', cost: 40, hp: 0, max: 6, mine: true, damage: 40,
+    desc: 'Buried charges the enemy cannot see. Blows up under the first enemy mech that walks onto it.',
+    stats: () => ['40 damage to the mech that trips it', 'Invisible to the enemy · max 6', 'Mechs only: missiles pass over it'],
+  },
   uplink: {
     name: 'Strike Uplink', short: 'UPL', key: '0', cost: 200, hp: 70, max: 1,
     desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
@@ -202,7 +209,7 @@ const BUILDINGS = {
   }
 };
 
-const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'uplink', 'factory'];
+const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar', 'gunpod', 'decoy', 'mine', 'uplink', 'factory'];
 
 // One upgrade level per structure. Values replace the base stats.
 const UPGRADES = {

@@ -484,6 +484,7 @@
 
   function syncWorld(instant) {
     visible = R.visibleEnemyCells(state, P);
+    Renderer.setMines(R.minesOf(state, P));
     const alive = new Set();
     for (let c = 0; c < R.N; c++) {
       const b = state.cells[c].building;
@@ -660,7 +661,7 @@
     const locked = state.locked || [];
     const cards = BUILD_ORDER.filter(t => !locked.includes(t)).map(t => {
       const def = BUILDINGS[t];
-      const count = R.buildingsOf(state, P, t).length;
+      const count = R.countOf(state, P, t);
       let reason = null;
       const cost = R.buildCost(state, P, t);
       if (s.credits < cost) reason = 'Need ' + cost + ' credits';
@@ -911,7 +912,7 @@
     })() : '';
     const step = d.costStep ? ' <span class="k">(+' + d.costStep + ' per depot owned)</span>' : state && state.realtime && d.rtCostStep ? ' <span class="k">(+' + d.rtCostStep + ' per ' + d.short + ' owned)</span>' : '';
     const r = e.currentTarget.getBoundingClientRect();
-    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step} · ${d.hp} HP<br>${UI.esc(txt.desc)}<br><span class="k">${txt.stats.map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${bt}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
+    UI.showTip(`<b>${UI.esc(d.name)}</b> <span class="k">[${d.key}]</span><br><span style="color:var(--c-credit)">${cost} credits</span>${step}${d.hp ? ' · ' + d.hp + ' HP' : ''}<br>${UI.esc(txt.desc)}<br><span class="k">${txt.stats.map(UI.esc).join(' · ')}</span>${d.counter ? '<br><span class="cnt">' + UI.esc(d.counter) + '</span>' : ''}${bt}${reason ? '<br><span class="bad">' + reason + '</span>' : ''}`, r.left, r.top - 150);
   }
 
   function cellTooltip() {
@@ -947,6 +948,7 @@
       const rob = R.robotAt(state, hoverCell);
       if (info && hoverCell === selectedCell) html = null; // the selection panel already shows it
       else if (info) html = `<b>${UI.esc(info.name)}</b>${info.ghost ? ' <span class="k">(last known)</span>' : ''}<br>HP ${info.hp}/${info.maxHp}${info.extra ? '<br><span class="k">' + UI.esc(info.extra) + '</span>' : ''}`;
+      else if (R.mineAt(state, hoverCell) && R.mineAt(state, hoverCell).side === P) html = '<b>Your minefield</b><br><span class="k">Hidden from the enemy · ' + BUILDINGS.mine.damage + ' damage to the first enemy mech that steps here</span>';
       else if (rob && playerSees(hoverCell)) html = `<b>${rob.side === P ? 'Your' : 'Enemy'} mech</b><br>HP ${rob.hp}/${rob.maxHp}<br><span class="k">${UI.esc(intentText(rob))}</span>`;
       else if (R.ownerOfCell(hoverCell) === A && !visible.has(hoverCell)) html = '<span class="k">Unknown — fogged.<br>Radar or missile impacts reveal it.</span>';
     }
@@ -964,6 +966,10 @@
       const covered = R.buildingsOf(state, P).filter(b => R.dist(b.cell, cell) <= d.range + 0.01);
       const hq = covered.some(b => b.type === 'hq');
       return 'Covers <b>' + covered.length + '</b> of your structures' + (hq ? ' <span class="good">incl. HQ</span>' : '');
+    }
+    if (type === 'mine') {
+      const near = R.buildingsOf(state, P).filter(b => b.type === 'hq' || b.type === 'base').some(b => R.cheb(b.cell, cell) <= 2);
+      return 'Hidden from the enemy' + (near ? ' — <span class="good">guards a base approach</span>' : '');
     }
     if (type === 'gunpod') {
       const hq = R.dist(R.hqCell(P), cell) <= d.range + 0.01;
@@ -1050,6 +1056,14 @@
     if (mode === 'build') {
       const r = R.build(state, P, buildType, c);
       if (!r.ok) return fail(r.reason);
+      if (r.mine) {
+        SND.play('build', { pan: panAt(c), gain: 0.5 });
+        Renderer.setMines(R.minesOf(state, P));
+        floatAt(c, '-' + BUILDINGS.mine.cost + 'c', 'info');
+        UI.log('Minefield laid at ' + cellName(c) + ' — the enemy can\'t see it', 'player');
+        if (!keepMode) { mode = 'select'; buildType = null; }
+        return;
+      }
       SND.play('build', { pan: panAt(c) });
       Renderer.addBuilding(r.building, true);
       Fx.buildDust(Renderer.cellCenter(c));
@@ -1213,11 +1227,12 @@
         if (!r.ok) return fail(r.reason);
         SND.play('undo');
         if (r.kind === 'build') { Renderer.removeBuilding(r.building.id, true); if (r.building.type === 'radar') syncWorld(false); }
+        if (r.kind === 'mine') Renderer.setMines(R.minesOf(state, P));
         if (r.kind === 'repair' || r.kind === 'upgrade') Renderer.setBuildingHp(r.building.id, r.building.hp, r.building.maxHp);
         if (r.kind === 'upgrade') Renderer.setBuildingLevel(r.building.id, 1);
         if (r.kind === 'sell') { Renderer.addBuilding(r.building, true); if (r.building.type === 'radar') syncWorld(false); }
         UI.toast('Undone', 'good');
-        UI.log('Undid ' + (r.kind === 'order' ? ({ drop: 'mech drop', strike: 'orbital strike' }[r.order && r.order.kind] || 'missile order') : r.kind + ' of ' + BUILDINGS[r.building.type].name), 'sys');
+        UI.log('Undid ' + (r.kind === 'order' ? ({ drop: 'mech drop', strike: 'orbital strike' }[r.order && r.order.kind] || 'missile order') : r.kind === 'mine' ? 'minefield' : r.kind + ' of ' + BUILDINGS[r.building.type].name), 'sys');
         break;
       }
       case 'cancel': {
@@ -1266,6 +1281,7 @@
     }
     switch (e.code) {
       case 'KeyB': if (!(state.locked || []).includes('factory')) selectBuild('factory'); break;
+      case 'KeyN': if (!(state.locked || []).includes('mine')) selectBuild('mine'); break;
       case 'KeyQ': action('fire', 'key'); break;
       case 'KeyE': action('drop', 'key'); break;
       case 'KeyR': action('strike', 'key'); break;
@@ -1429,9 +1445,9 @@
     let botEnd = 0;
     bots.forEach((e, i) => {
       const t0 = t + i * 0.18;
-      const dur = e.type === 'robotMove' ? e.path.length * 0.42 : 0.7;
+      const dur = e.type === 'robotMove' ? e.path.length * 0.42 : e.type === 'mine' ? e.steps * 0.42 + 0.5 : 0.7;
       botEnd = Math.max(botEnd, t0 + dur);
-      at(t0, () => e.type === 'robotMove' ? animateRobotMove(e) : e.type === 'robotFight' ? animateRobotFight(e) : animateRobotHit(e, idAt));
+      at(t0, () => e.type === 'robotMove' ? animateRobotMove(e) : e.type === 'mine' ? animateMine(e, e.steps * 0.42 - 0.18) : e.type === 'robotFight' ? animateRobotFight(e) : animateRobotHit(e, idAt));
     });
     if (bots.length) t = botEnd + 0.4;
 
@@ -1792,6 +1808,25 @@
     });
   }
 
+  // A mech sets off a minefield as it steps onto the cell
+  function animateMine(e, delay) {
+    Timeline.tween(Math.max(0.05, delay), () => {}, () => {
+      const p = Renderer.cellCenter(e.cell).setY(2);
+      const seen = e.side === P || e.robotSide === P || playerSees(e.cell);
+      if (seen) {
+        Fx.explosion(p, 0.8);
+        SND.play('explosion', { pan: panAtPos(p) });
+        Renderer.addTrauma(0.2, p);
+        floatAt(e.cell, '-' + e.dmg, 'dmg', 16);
+      }
+      Renderer.setMines(R.minesOf(state, P));
+      Renderer.setRobotHp(e.id, e.hpAfter);
+      if (e.killed) { SND.play('robotDie', { pan: panAtPos(p) }); Renderer.removeRobot(e.id); }
+      if (e.side === P) UI.log('Your minefield at ' + cellName(e.cell) + (e.killed ? ' destroyed an enemy mech' : ' hit an enemy mech (-' + e.dmg + ')'), 'good');
+      else if (e.robotSide === P) UI.log('Your mech set off a hidden minefield at ' + cellName(e.cell) + (e.killed ? ' and was destroyed' : ' (-' + e.dmg + ')'), 'bad');
+    });
+  }
+
   // Mech vs mech melee
   function animateRobotFight(e) {
     const rec = Renderer.getRobot(e.id), foe = Renderer.getRobot(e.targetId);
@@ -1908,6 +1943,7 @@
       if (e.type === 'robotHit') r[e.side].dealt += e.hit.dmg;
       if (e.type === 'gunfire') for (const s of e.shots) if (s.killed) r[other(e.side)].robotsLost++;
       if (e.type === 'robotFight' && e.killed) r[other(e.side)].robotsLost++;
+      if (e.type === 'mine' && e.killed) r[e.robotSide].robotsLost++;
       if (e.type === 'end') for (const d of e.destroyed) r[d.side].lostNames.push(BUILDINGS[d.type].name);
     }
     r.intel = intelLine(r.swap ? P2 : P);
@@ -2341,6 +2377,7 @@
         else if (own) UI.log('Your missile slipped past ' + shotBy(e.by), 'good');
         return false;
       case 'robotMove': animateRobotMove(e); return false;
+      case 'mine': animateMine(e, e.steps * 0.42); return false;
       case 'robotHit': animateRobotHit(e, idAt); return false;
       case 'robotFight': animateRobotFight(e); return false;
       case 'gunfire': animateGunfire(e, idAt); return false;

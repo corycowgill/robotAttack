@@ -477,3 +477,46 @@ test('opponent styles shape the AI build: blitz masses silos, fortress AA, raide
   const s = R.newGame('commander', 77, { aiStyle: 'blitz' });
   assert.equal(s.aiStyle, 'blitz');
 });
+
+test('minefields: hidden from structures, max 6, undo refunds, and they blow up the first enemy mech', () => {
+  const s = R.newGame('commander', 31);
+  rich(s, P);
+  const c = buildable(s, P, 'mine');
+  const credits = s.sides[P].credits;
+  const r = R.build(s, P, 'mine', c);
+  assert.ok(r.ok && r.mine, 'a mine is laid');
+  assert.equal(s.sides[P].credits, credits - BUILDINGS.mine.cost);
+  assert.ok(!R.buildingsOf(s, P).some(b => b.cell === c), 'a mine is not a structure');
+  assert.equal(R.buildingAt(s, c), null);
+  assert.equal(R.buildableReason(s, P, 'depot', c), 'Cell occupied');
+  assert.equal(R.countOf(s, P, 'mine'), 1);
+  assert.equal(R.undo(s, P).kind, 'mine');
+  assert.equal(s.sides[P].credits, credits, 'undo refunds it');
+  assert.equal(R.minesOf(s, P).length, 0);
+  for (let i = 0; i < BUILDINGS.mine.max; i++) assert.ok(R.build(s, P, 'mine', buildable(s, P, 'mine')).ok);
+  assert.match(R.buildableReason(s, P, 'mine', buildable(s, P, 'depot')), /Max 6/);
+
+  // a raider walking toward a depot steps on a hidden mine on its path
+  const s2 = R.newGame('commander', 21);
+  rich(s2, A);
+  const depotCell = buildable(s2, A, 'depot');
+  R.build(s2, A, 'depot', depotCell);
+  const ehq = R.hqCell(A);
+  const far = R.cellsInRadius(depotCell, 3).find(x => R.ownerOfCell(x) === A && R.isLand(s2, x) && !s2.cells[x].building && R.cheb(x, depotCell) === 3 && R.dist(x, ehq) > CONST.ROBOT_HQ_PREFERENCE);
+  const mech = { id: 999, side: P, cell: far, hp: 50, maxHp: 50, dmg: 20 };
+  s2.robots.push(mech);
+  const plan = R.robotIntent(s2, mech);
+  assert.equal(plan.kind, 'move');
+  s2.mines.push({ id: 5000, side: A, cell: plan.path[0] });
+  const ev = R.resolveTurn(s2);
+  const mv = ev.find(e => e.type === 'robotMove' && e.id === 999);
+  assert.deepEqual(mv.path, [plan.path[0]], 'the mech stops on the mine');
+  const boom = ev.find(e => e.type === 'mine');
+  assert.ok(boom && boom.cell === plan.path[0] && boom.side === A && boom.robotSide === P);
+  assert.equal(mech.hp, 50 - BUILDINGS.mine.damage);
+  assert.equal(R.minesOf(s2, A).length, 0, 'a mine goes off once');
+  // the AI's own mechs walk over its mines
+  const own = { id: 1, side: A, cell: 0, hp: 50 };
+  s2.mines.push({ id: 5001, side: A, cell: 7 });
+  assert.equal(R.walkPath(s2, own, [7]).blast, null);
+});

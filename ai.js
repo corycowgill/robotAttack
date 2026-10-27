@@ -17,7 +17,7 @@
 
   const TARGET_SCORE = { hq: 10, base: 9, silo: 8, aa: 6, hangar: 6, power: 5, depot: 5, factory: 5, shield: 4, radar: 3, gunpod: 2 };
 
-  function count(state, type) { return R.buildingsOf(state, ME, type).length; }
+  function count(state, type) { return R.countOf(state, ME, type); }
   function unlocked(state, type) { return !(state.locked || []).includes(type); }
 
   // ── Placement scoring ─────────────────────────────────────
@@ -37,7 +37,7 @@
     let score = R.rand(state) * 0.6;
 
     // Mild penalty for packing next to other buildings (missile splash), except shields
-    if (type !== 'shield') {
+    if (type !== 'shield' && type !== 'mine') {
       for (const n of R.neighbors(cell, 1)) if (R.buildingAt(state, n)) score -= 0.5;
     }
     // Being under AA cover is good for everything
@@ -81,6 +81,12 @@
         break;
       case 'uplink':
         score += depth(cell) * 0.2 + aaCover * 1.5; // deep in the base, under cover
+        break;
+      case 'mine':
+        // on the approaches to the bases, where raiding mechs walk; spread out
+        for (const b of own) if ((b.type === 'hq' || b.type === 'base') && R.cheb(b.cell, cell) <= 2) score += R.cheb(b.cell, cell) === 1 ? 3 : 2;
+        score -= R.minesOf(state, ME).filter(m => R.cheb(m.cell, cell) <= 1).length * 2.5;
+        score -= depth(cell) * 0.08;
         break;
       case 'depot': case 'power':
         score += depth(cell) * 0.15 + aaCover * 1.2; // toward the back, under cover
@@ -154,6 +160,8 @@
     // Mechs on our side come first, even during the opening
     const threats = enemyRobotsOnMySide(state);
     if (threats.length && n('gunpod') < Math.min(4, threats.length + 1)) return 'gunpod';
+    // mines are cheap insurance once the enemy has shown it raids with mechs
+    if (unlocked(state, 'mine') && (threats.length || knownEnemy(state, 'hangar')) && n('mine') < (threats.length ? 4 : 2) && n('depot') >= 2) return 'mine';
     // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
     // opening beats a missiles-first one about 60/40)
     // real time: a factory early speeds up everything after it

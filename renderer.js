@@ -886,6 +886,21 @@ window.Renderer = (function () {
     return m;
   }
 
+  // Minefields: drawn for their owner only (the caller passes just the viewer's mines)
+  const mineMeshes = {};
+  function setMines(list) {
+    const keep = new Set(list.map(m => m.id));
+    for (const id in mineMeshes) if (!keep.has(+id)) { scene.remove(mineMeshes[id]); Models.dispose(mineMeshes[id]); delete mineMeshes[id]; }
+    for (const m of list) {
+      if (mineMeshes[m.id]) continue;
+      const g = Models.mine(m.side);
+      const p = cellCenter(m.cell);
+      g.position.set(p.x, 0, p.z);
+      scene.add(g);
+      mineMeshes[m.id] = g;
+    }
+  }
+
   function addBuilding(b, rise) {
     removeBuilding(b.id, true);
     // decoys wear their disguise; only the owner's badge gives them away
@@ -1580,6 +1595,7 @@ window.Renderer = (function () {
     for (const id in robots) removeRobot(id);
     for (const c in ghosts) { scene.remove(ghosts[c]); Models.dispose(ghosts[c]); delete ghosts[c]; }
     for (const c in craters) { scene.remove(craters[c]); delete craters[c]; }
+    setMines([]);
     clearMarkers();
     hideRange();
     setBuildGhost(null, -1);
@@ -1596,7 +1612,7 @@ window.Renderer = (function () {
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
     addRobot, removeRobot, getRobot, setRobotHp, hitRobot, allRobotIds,
-    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress,
+    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines,
     get camera() { return camera; }, get time() { return time; }
   };
 })();
