@@ -101,6 +101,16 @@ window.Renderer = (function () {
     cam.yaw = portraitYaw();
     frameAll(true);
     loadQuality();
+    prewarm();
+  }
+
+  // compile the shaders of things that first appear mid-battle (drop pods, both sides' missiles,
+  // interceptors), so the first launch doesn't hitch while the GPU builds them
+  function prewarm() {
+    const objs = [Models.pod('player'), Models.pod('ai'), Models.missile('player'), Models.missile('ai'), Models.interceptor()];
+    for (const o of objs) { o.position.set(MAP_W / 2, -40, MAP_H / 2); scene.add(o); }
+    try { renderer.compile(scene, camera); } catch (e) { /* compiled on first use instead */ }
+    for (const o of objs) { scene.remove(o); Models.dispose(o); }
   }
 
   function createLights() {
