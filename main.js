@@ -52,7 +52,7 @@
     window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; } }; // debug handle
     Renderer.init();
     UI.init({
-      onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut, null, null, false, UI.getSkirmishOptions()),
+      onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut && diff !== 'warlord', null, null, false, UI.getSkirmishOptions()),
       onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true, UI.getSkirmishOptions()),
       onHandoffReady: () => { SND.play('uiClick'); const go = handoffNext; handoffNext = null; UI.hideHandoff(); if (go) go(); },
       onContinue: continueGame,
@@ -192,7 +192,7 @@
     const parts = [];
     if (o.land !== SKIRMISH_OPTIONS.land.def) parts.push(label('land') + ' islands');
     if (o.credits !== SKIRMISH_OPTIONS.credits.def) parts.push(label('credits') + ' start');
-    if (o.turns !== SKIRMISH_OPTIONS.turns.def) parts.push(o.turns + ' turns');
+    if (o.turns !== SKIRMISH_OPTIONS.turns.def) parts.push(o.pace !== 0 ? (o.turns * RT.CLOCK_PER_TURN / 60) + '-minute clock' : o.turns + ' turns');
     if (!o.uplink) parts.push('no superweapon');
     return parts.join(' · ');
   }
@@ -305,7 +305,7 @@
     if (saved) UI.log('Resumed operation — turn ' + state.turn + (hotseat ? ' · two players' : ' vs ' + (m ? COMMANDERS[m.enemy].name : CONST.DIFFICULTY[diff].name)), 'sys');
     else if (hotseat) {
       UI.log('Two-player battle. Player 1 is blue (left), Player 2 is red (right).', 'sys');
-      if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
+      if (customSummary({ ...custom, pace: 0 })) UI.log('Battle options: ' + customSummary({ ...custom, pace: 0 }), 'sys');
       UI.log('Pass the device when prompted — the hand-off screen hides each base from the other player.', 'sys');
     }
     else if (m) {
@@ -2006,7 +2006,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = '';
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; fireReadySince = null;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2099,6 +2099,8 @@
     return owner === A ? null : 'Target must be in enemy territory';
   }
 
+  const FIRE_NUDGE_AFTER = 12;   // seconds a silo may sit loaded before the Fire button pulses
+  let fireReadySince = null;
   function refreshLiveActions(silos, hangars) {
     const s = state.sides[P];
     const rs = Realtime.readyLaunchers(state, P, 'silo').length, rh = Realtime.readyLaunchers(state, P, 'hangar').length;
@@ -2111,8 +2113,12 @@
     const up = R.buildingsOf(state, P, 'uplink')[0];
     const strikeReason = liveStrikeReason() || (s.energy < CONST.STRIKE_ENERGY ? 'Need ' + CONST.STRIKE_ENERGY + ' energy' : null);
     const aiming = m => mode === m;
+    // a loaded silo left idle (or energy capped and going to waste) makes the button pulse
+    if (fireReason || attack) fireReadySince = null;
+    else if (fireReadySince === null) fireReadySince = state.rt.t;
+    const nudge = fireReadySince !== null && (state.rt.t - fireReadySince >= FIRE_NUDGE_AFTER || s.energy >= R.energyCap(state, P));
     UI.setActions({
-      fire: { enabled: !fireReason, selected: aiming('fire'), reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? rs + '/' + silos : '' },
+      fire: { enabled: !fireReason, selected: aiming('fire'), reason: fireReason, sub: CONST.MISSILE_ENERGY + 'e', badge: silos ? rs + '/' + silos : '', nudge },
       drop: { enabled: !dropReason, selected: aiming('drop'), reason: dropReason, sub: CONST.DROP_ENERGY + 'e', badge: hangars ? rh + '/' + hangars : '' },
       strike: {
         visible: !!up, enabled: !strikeReason, selected: aiming('strike'), reason: strikeReason, sub: CONST.STRIKE_ENERGY + 'e',

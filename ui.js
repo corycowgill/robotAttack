@@ -405,6 +405,8 @@ window.UI = (function () {
     #orders { width: 220px; }
   }
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
+  .abtn.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
+  @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
   #b-log { display: none; position: relative; }
   #b-log.alert { border-color: var(--c-bad); animation: logpulse 1s ease-in-out infinite alternate; }
   #b-log.alert::after { content: attr(data-n); position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--c-bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
@@ -481,6 +483,8 @@ window.UI = (function () {
     body.compact #hud { left: calc(var(--safe-l) + 4px); transform: none; max-width: calc(100vw - 8px); }
     body.compact #hud .lbl, body.compact #hud .inc, body.compact #hud-phase { display: none; }
     body.compact #hud .cell { padding: 4px 7px; } body.compact .hq-cell { min-width: 0 !important; }
+    body.compact .hq-cell .val::before { content: attr(data-tag); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; margin-right: 3px; vertical-align: 2px; opacity: .8; }
+    body.compact #h-hq::before { color: var(--c-player); } body.compact #h-ehq::before { color: var(--c-ai); }
     body.compact #sysbtns { top: 46px; }
     body.compact #objectives { top: 88px; max-width: calc(100vw - 16px); }
     body.compact #toasts { top: 120px; }
@@ -510,8 +514,8 @@ window.UI = (function () {
       <div class="cell"><div class="lbl" style="color:var(--c-credit)">${icon('credits')} Credits</div><div class="val" style="color:var(--c-credit)"><span id="h-cr">0</span><span class="inc" id="h-cri"></span></div></div>
       <div class="cell"><div class="lbl" style="color:var(--c-energy)">${icon('energy')} Energy</div><div class="val" style="color:var(--c-energy)"><span id="h-en">0</span><span class="inc" id="h-eni"></span></div><div class="bar"><i id="h-enb" style="background:var(--c-energy)"></i></div></div>
       <div class="cell" id="hud-turn"><div class="val" id="h-turn">TURN 1</div><div id="hud-phase">Planning</div></div>
-      <div class="cell hq-cell"><div class="lbl" id="h-hql" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div></div>
-      <div class="cell hq-cell"><div class="lbl" id="h-ehql" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-hql" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq" data-tag="You">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-ehql" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq" data-tag="Foe">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div></div>
     `));
 
     root.appendChild(el('div', { id: 'sysbtns', class: 'pi' }, `
@@ -567,7 +571,7 @@ window.UI = (function () {
         <div class="sect">Campaign</div>
         <div class="missions" id="m-missions"></div>
         <div class="sect">Skirmish &amp; two players &mdash; random islands</div>
-        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span>${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
+        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span data-l="${k}">${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
         <div class="diffs">${diffs}</div>
         <div class="panel hotseat daily" id="m-daily"><div><h3>DAILY OPERATION <span id="dl-date"></span></h3><p id="dl-desc"></p></div><div class="vs" id="dl-best"></div></div>
         <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
@@ -831,6 +835,7 @@ window.UI = (function () {
       b.title = o.reason || '';
     };
     set('b-fire', a.fire); set('b-drop', a.drop);
+    $('b-fire').classList.toggle('nudge', !!a.fire.nudge);
     $('fire-sub').textContent = a.fire.sub || '';
     $('drop-sub').textContent = a.drop.sub || '';
     $('fire-badge').textContent = a.fire.badge || '';
@@ -888,6 +893,15 @@ window.UI = (function () {
   })();
   function paintOpts() {
     document.querySelectorAll('#m-opts button').forEach(b => b.classList.toggle('on', skirmishOpts[b.dataset.k] === +b.dataset.v));
+    // real time measures the battle on the clock (two-player games are always turn by turn)
+    const live = skirmishOpts.pace !== 0;
+    const l = document.querySelector('#m-opts [data-l="turns"]');
+    if (l) l.textContent = live ? 'Battle clock' : SKIRMISH_OPTIONS.turns.label;
+    document.querySelectorAll('#m-opts button[data-k="turns"]').forEach(b => {
+      const n = +b.dataset.v;
+      b.textContent = live ? (n * RT.CLOCK_PER_TURN / 60) + ' min' : n;
+      b.title = live ? n + ' turns in a turn-based or two-player game' : (n * RT.CLOCK_PER_TURN / 60) + ' minutes in real time';
+    });
   }
   function getSkirmishOptions() { return Object.assign({}, skirmishOpts); }
   function getLog() { return $('log').innerHTML; }

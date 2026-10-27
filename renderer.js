@@ -26,10 +26,23 @@ window.Renderer = (function () {
   // Camera rig
   const cam = {
     tx: MAP_W / 2, tz: MAP_H / 2 + 10, dist: 400, pitch: 0.98,
+    // yaw 0 looks north with the player's island on the left; a tall (portrait) screen turns
+    // the view a quarter turn so the islands stack: the player's at the bottom, the enemy's on top
+    yaw: 0,
     gx: MAP_W / 2, gz: MAP_H / 2 + 10, gdist: 400,
     trauma: 0, userPanAt: -10,
     keys: {}, drag: null
   };
+
+  // screen axes on the ground: right (r) and up-the-screen (f) for the current yaw
+  function camAxes() { return { rx: Math.cos(cam.yaw), rz: -Math.sin(cam.yaw), fx: -Math.sin(cam.yaw), fz: -Math.cos(cam.yaw) }; }
+  // move the camera goal by a screen-space offset (pixels right / down) scaled to world units
+  function panScreen(gx, gz, dx, dy, k) {
+    const a = camAxes();
+    cam.gx = gx - a.rx * dx * k + a.fx * dy * k / Math.sin(cam.pitch);
+    cam.gz = gz - a.rz * dx * k + a.fz * dy * k / Math.sin(cam.pitch);
+  }
+  function camOffset(d) { const h = Math.cos(cam.pitch) * d; return { x: Math.sin(cam.yaw) * h, y: Math.sin(cam.pitch) * d, z: Math.cos(cam.yaw) * h }; }
 
   // ── Helpers ───────────────────────────────────────────────
   function cellCenter(cell) {
@@ -85,6 +98,7 @@ window.Renderer = (function () {
     Fx.init(scene);
     setupCameraInput();
     window.addEventListener('resize', onResize);
+    cam.yaw = portraitYaw();
     frameAll(true);
     loadQuality();
   }
@@ -1191,8 +1205,7 @@ window.Renderer = (function () {
     window.addEventListener('mousemove', e => {
       if (!cam.drag) return;
       const k = cam.gdist / window.innerHeight * 1.1;
-      cam.gx = cam.drag.gx - (e.clientX - cam.drag.x) * k;
-      cam.gz = cam.drag.gz - (e.clientY - cam.drag.y) * k / Math.sin(cam.pitch);
+      panScreen(cam.drag.gx, cam.drag.gz, e.clientX - cam.drag.x, e.clientY - cam.drag.y, k);
       clampCam();
       cam.userPanAt = time;
     });
@@ -1228,8 +1241,7 @@ window.Renderer = (function () {
         cam.userPanAt = time;
       } else if (cam.drag && cam.drag.touch && Math.hypot(e.clientX - cam.drag.x, e.clientY - cam.drag.y) > 8) {
         const k = cam.gdist / window.innerHeight * 1.1;
-        cam.gx = cam.drag.gx - (e.clientX - cam.drag.x) * k;
-        cam.gz = cam.drag.gz - (e.clientY - cam.drag.y) * k / Math.sin(cam.pitch);
+        panScreen(cam.drag.gx, cam.drag.gz, e.clientX - cam.drag.x, e.clientY - cam.drag.y, k);
         clampCam();
         cam.userPanAt = time;
       }
@@ -1248,8 +1260,9 @@ window.Renderer = (function () {
   }
 
   function clampCam() {
-    cam.gx = Math.max(-40, Math.min(MAP_W + 40, cam.gx));
-    cam.gz = Math.max(-20, Math.min(MAP_H + 60, cam.gz));
+    const side = cam.yaw ? 60 : 40;
+    cam.gx = Math.max(-side, Math.min(MAP_W + side, cam.gx));
+    cam.gz = Math.max(cam.yaw ? -60 : -20, Math.min(MAP_H + 60, cam.gz));
   }
 
   function focus(x, z, dist, force) {
@@ -1271,7 +1284,8 @@ window.Renderer = (function () {
   const corners = [[-CELL, -CELL], [MAP_W + CELL, -CELL], [-CELL, MAP_H + CELL], [MAP_W + CELL, MAP_H + CELL]].map(c => new THREE.Vector3(c[0], 0, c[1]));
   function screenBox(gx, gz, d) {
     fitCam.copy(camera);
-    fitCam.position.set(gx, Math.sin(cam.pitch) * d, gz + Math.cos(cam.pitch) * d);
+    const o = camOffset(d);
+    fitCam.position.set(gx + o.x, o.y, gz + o.z);
     fitCam.lookAt(gx, 0, gz);
     fitCam.updateMatrixWorld(true);
     const W = window.innerWidth, H = window.innerHeight, v = new THREE.Vector3();
@@ -1299,8 +1313,8 @@ window.Renderer = (function () {
       // centre the projected map in the free area
       const bx = screenBox(gx, gz, d);
       const worldPerPx = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * d) / H;
-      gx -= ((ax0 + ax1) / 2 - (bx.x0 + bx.x1) / 2) * worldPerPx;
-      gz -= ((ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2) * worldPerPx / Math.sin(cam.pitch);
+      panScreen(gx, gz, (ax0 + ax1) / 2 - (bx.x0 + bx.x1) / 2, (ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2, worldPerPx);
+      gx = cam.gx; gz = cam.gz;
     }
     cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(1500, d);
     framedDist = cam.gdist;
@@ -1361,10 +1375,10 @@ window.Renderer = (function () {
       const sp = cam.gdist * 1.1 * dt;
       const k = cam.keys;
       let moved = false;
-      if (k.KeyA || k.ArrowLeft) { cam.gx -= sp; moved = true; }
-      if (k.KeyD || k.ArrowRight) { cam.gx += sp; moved = true; }
-      if (k.KeyW || k.ArrowUp) { cam.gz -= sp; moved = true; }
-      if (k.KeyS || k.ArrowDown) { cam.gz += sp; moved = true; }
+      const a = camAxes();
+      const mx = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
+      const my = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
+      if (mx || my) { cam.gx += (a.rx * mx + a.fx * my) * sp; cam.gz += (a.rz * mx + a.fz * my) * sp; moved = true; }
       if (moved) { clampCam(); cam.userPanAt = time; }
     }
     const a = 1 - Math.exp(-7 * dt);
@@ -1376,12 +1390,16 @@ window.Renderer = (function () {
     const ox = s * 3.2 * (Math.sin(time * 41) + Math.sin(time * 27.3) * 0.5);
     const oy = s * 2.4 * (Math.sin(time * 37.1 + 1) + Math.sin(time * 23.7) * 0.5);
     const roll = s * 0.018 * Math.sin(time * 31.7);
-    camera.position.set(cam.tx + ox, Math.sin(cam.pitch) * cam.dist + oy, cam.tz + Math.cos(cam.pitch) * cam.dist);
+    const o = camOffset(cam.dist);
+    camera.position.set(cam.tx + ox + o.x, o.y + oy, cam.tz + o.z);
     camera.lookAt(cam.tx + ox, 0, cam.tz);
     camera.rotation.z += roll;
   }
 
+  function portraitYaw() { return window.innerHeight > window.innerWidth * 1.15 ? -Math.PI / 2 : 0; }
   function onResize() {
+    const yaw = portraitYaw();
+    if (yaw !== cam.yaw) { cam.yaw = yaw; frameAll(true); }
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);

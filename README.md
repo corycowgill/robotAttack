@@ -17,7 +17,7 @@ The game is static files with no build step.
 Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come from a CDN, and the game falls back to system fonts without them. When the game is served over HTTPS, a service worker (`sw.js`) caches it on the first visit, and after that it plays offline, including from the home screen. It fetches its own files network-first, so updates show up as soon as you're online.
 
 **iPhone / phones:**
-- Landscape is best. In portrait the game asks you to rotate, but you can play anyway.
+- Landscape is best. In portrait the game asks you to rotate, but you can play anyway: the view turns a quarter so the islands stack, yours at the bottom and the enemy's on top.
 - On small screens the interface switches to a compact layout: a slimmer HUD, a scrollable build bar, and the battle log behind a button.
 - Tap to select. Placing a building or picking a missile or drop target takes two taps: one to preview, one to confirm.
 - Drag to pan, pinch to zoom.
@@ -34,7 +34,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
 
   The AI builds its first factory early in its opening and a second one about 2½ minutes in.
 - **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
-  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**.
+  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**. The Fire Missile button pulses when a loaded silo has sat idle for 12 seconds, or when your energy is full.
   - Each click on the map gives the next loaded missile its own target, up to 4 missiles per attack. With `E`, the click picks where the mechs land: the 5×5 box they will fight in, outlined on the map. With `R`, it picks the strike's target. `Q`/`E`/`R` switch what the next click aims.
   - The attack panel lists every silo and hangar with its status (ready, reloading, or its target). Click a chip to add or free a silo, mech or the strike. It shows the energy cost and, for each target, how many missiles should get past the defences you know about. `Enter` or **Launch** sends it all; `Esc` cancels.
   - Missiles leave one after another. The dropship carrying the mechs follows them.
@@ -156,7 +156,7 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 **Skirmish** plays a random island map against any of the three opponents. The options row above the opponent cards sets:
 - island size: small (95 cells), normal (120) or large (150);
 - starting credits: 250, 350 or 600;
-- turn limit: 20, 30 or 45;
+- length: 20, 30 or 45 turns, which in real time is a 10, 15 or 22.5-minute clock;
 - whether the Strike Uplink is allowed;
 - the pace: **Real-time** (default; see above) or **Turns**;
 - the opponent's style:
