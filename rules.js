@@ -255,6 +255,7 @@
       rng: (seed >>> 0) || ((Math.random() * 4294967296) >>> 0),
       cells: [],
       robots: [],
+      mines: [],              // hidden minefields { id, side, cell }: never structures, never shown to the enemy
       missiles: [],           // in flight, launched last turn
       sides: { player: newSide(P), ai: newSide(A) },
       locked: (opts.locked || []).concat(['factory']),  // structure types not available in this game (factories: real time only)
@@ -317,6 +318,10 @@
   }
 
   // ── Queries ──────────────────────────────────────────────
+  // Minefields live in their own list so nothing that looks at structures can give them away
+  function minesOf(state, side) { return (state.mines || []).filter(m => m.side === side); }
+  function mineAt(state, cell) { return (state.mines || []).find(m => m.cell === cell) || null; }
+
   function buildingsOf(state, side, type) {
     const out = [];
     for (let i = 0; i < N; i++) {
@@ -442,12 +447,12 @@
     if (owner !== side) return 'Enemy territory';
     if (!isLand(state, cell)) return 'Water — build on your island';
     const c = state.cells[cell];
-    if (c.building) return 'Cell occupied';
+    if (c.building || mineAt(state, cell)) return 'Cell occupied';
     if (c.crater > 0) return 'Crater (' + c.crater + ' turn' + (c.crater > 1 ? 's' : '') + ')';
     if (robotAt(state, cell)) return 'Mech in the way';
     const own = buildingsOf(state, side);
     if (!own.some(b => cheb(b.cell, cell) <= C.BUILD_RADIUS)) return 'Out of build range';
-    if (def.max && buildingsOf(state, side, type).length >= def.max) return 'Max ' + def.max + ' ' + def.name + 's';
+    if (def.max && countOf(state, side, type) >= def.max) return 'Max ' + def.max + ' ' + def.name + 's';
     const cost = buildCost(state, side, type);
     if (state.sides[side].credits < cost) return 'Need ' + cost + ' credits';
     return null;
@@ -460,12 +465,14 @@
     const step = (def.costStep || 0) + (state.realtime && def.rtCostStep ? def.rtCostStep : 0);
     return def.cost + (step ? step * buildingsOf(state, side, type).length : 0);
   }
+  // how many of a type a side owns (minefields included)
+  function countOf(state, side, type) { return B[type] && B[type].mine ? minesOf(state, side).length : buildingsOf(state, side, type).length; }
 
   // Cheap check ignoring credits/max — for the build-zone overlay
   function inBuildZone(state, side, cell) {
     if (ownerOfCell(cell) !== side || !isLand(state, cell)) return false;
     const c = state.cells[cell];
-    if (c.building || c.crater > 0 || robotAt(state, cell)) return false;
+    if (c.building || c.crater > 0 || robotAt(state, cell) || mineAt(state, cell)) return false;
     return buildingsOf(state, side).some(b => cheb(b.cell, cell) <= C.BUILD_RADIUS);
   }
 
@@ -475,6 +482,12 @@
     const s = state.sides[side];
     const cost = buildCost(state, side, type);
     s.credits -= cost;
+    if (B[type].mine) {
+      const m = { id: state.nextId++, side, cell };
+      (state.mines || (state.mines = [])).push(m);
+      s.undo.push({ kind: 'mine', id: m.id, cell, cost });
+      return { ok: true, mine: m };
+    }
     const b = placeBuilding(state, side, type, cell);
     b.paid = cost;
     s.undo.push({ kind: 'build', id: b.id, cell, cost, disguise: b.disguise });
@@ -676,6 +689,13 @@
       s.credits -= u.value;
       return { ok: true, kind: 'sell', building: u.building };
     }
+    if (u.kind === 'mine') {
+      const i = (state.mines || []).findIndex(m => m.id === u.id);
+      if (i < 0) return { ok: false, reason: 'Cannot undo' };
+      state.mines.splice(i, 1);
+      s.credits += u.cost;
+      return { ok: true, kind: 'mine', cell: u.cell };
+    }
     const b = buildingAt(state, u.cell);
     if (!b || b.id !== u.id) return { ok: false, reason: 'Cannot undo' };
     if (u.kind === 'build') {
@@ -771,6 +791,22 @@
   }
 
   // ── Robot pathfinding (8-way BFS avoiding buildings and robots) ──
+  // A mech walking `path` stops on the first enemy mine and sets it off. Returns the path it
+  // actually walked and the blast ({ cell, side, dmg, killed }), if any.
+  function walkPath(state, r, path) {
+    for (let i = 0; i < path.length; i++) {
+      const m = mineAt(state, path[i]);
+      if (!m || m.side === r.side) continue;
+      state.mines.splice(state.mines.indexOf(m), 1);
+      const dmg = B.mine.damage;
+      r.hp = Math.max(0, r.hp - dmg);
+      const killed = r.hp <= 0;
+      if (killed) { state.sides[m.side].stats.robotsKilled++; state.sides[r.side].stats.robotsLost++; }
+      return { path: path.slice(0, i + 1), blast: { cell: path[i], side: m.side, dmg, killed, hpAfter: r.hp, steps: i + 1 } };
+    }
+    return { path, blast: null };
+  }
+
   function passable(state, cell, self) {
     if (!isLand(state, cell)) return false;
     if (state.cells[cell].building) return false;
@@ -975,8 +1011,10 @@
         ev(BEAT.ROBOTS, { type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
       } else if (act.kind === 'move') {
         const fromCell = r.cell;
-        r.cell = act.path[act.path.length - 1];
-        ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: act.path, facing: act.facing });
+        const walk = walkPath(state, r, act.path);
+        r.cell = walk.path[walk.path.length - 1];
+        ev(BEAT.ROBOTS, { type: 'robotMove', id: r.id, side: r.side, from: fromCell, path: walk.path, facing: act.facing });
+        if (walk.blast) ev(BEAT.ROBOTS, Object.assign({ type: 'mine', id: r.id, robotSide: r.side }, walk.blast));
       }
     }
 
@@ -1087,7 +1125,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, generateIslands, isLand, apparent, missionMedals, dailyScore, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, missionMedals, dailyScore, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, minesOf, mineAt, countOf, walkPath, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, buildCost, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,

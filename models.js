@@ -1101,6 +1101,20 @@
     return g;
   }
 
+  // Minefield: four buried charges, only ever shown to their owner
+  function mine(side) {
+    side = sideKey(side);
+    var g = new THREE.Group();
+    g.name = 'mine';
+    var GM = MAT.gunmetal(), T = trim(side);
+    [[-2.2, -2.0], [2.3, -1.4], [-1.2, 2.4], [2.6, 2.6]].forEach(function (p) {
+      add(g, cyl(1.1, 1.3, 0.35, 10), GM, p[0], 0.15, p[1]);
+      addFlat(g, cyl(0.28, 0.28, 0.12, 8), T, p[0], 0.38, p[1]);
+    });
+    g.userData = { type: 'mine', side: side, _own: [] };
+    return g;
+  }
+
   function interceptor() {
     var g = new THREE.Group();
     g.name = 'interceptor';
@@ -1187,6 +1201,7 @@
     uplink: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 3.6, 4.2, 1.8, 6, 0, 1.5, 0], ['c', 0.9, 1.3, 4.6, 10, 0, 4.8, 0], ['c', 2.4, 2.4, 0.5, 12, 0, 9.0, 0]],
     base: [['b', 10, 0.6, 10, 0, 0.3, 0], ['c', 4.2, 4.8, 1.6, 8, 0, 1.4, 0], ['c', 2.6, 3.3, 2.6, 8, 0, 3.4, 0]],
     factory: [['b', 10, 0.6, 10, 0, 0.3, 0], ['b', 8.2, 3.4, 6.4, -0.4, 2.3, -0.6], ['c', 0.6, 0.85, 6.6, 8, 3.0, 3.9, -2.7]],
+    mine: [['c', 1.1, 1.3, 0.4, 8, -2.2, 0.25, -2.0], ['c', 1.1, 1.3, 0.4, 8, 2.3, 0.25, -1.4], ['c', 1.1, 1.3, 0.4, 8, -1.2, 0.25, 2.4], ['c', 1.1, 1.3, 0.4, 8, 2.6, 0.25, 2.6]],
     gunpod: [['b', 9.5, 0.6, 9.5, 0, 0.3, 0], ['c', 2.9, 3.6, 1.0, 6, 0, 1.1, 0], ['c', 1.2, 1.9, 1.6, 8, 0, 2.4, 0], ['b', 0.9, 0.9, 2.6, 0, 2.55, 3.2]]
   };
   function ghost(type) {
@@ -1230,6 +1245,7 @@
     animateRobot: animateRobot,
     missile: missile,
     interceptor: interceptor,
+    mine: mine,
     pod: pod,
     ghost: ghost,
     glowTexture: glowTexture,

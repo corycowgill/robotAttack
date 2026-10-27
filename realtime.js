@@ -600,8 +600,10 @@
         ev({ type: 'robotHit', id: r.id, side: r.side, cell: r.cell, hit });
       } else if (act.kind === 'move') {
         const from = r.cell;
-        r.cell = act.path[act.path.length - 1];
-        ev({ type: 'robotMove', id: r.id, side: r.side, from, path: act.path, facing: act.facing });
+        const walk = R.walkPath(state, r, act.path);
+        r.cell = walk.path[walk.path.length - 1];
+        ev({ type: 'robotMove', id: r.id, side: r.side, from, path: walk.path, facing: act.facing });
+        if (walk.blast) ev(Object.assign({ type: 'mine', id: r.id, robotSide: r.side }, walk.blast));
       }
     }
   }

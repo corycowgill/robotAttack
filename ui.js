@@ -37,6 +37,7 @@ window.UI = (function () {
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     log: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     decoy: '<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5L14 20l-2-1.5L10 20l-2-1.5z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
+    mine: '<path d="M4 18h16"/><ellipse cx="12" cy="15" rx="6" ry="2.5"/><path d="M12 12.5V9M9 10.5 7.5 8M15 10.5 16.5 8"/>',
     factory: '<path d="M3 21V10l5 3v-3l5 3v-3l5 3V4h3v17z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
     base: '<path d="M4 20h16"/><path d="M6 20v-6a6 6 0 0 1 12 0v6"/><path d="M12 8V3l4 1.5L12 6"/><path d="M10 20v-3h4v3"/>',
     uplink: '<path d="M7 21l3-9h4l3 9"/><path d="M8.5 17h7"/><ellipse cx="12" cy="7" rx="6" ry="2"/><circle cx="12" cy="7" r="1"/><path d="M12 5V2"/>',
@@ -714,7 +715,7 @@ window.UI = (function () {
   function helpHTML() {
     const rows = BUILD_ORDER.map(k => {
       const b = BUILDINGS[k];
-      return `<tr><td><kbd>${b.key}</kbd></td><td><b>${b.name}</b></td><td>${b.cost}</td><td>${b.hp}</td><td>${esc(b.desc)}</td></tr>`;
+      return `<tr><td><kbd>${b.key}</kbd></td><td><b>${b.name}</b></td><td>${b.cost}</td><td>${b.hp || "—"}</td><td>${esc(b.desc)}</td></tr>`;
     }).join('');
     return `<div class="menu-box panel">
       <h2>How to play</h2>
@@ -749,7 +750,7 @@ window.UI = (function () {
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
       <div class="keys">
-        <div><kbd>1</kbd>–<kbd>0</kbd> select structure &nbsp; <kbd>B</kbd> factory (real time)</div><div><kbd>Left click</kbd> place / target / select</div>
+        <div><kbd>1</kbd>–<kbd>0</kbd> select structure &nbsp; <kbd>N</kbd> minefield &nbsp; <kbd>B</kbd> factory (real time)</div><div><kbd>Left click</kbd> place / target / select</div>
         <div><kbd>Q</kbd> fire missile &nbsp; <kbd>E</kbd> drop mech</div><div><kbd>R</kbd> orbital strike</div>
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>

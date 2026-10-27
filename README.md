@@ -112,6 +112,7 @@ Each side starts on its own island with a Command Center and one Missile Silo. I
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Sentry Turret | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
 | 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
+| N | Minefield | 40 | — | Buried charges, maximum 6. Never a structure: the enemy can't see, target or count them. The first enemy mech to step on one takes 40 damage (it stops there), and the mine is used up. Your own mechs walk over them. The AI starts laying mines once it has seen your hangars or your mechs. |
 | 0 | Strike Uplink | 200 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
 - **Sell:** refunds 50% of the cost, scaled by remaining HP (repairs made this turn don't count). Selling a structure in the turn you built it refunds it in full. Selling can be undone with `Z` within the same turn.
@@ -200,7 +201,7 @@ The browser remembers your choices. The map options also apply to Two Players; t
 ## Controls
 
 | Input | Action |
-|---|---|
+| `1`–`9`, `0`, `N`, `B` | Select a structure to build: `N` minefield, `B` factory (real time). Shift+click places several |
 | `1`–`9`, `0` | Select a structure to build (Shift+click places several) |
 | Left click | Place / target / select |
 | Right click, `Esc` | Cancel |
