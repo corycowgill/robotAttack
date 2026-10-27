@@ -124,21 +124,25 @@
     // missile pressure: silos and power first, heavy warheads early
     blitz: {
       opening: ['depot', 'power', 'silo', 'depot', 'power', 'silo', 'aa', 'silo', 'radar'],
+      // real time: a rush with no economy behind it is crushed by the first counter-raid
+      rtOpening: ['depot', 'depot', 'power', 'silo', 'aa', 'power', 'silo', 'hangar', 'depot', 'aa', 'silo', 'radar'],
       // real time rewards the rush more (silos fire as soon as they reload), so it stops at four there
       after: (n, basic, state) => n('silo') < (state.realtime ? 4 : 5) ? 'silo' : basic('silo') ? 'up:silo' : n('power') < 4 ? 'power' : null
     },
     // turtle behind AA and shields, then win with the superweapon
     fortress: {
       opening: ['depot', 'aa', 'depot', 'power', 'shield', 'aa', 'silo', 'depot', 'radar'],
+      rtOpening: ['depot', 'depot', 'power', 'aa', 'silo', 'shield', 'depot', 'aa', 'radar'],
       after: (n, basic, state) => state.turn >= (state.realtime ? 10 : 7) && n('uplink') < 1 && unlocked(state, 'uplink') ? 'uplink'
         // reloading AA makes turtling stronger in real time: fewer batteries before it turns to offence
-        : n('aa') < (state.realtime ? 2 : 3) ? 'aa' : n('shield') < (state.realtime ? 1 : 2) ? 'shield' : n('silo') < 4 ? 'silo' : basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
+        : n('aa') < (state.realtime ? 2 : 3) ? 'aa' : n('shield') < (state.realtime ? 1 : 2) ? 'shield' : n('silo') < 4 ? 'silo' : !state.realtime && basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
     },
     // mech swarms on a second front: hangars and heavy mechs
     raider: {
       opening: ['depot', 'depot', 'power', 'hangar', 'power', 'aa', 'hangar', 'depot', 'radar'],
+      rtOpening: ['depot', 'depot', 'power', 'hangar', 'silo', 'power', 'aa', 'hangar', 'depot', 'radar'],
       dropsFirst: true,
-      after: (n, basic) => n('silo') < 3 ? 'silo' : basic('hangar') ? 'up:hangar' : n('hangar') < 3 ? 'hangar' : null
+      after: (n, basic, state) => n('silo') < (state.realtime ? 4 : 3) ? 'silo' : basic('hangar') ? 'up:hangar' : n('hangar') < 3 ? 'hangar' : null
     }
   };
   function styleOf(state) { return (ME === C.SIDE_AI && AI_STYLES[state.aiStyle]) || AI_STYLES.balanced; }
@@ -153,7 +157,8 @@
     // A hangar early: mechs bypass AA entirely and open a second front (simulations: this
     // opening beats a missiles-first one about 60/40)
     // real time: a factory early speeds up everything after it
-    const opening = state.realtime && unlocked(state, 'factory') ? style.opening.slice(0, 3).concat(['factory'], style.opening.slice(3)) : style.opening;
+    const base = (state.realtime && style.rtOpening) || style.opening;
+    const opening = state.realtime && unlocked(state, 'factory') ? base.slice(0, 3).concat(['factory'], base.slice(3)) : base;
     const have = {};
     for (const t of opening) {
       have[t] = (have[t] || 0) + 1;
