@@ -201,6 +201,8 @@ window.UI = (function () {
   /* Real-time attack panel: pick which loaded silos, mechs and strike go */
   #attack { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: min(580px, 94vw); padding: 12px 16px; display: none; z-index: 4; }
   #attack.show { display: block; animation: tin .2s ease-out; }
+  /* wide screens: dock it over your own island so the enemy island stays clear to click */
+  @media (min-width: 1000px) { body:not(.compact) #attack { left: 12px; transform: none; width: min(520px, 42vw); } }
   #attack .ah { font-size: 15px; margin-bottom: 8px; } #attack .ah b { letter-spacing: .14em; color: var(--c-warn); } #attack .ah .k { float: right; color: var(--c-dim); font-size: 12px; margin-top: 2px; }
   #attack .arow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 5px 0; }
   #attack .al { width: 64px; font-size: 11px; color: var(--c-dim); text-transform: uppercase; letter-spacing: .1em; }
@@ -286,6 +288,7 @@ window.UI = (function () {
   @keyframes menuIn { to { opacity: 1; transform: none; } }
   #menu { background: linear-gradient(180deg, rgba(5,8,12,.35) 0%, rgba(5,8,12,.55) 35%, rgba(5,8,12,.86) 100%); align-items: flex-start; overflow-y: auto; }
   #menu .menu-box { margin: auto; padding: 18px 0 22px; }  /* centred when it fits, scrollable (never clipped) when it doesn't */
+  @media (max-width: 700px) { #menu .menu-box { padding-top: 58px; } }  /* clear of the corner buttons */
   body.splash-on #sysbtns, body.splash-on #hud { visibility: hidden; }
   .tag { color: var(--c-dim); letter-spacing: .3em; text-transform: uppercase; font-size: 13px; margin: 18px 0 28px; }
   .diffs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -402,7 +405,10 @@ window.UI = (function () {
     #orders { width: 220px; }
   }
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
-  #b-log { display: none; }
+  #b-log { display: none; position: relative; }
+  #b-log.alert { border-color: var(--c-bad); animation: logpulse 1s ease-in-out infinite alternate; }
+  #b-log.alert::after { content: attr(data-n); position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--c-bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  @keyframes logpulse { to { box-shadow: 0 0 12px rgba(255,80,60,.8); } }
   #rotate { position: absolute; inset: 0; display: none; flex-direction: column; gap: 18px; align-items: center; justify-content: center; text-align: center; padding: 24px;
     background: rgba(5,8,12,.94); pointer-events: auto; z-index: 20; font-size: 18px; }
   #rotate.show { display: flex; }
@@ -481,8 +487,9 @@ window.UI = (function () {
     body.compact #cards { max-width: calc(100vw - 200px); }
   }
 
-  @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: calc(100vh - 360px); } }
-  @media (max-height: 700px) { #orders { display: none; } }
+  @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: max(110px, calc(100vh - 480px)); } #orders { max-height: max(150px, calc(100vh - 410px)); } }
+  /* very short windows: the orders and log panel opens from a button instead */
+  @media (max-height: 540px) { body:not(.compact) #orders { display: none; z-index: 4; max-height: calc(100vh - 210px); } body:not(.compact) #orders.open { display: flex; } body:not(.compact) #b-log { display: grid; } }
   `;
 
   function el(tag, attrs, html) {
@@ -673,7 +680,7 @@ window.UI = (function () {
     });
     $('ch-skip').addEventListener('click', () => H.onAction('end'));
     $('ch-speed').addEventListener('click', () => H.onSpeed());
-    $('b-log').addEventListener('click', () => $('orders').classList.toggle('open'));
+    $('b-log').addEventListener('click', () => { $('orders').classList.toggle('open'); $('log').scrollTop = $('log').scrollHeight; });
     root.appendChild(el('div', { id: 'rotate' }, `<div class="phone"></div><div><b>Rotate your phone</b><br><span style="color:var(--c-dim);font-size:15px">Robot Attack plays best in landscape.</span></div><button class="bigbtn alt" id="rot-ok">Play anyway</button>`));
     $('rot-ok').addEventListener('click', () => { rotateDismissed = true; layout(); });
     window.addEventListener('resize', layout);
@@ -707,7 +714,8 @@ window.UI = (function () {
     }).join('');
     return `<div class="menu-box panel">
       <h2>How to play</h2>
-      <p><b>Goal:</b> destroy the enemy <b style="color:var(--c-ai)">Command Center</b> (always marked on the right side of the map) before yours falls. If both survive the turn limit (${CONST.MAX_TURNS} by default), the healthier HQ wins.</p>
+      <p><b>Goal (real time):</b> destroy every enemy base: the <b style="color:var(--c-ai)">Command Center</b> and its ${RT.BASES_PER_SIDE} outer <b>Bases</b>, all marked on the right side of the map. Lose all of yours and you lose. When the ${Math.round(CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60)}-minute clock runs out, the side with more base health left wins.<br>
+      <b>Goal (turn-based skirmish):</b> destroy the enemy Command Center before yours falls; after ${CONST.MAX_TURNS} turns the healthier HQ wins.</p>
       <h4>Real-time battles (the campaign, and skirmish by default)</h4>
       <ul>
         <li><b>Destroy every enemy base.</b> Each side has its Command Center and ${RT.BASES_PER_SIDE} more Bases, all marked on the map (decoys may pose as one). Lose all yours and the war is lost. Bases can't be repaired.</li>
@@ -842,6 +850,8 @@ window.UI = (function () {
   function setOrders(orders, incoming) {
     const box = $('orderlist');
     box.innerHTML = '';
+    // the log button (when the panel is folded away) shows how many enemy waves are inbound
+    const b = $('b-log'); b.classList.toggle('alert', incoming.length > 0); b.dataset.n = incoming.length || '';
     if (!orders.length && !incoming.length) { box.appendChild(el('div', { class: 'empty' }, liveMode ? 'Nothing in the air.' : 'No orders queued.')); return; }
     for (const m of incoming) {
       box.appendChild(el('div', { class: 'order incoming' + (m.strike ? ' strike' : '') }, `${icon(m.strike ? 'strike' : 'missile')}<span>${esc(m.text)}</span>`));

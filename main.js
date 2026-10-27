@@ -495,7 +495,7 @@
         if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
         if (b.type === 'uplink') Renderer.setBuildingCharge(b.id, playerSees(c) ? b.charge : 0);
         if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
-        if (state.realtime) Renderer.setBuildingProgress(b.id, b.progress);
+        if (state.realtime) Renderer.setBuildingProgress(b.id, shownProgress(b));
         Renderer.setBuildingVisible(b.id, playerSees(c));
       }
       Renderer.setCrater(c, state.cells[c].crater > 0 && !state.cells[c].building);
@@ -859,10 +859,10 @@
   ];
   // Real-time battles: the same lessons, with attacks launched from the attack panel
   const OBJECTIVES_RT = [
-    { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> next to your HQ: construction takes a few seconds', done: s => built(s, 'depot') },
+    { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> near your HQ, a cell or two apart: hits splash onto neighbours', done: s => built(s, 'depot') },
     { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => built(s, 'power') },
     { text: 'Build a <b>Factory</b> <kbd>B</kbd>: everything builds and reloads faster', done: s => has(s, 'factory') },
-    { text: 'Attack: press <kbd>Q</kbd>, click the red <b>enemy HQ</b>, then <b>Launch</b> <kbd>Enter</kbd>', touch: 'Attack: tap <b>Fire Missile</b>, tap the red <b>enemy HQ</b> twice, then <b>Launch</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.rt.flights.some(f => f.side === P) },
+    { text: 'Attack: press <kbd>Q</kbd>, click an outer <b>enemy Base</b> (less AA there), then <b>Launch</b> <kbd>Enter</kbd>', touch: 'Attack: tap <b>Fire Missile</b>, tap an outer <b>enemy Base</b> twice, then <b>Launch</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.rt.flights.some(f => f.side === P) },
     { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast to see what enemy fire is aimed at', done: s => has(s, 'radar') },
     { text: 'Enemy launches come with a countdown: guard your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
@@ -2056,11 +2056,13 @@
     if (state.winner) { recordHistory(); Timeline.cancel(); clearFlights(); closeAttack(); gameOver(); }
   }
 
+  // a decoy posing as a base looks finished from the start: bases are never built
+  function shownProgress(b) { return b.side !== P && R.apparent(b).type === 'base' ? 1 : b.progress; }
   // HUD, dock, warnings and the attack panel follow the clock a few times a second
   function refreshLive() {
     for (let c = 0; c < R.N; c++) {
       const b = state.cells[c].building;
-      if (b && b.progress < 1) Renderer.setBuildingProgress(b.id, b.progress);
+      if (b && b.progress < 1) Renderer.setBuildingProgress(b.id, shownProgress(b));
     }
     refreshHUD();
     refreshDock();
@@ -2127,7 +2129,11 @@
     setCursor(m);
     UI.banner('PLANNING', 'Time stopped: pick targets, then Launch', false);
   }
-  function energyLeft() { return state.sides[P].energy - Realtime.attackCost(attackPlan()); }
+  // armed silos count against the budget even before they have a target, so the planner never
+  // arms more than the energy pays for
+  function energyLeft() {
+    return state.sides[P].energy - attack.arm.length * CONST.MISSILE_ENERGY - attack.hangars.size * CONST.DROP_ENERGY - (attack.strikeOn ? CONST.STRIKE_ENERGY : 0);
+  }
   // switching to missiles/mechs/strike also arms what's loaded, if nothing is yet
   function setCursor(m) {
     attack.cursor = m;
@@ -2366,7 +2372,11 @@
           SND.play('build', { pan: panAt(e.cell), gain: 0.6 });
           floatAt(e.cell, 'ONLINE', 'info', 14);
           UI.log(BUILDINGS[e.kind].name + ' at ' + cellName(e.cell) + ' is complete', 'player');
-        } else if (playerSees(e.cell)) UI.log('Enemy finished building ' + BUILDINGS[R.apparent(R.buildingAt(state, e.cell) || { type: e.kind }).type].name + ' at ' + cellName(e.cell), 'enemy');
+        } else if (playerSees(e.cell)) {
+          // bases are never built, so a "finished Base" would give a decoy away: say nothing
+          const seen = R.apparent(R.buildingAt(state, e.cell) || { type: e.kind }).type;
+          if (seen !== 'base') UI.log('Enemy finished building ' + BUILDINGS[seen].name + ' at ' + cellName(e.cell), 'enemy');
+        }
         return true;
       case 'destroyed': return true;
       case 'round': recordHistory(); saveGame(); return false;

@@ -62,7 +62,7 @@ The AI plays with the same rules. It builds with the turn-based planners and att
 
 Two Players and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Mission 3 gives you 250 extra starting credits in real time. In simulations (a Commander-level player) the win rates run about 96, 100, 57, 46, 43, 38 and 43% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3 and 5 give you 250 extra starting credits in real time. In simulations (a Commander-level player) the win rates run about 100, 100, 73, 57, 45, 47 and 53% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
 
 ## How a turn works
 

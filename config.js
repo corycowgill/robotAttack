@@ -276,7 +276,7 @@ const COMMANDERS = {
 const CAMPAIGN = [
   {
     id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12, locked: ['uplink'],
-    brief: 'Rusk holds a lightly defended sand island across the strait. Build an economy, get missiles in the air and knock out his Command Center.',
+    brief: 'Rusk holds a lightly defended sand island across the strait. Build an economy, get missiles in the air and knock out all three of his bases. Start with the outer ones: they have little AA cover.',
     taunt: 'A rookie? I will have you swimming home by sundown.',
     win: 'Clean work. Rusk is out of the fight — but word of you will travel.',
     start: { player: [], ai: [] }
@@ -307,6 +307,7 @@ const CAMPAIGN = [
   },
   {
     id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 16, locked: ['uplink'],
+    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. Outstanding — but its orbital codes are already being sold.',

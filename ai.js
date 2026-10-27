@@ -29,7 +29,7 @@
     return out;
   }
 
-  function valueOf(b) { return b.type === 'hq' ? 4 : (b.type === 'silo' || b.type === 'hangar') ? 2 : 1; }
+  function valueOf(b) { return b.type === 'hq' ? 4 : b.type === 'base' ? 3 : (b.type === 'silo' || b.type === 'hangar') ? 2 : 1; }
 
   function placementScore(state, type, cell) {
     const own = R.buildingsOf(state, ME);
