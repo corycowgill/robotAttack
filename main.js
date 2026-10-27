@@ -2439,7 +2439,9 @@
         v.prev = v.a.clone();
         Renderer.add(v.obj);
       }
-      const k = Realtime.progress(state, f);
+      // the clock advances in 0.1 s ticks: add the time banked toward the next tick so flights
+      // move every frame instead of jumping six frames at a time
+      const k = Math.max(0, (state.rt.t + (state.rt.acc || 0) - f.launchAt) / f.flight);
       const p = arcPoint(v.a, v.b, v.h, Math.min(1, k), new THREE.Vector3());
       v.obj.position.copy(p);
       if (f.kind !== 'ship') orient(v.obj, p.clone().sub(v.prev));
