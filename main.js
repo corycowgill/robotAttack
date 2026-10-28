@@ -925,12 +925,12 @@
     } else if (phase === 'live' && attack) {
       const reason = liveTargetReason(hoverCell, attack.cursor);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
-        : attack.cursor === 'drop' ? 'Mechs land at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">They fight inside the 5×5 box for ' + RT.MECH_TIME + 's</span>'
+        : attack.cursor === 'drop' ? 'Mechs land at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">They fight inside the 5×5 box for ' + RT.MECH_TIME + 's</span>' + mineWarning(hoverCell)
           : (attack.cursor === 'strike' ? 'Strike' : 'Missile') + ' → <b>' + UI.esc(describeCell(hoverCell)) + '</b>' + (attack.cursor === 'fire' ? defenceOdds(hoverCell) : '');
     } else if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
       const reason = liveTargetReason(hoverCell, mode);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
-        : (attack ? 'Retarget to <b>' : 'Attack <b>') + UI.esc(describeCell(hoverCell)) + '</b>' + (mode === 'drop' ? '<br><span class="k">Mechs land within ' + RT.MECH_ZONE + ' cells and fight there for ' + RT.MECH_TIME + 's</span>' : defenceOdds(hoverCell));
+        : (attack ? 'Retarget to <b>' : 'Attack <b>') + UI.esc(describeCell(hoverCell)) + '</b>' + (mode === 'drop' ? '<br><span class="k">Mechs land within ' + RT.MECH_ZONE + ' cells and fight there for ' + RT.MECH_TIME + 's</span>' + mineWarning(hoverCell) : defenceOdds(hoverCell));
     } else if (mode === 'fire') {
       const reason = R.missileReason(state, P, hoverCell);
       html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>'
@@ -942,7 +942,7 @@
         : 'Orbital strike on <b>' + UI.esc(describeCell(hoverCell)) + '</b><br><span class="k">' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area · lands next turn · cannot be intercepted</span>';
     } else if (mode === 'drop') {
       const reason = R.dropReason(state, P, hoverCell);
-      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>' : 'Drop mech at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">Lands this turn, attacks from next turn</span>';
+      html = reason ? '<span class="bad">' + UI.esc(reason) + '</span>' : 'Drop mech at <b>' + UI.esc(cellName(hoverCell)) + '</b><br><span class="k">Lands this turn, attacks from next turn</span>' + mineWarning(hoverCell);
     } else {
       const info = selectionInfo(hoverCell);
       const rob = R.robotAt(state, hoverCell);
@@ -953,6 +953,12 @@
       else if (R.ownerOfCell(hoverCell) === A && !visible.has(hoverCell)) html = '<span class="k">Unknown — fogged.<br>Radar or missile impacts reveal it.</span>';
     }
     if (html) UI.showTip(html, mouse.x, mouse.y); else UI.hideTip();
+  }
+
+  // Minefields your mechs have set off near a drop target (the enemy may have laid more there)
+  function mineWarning(cell) {
+    const near = (state.sides[P].intel.mines || []).filter(c => R.cheb(c, cell) <= 2);
+    return near.length ? '<br><span class="bad">⚠ Your mechs hit ' + (near.length > 1 ? near.length + ' minefields' : 'a minefield') + ' near here</span>' : '';
   }
 
   // What a structure would do from this cell, shown while placing it
