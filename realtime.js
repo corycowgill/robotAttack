@@ -481,6 +481,8 @@
       robots.push(Object.assign({}, r));
     });
     ev({ type: 'deploy', id: f.id, side: f.side, to: f.to, garrison, robots });
+    // the defender remembers where raids come down (the AI mines those approaches)
+    if (!garrison) { const di = state.sides[R.enemyOf(f.side)].intel; di.raids = (di.raids || []).concat([f.to]).slice(-8); }
     // a mech dropped straight onto a buried mine sets it off as it lands
     for (const r of state.robots.filter(x => robots.some(y => y.id === x.id))) {
       const walk = R.walkPath(state, r, [r.cell]);

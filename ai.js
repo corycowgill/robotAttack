@@ -86,6 +86,8 @@
         // on the approaches to the bases, where raiding mechs walk; spread out
         for (const b of own) if ((b.type === 'hq' || b.type === 'base') && R.cheb(b.cell, cell) <= 2) score += R.cheb(b.cell, cell) === 1 ? 3 : 2;
         score -= R.minesOf(state, ME).filter(m => R.cheb(m.cell, cell) <= 1).length * 2.5;
+        // where enemy raids have come down before
+        score += (state.sides[ME].intel.raids || []).filter(c => R.cheb(c, cell) <= 2).length * 1.5;
         score -= depth(cell) * 0.08;
         break;
       case 'depot': case 'power':

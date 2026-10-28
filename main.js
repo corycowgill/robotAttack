@@ -241,6 +241,7 @@
     if (a) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('achievement'); }
   }
   // checked after every resolved turn
+  let mineKills = 0;   // this battle's mechs destroyed by your mines (Tripwire)
   function checkTurnAchievements(events) {
     for (const e of events) {
       if (e.type === 'end' && e.destroyed && e.destroyed.some(d => d.side === A)) unlock('first_blood');
@@ -249,6 +250,7 @@
       if ((e.type === 'impact' && e.side === A && e.hits.some(h => h.type === 'decoy')) || (e.type === 'robotHit' && e.side === A && e.hit.type === 'decoy')) unlock('fooled');
       if (e.type === 'gunfire' && e.side === P && e.shots.some(sh => sh.killed)) unlock('garrison');
       if (e.type === 'robotFight' && e.side === P && e.killed && R.ownerOfCell(e.targetCell) === P) unlock('garrison');
+      if (e.type === 'mine' && e.side === P && e.killed) { mineKills++; if (mineKills >= 3) unlock('tripwire'); }
     }
     if (state.sides[P].stats.intercepts >= 10) unlock('iron_dome');
     if (R.buildingsOf(state, P, 'depot').length >= 5) unlock('tycoon');
@@ -278,6 +280,7 @@
     logs = {};
     lastReportP2 = null; roundStart = null; realState = null;
     mechHintShown = false;
+    mineKills = 0;
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     leaveBackdrop();
