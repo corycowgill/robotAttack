@@ -867,7 +867,7 @@
     { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast to see what enemy fire is aimed at', done: s => has(s, 'radar') },
     { text: 'Enemy launches come with a countdown: guard your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
-    { text: 'Enemy mechs? A <b>Sentry Turret</b> <kbd>8</kbd> shreds them', done: s => has(s, 'gunpod') }
+    { text: 'Enemy mechs? A <b>Sentry Turret</b> <kbd>8</kbd> shreds them, and hidden <b>Minefields</b> <kbd>N</kbd> on the approaches blow them up', done: s => has(s, 'gunpod') || R.minesOf(s, P).length > 0 }
   ];
   function built(s, t) { return R.buildingsOf(s, P, t).some(R.online); }
   function has(s, t) { return R.buildingsOf(s, P, t).length > 0; }
