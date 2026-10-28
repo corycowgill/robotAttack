@@ -187,8 +187,8 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   });
   assert.ok(launched.ok, launched.reason);
   await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'ai' && f.launched), null, { timeout: 60000 });
-  await page.waitForFunction(() => /MISSILE/.test(document.getElementById('orderlist').textContent) || /Enemy attack inbound/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
-  await page.waitForFunction(() => /Enemy attack inbound/.test(document.getElementById('log').textContent));
+  await page.waitForFunction(() => /MISSILE/.test(document.getElementById('orderlist').textContent) || /Enemy missiles inbound/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
+  await page.waitForFunction(() => /Enemy missiles inbound/.test(document.getElementById('log').textContent));
   // our mechs: land next to an enemy structure, fight, then fly home
   const to = await page.evaluate(() => {
     const s = __game.state;

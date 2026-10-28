@@ -217,7 +217,9 @@ window.UI = (function () {
   #attack .afoot .cost { margin-right: auto; } #attack .afoot .bad { color: var(--c-bad); }
   #attack .afoot button { padding: 7px 16px; font-size: 14px; }
   #attack .afoot button[disabled] { opacity: .45; cursor: default; }
-  body.compact #attack { bottom: 66px; padding: 8px 10px; } body.compact #attack .ah .k { display: none; } body.compact #attack .ach small { display: none; }
+  body.compact #attack { bottom: 66px; padding: 8px 10px; } body.compact #attack button kbd { display: none; }
+  /* phone landscape: a column over your own island (left), so the enemy island stays tappable */
+  @media (orientation: landscape) { body.compact #attack { left: calc(var(--safe-l, 0px) + 6px); transform: none; width: min(330px, 42vw); top: 44px; bottom: 66px; overflow-y: auto; } body.compact #attack .afoot { flex-wrap: wrap; } body.compact #attack .afoot .cost { flex-basis: 100%; } } body.compact #attack .ah .k { display: none; } body.compact #attack .ach small { display: none; }
   #report { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: 420px; padding: 14px 18px; display: none; pointer-events: none; }
   #report.show { display: block; animation: tin .25s ease-out; }
   #report h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
@@ -336,7 +338,11 @@ window.UI = (function () {
   .speaker .who { font-weight: 700; font-size: 18px; } .speaker .role { font-size: 12px; color: var(--c-dim); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
   .speaker .say { font-size: 15px; line-height: 1.4; color: #d3dee9; }
   .speaker.enemy .say { color: #ffb4a6; font-style: italic; }
-  #gameover .menu-box { width: min(660px, 94vw); padding: 28px; }
+  #gameover { align-items: flex-start; overflow-y: auto; }
+  #gameover .menu-box { width: min(660px, 94vw); padding: 28px; margin: auto; }  /* centred when it fits, scrollable when it doesn't */
+  @media (max-height: 760px) { #gameover .menu-box { padding: 16px 22px; } }
+  /* the buttons stay on screen while a long debrief scrolls */
+  #gameover .go-btns { position: sticky; bottom: 0; padding: 10px 0 6px; background: linear-gradient(rgba(10,15,22,0), rgba(10,15,22,.97) 30%); }
   .opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin: 0 0 12px; }
   .opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-dim); letter-spacing: .06em; }
   .opt .seg { display: flex; border: 1px solid var(--c-line); border-radius: 6px; overflow: hidden; }
@@ -406,7 +412,7 @@ window.UI = (function () {
     #orders { width: 220px; }
   }
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
-  .abtn.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
+  .abtn.nudge, .card.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
   #b-log { display: none; position: relative; }
   #b-log.alert { border-color: var(--c-bad); animation: logpulse 1s ease-in-out infinite alternate; }
@@ -595,7 +601,7 @@ window.UI = (function () {
         <div id="go-chart"></div>
         <div id="go-quote"></div>
         <div id="go-stats"></div>
-        <button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button>
+        <div class="go-btns"><button class="bigbtn" id="go-next" style="display:none">Next Mission</button><button class="bigbtn" id="go-again">Rematch</button><button class="bigbtn alt" id="go-menu">Main Menu</button></div>
       </div>`));
 
     root.appendChild(el('div', { id: 'briefing', class: 'screen' }, `
@@ -823,7 +829,8 @@ window.UI = (function () {
       const d = box.children[i];
       d.classList.toggle('sel', !!c.selected);
       d.classList.toggle('off', !c.enabled);
-      d.querySelector('.cnt').textContent = c.count ? 'x' + c.count : '';
+      d.classList.toggle('nudge', !!c.hint);
+      d.querySelector('.cnt').textContent = c.count ? (c.max ? c.count + '/' + c.max : 'x' + c.count) : '';
       d.querySelector('.cost').textContent = c.cost;   // depots get pricier as you build them
     });
   }
@@ -1221,7 +1228,7 @@ window.UI = (function () {
     if (hist.length < 2) { box.innerHTML = ''; box.style.display = 'none'; return; }
     box.style.display = '';
     const legend = `<div class="legend"><span><i style="background:${SERIES_COL.player}"></i>${esc(names[0])}</span><span><i style="background:${SERIES_COL.ai}"></i>${esc(names[1])}</span></div>`;
-    box.innerHTML = legend + '<div class="charts">' + lineChart('Command Center health', hist, h => h.hq, 100, '%', names) + lineChart('Structures standing', hist, h => h.n, null, '', names) + '</div>';
+    box.innerHTML = legend + '<div class="charts">' + lineChart(chartClock ? 'Base health (all bases)' : 'Command Center health', hist, h => h.hq, 100, '%', names) + lineChart('Structures standing', hist, h => h.n, null, '', names) + '</div>';
     box.querySelectorAll('figure').forEach(f => wireChartHover(f, hist, names));
   }
   function lineChart(title, hist, get, fixedMax, unit, names) {

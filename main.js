@@ -659,6 +659,7 @@
   function refreshDock() {
     const s = state.sides[P];
     const locked = state.locked || [];
+    const starved = energyStarved();
     const cards = BUILD_ORDER.filter(t => !locked.includes(t)).map(t => {
       const def = BUILDINGS[t];
       const count = R.countOf(state, P, t);
@@ -666,7 +667,7 @@
       const cost = R.buildCost(state, P, t);
       if (s.credits < cost) reason = 'Need ' + cost + ' credits';
       else if (def.max && count >= def.max) reason = 'Max ' + def.max;
-      return { type: t, key: def.key, name: def.name, cost, enabled: !reason, reason, selected: mode === 'build' && buildType === t, count };
+      return { type: t, key: def.key, name: def.name, cost, enabled: !reason, reason, selected: mode === 'build' && buildType === t, count, max: def.max, hint: starved && t === 'power' };
     });
     UI.setCards(cards);
     const silos = R.buildingsOf(state, P, 'silo').length, freeSilos = R.freeLaunchers(state, P, 'silo').length;
@@ -718,7 +719,8 @@
           text: name[f.kind] + (n > 1 || f.kind === 'ship' ? ' ×' + n : '') + ' → ' + describeCell(f.to) + ' · ' + span(g.map(x => x.launchAt + x.flight - t)) };
       });
       for (const g of waves(state.robots.filter(r => r.side === P && r.zone !== undefined), r => r.zone)) {
-        mine.push({ id: g[0].id, kind: 'drop', noCancel: true, text: (g[0].garrison ? 'Garrison' : 'Mech raid') + ' ×' + g.length + ' · ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
+        // garrisons go home once the raiders are gone, so their timer means nothing
+        mine.push({ id: g[0].id, kind: 'drop', noCancel: true, text: g[0].garrison ? 'Garrison ×' + g.length + ' · ' + cellName(g[0].zone) + ' · until raiders are gone' : 'Mech raid ×' + g.length + ' · ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
       }
       const inc = waves(Realtime.inbound(state, P), m => m.kind + (m.detected ? m.to : '?')).map(g => {
         const m = g[0], n = m.kind === 'ship' ? m.mechs : g.length;
@@ -874,7 +876,12 @@
   function refreshObjectives() {
     if (objectivesHidden || !state) { UI.setObjectives(null); return; }
     const touch = lastPointer === 'touch' || matchMedia('(hover: none)').matches;
-    const list = (state.realtime ? OBJECTIVES_RT : OBJECTIVES).map(o => ({ text: touch && o.touch ? o.touch : o.text, done: o.done(state) }));
+    // a step stays ticked once done, even if that structure is later destroyed
+    const latched = state.objDone || (state.objDone = []);
+    const list = (state.realtime ? OBJECTIVES_RT : OBJECTIVES).map((o, i) => {
+      if (!latched.includes(i) && o.done(state)) latched.push(i);
+      return { text: touch && o.touch ? o.touch : o.text, done: latched.includes(i) };
+    });
     if (list.every(o => o.done)) { objectivesHidden = true; UI.setObjectives(null); UI.toast('Briefing complete — good luck, Commander', 'good'); return; }
     UI.setObjectives(list);
   }
@@ -1460,7 +1467,7 @@
     // Drops
     const drops = byBeat(R.BEAT.DROPS);
     if (drops.length) direct(t, drops.filter(e => e.type === 'drop').map(e => e.to));
-    drops.forEach((e, i) => at(t + i * 0.25, () => e.type === 'drop' ? animateDrop(e, idAt) : logCancelled(e)));
+    drops.forEach((e, i) => at(t + i * 0.25, () => e.type === 'drop' ? animateDrop(e, idAt) : e.type === 'mine' ? animateMine(e, 1.6) : logCancelled(e)));
     if (drops.length) t += (drops.length - 1) * 0.25 + 2.0;
 
     // Launches
@@ -1912,6 +1919,8 @@
   // Per-turn record for the post-battle chart: HQ health % and structure count, both sides
   function recordHistory() {
     const snap = side => {
+      // real time is won on every base, so chart what is left of all of them
+      if (state.realtime) return { hq: Math.round(100 * Realtime.baseIntegrity(state, side)), n: R.buildingsOf(state, side).length };
       const hq = R.buildingsOf(state, side, 'hq')[0];
       return { hq: hq ? Math.round(100 * hq.hp / hq.maxHp) : 0, n: R.buildingsOf(state, side).length };
     };
@@ -2058,7 +2067,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; fireReadySince = null;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2151,6 +2160,23 @@
     return owner === A ? null : 'Target must be in enemy territory';
   }
 
+  // Real time: two or more silos loaded but no energy to fire them for a while means the
+  // economy is short of power. Point at Power Plants (pulsing card, one log line a minute or so).
+  const STARVED_AFTER = 15;
+  let starvedSince = null, starvedTold = -999;
+  function energyStarved() {
+    if (!state.realtime || phase !== 'live') return false;
+    const loaded = Realtime.readyLaunchers(state, P, 'silo').length;
+    if (loaded < 2 || state.sides[P].energy >= CONST.MISSILE_ENERGY * 2) { starvedSince = null; return false; }
+    if (starvedSince === null) starvedSince = state.rt.t;
+    if (state.rt.t - starvedSince < STARVED_AFTER) return false;
+    if (state.rt.t - starvedTold > 75) {
+      starvedTold = state.rt.t;
+      const inc = R.income(state, P).energy / RT.ROUND;
+      UI.log(loaded + ' silos loaded but energy is short (+' + inc.toFixed(1) + '/s): build Power Plants [2] to fire salvos', 'sys');
+    }
+    return true;
+  }
   const FIRE_NUDGE_AFTER = 12;   // seconds a silo may sit loaded before the Fire button pulses
   let fireReadySince = null;
   function refreshLiveActions(silos, hangars) {
@@ -2240,6 +2266,7 @@
     refreshAttack();
   }
   function refreshAttack() {
+    const tap = lastPointer === 'touch' || matchMedia('(hover: none)').matches ? 'Tap' : 'Click';
     if (!attack) return;
     // launchers can be destroyed while the panel is open
     attack.arm = attack.arm.filter(c => R.buildingAt(state, c));
@@ -2249,23 +2276,23 @@
     const siloItem = b => {
       const armed = attack.arm.includes(b.cell), to = attack.targets[b.cell];
       return { cell: b.cell, label: 'Silo ' + cellName(b.cell) + (b.level > 1 ? ' ★' : ''), ready: Realtime.isReady(state, b), on: armed,
-        status: !Realtime.isReady(state, b) ? launcherStatus(b) : armed ? (to !== undefined ? '→ ' + cellName(to) : 'click map') : 'ready' };
+        status: !Realtime.isReady(state, b) ? launcherStatus(b) : armed ? (to !== undefined ? '→ ' + cellName(to) : tap.toLowerCase() + ' map') : 'ready' };
     };
     const hangarItem = b => ({ cell: b.cell, label: (b.level > 1 ? 'Heavy mech ' : 'Mech ') + cellName(b.cell), status: launcherStatus(b), ready: Realtime.isReady(state, b), on: attack.hangars.has(b.cell) });
     const unaimed = attack.arm.length - plan.missiles.length;
     let reason = Realtime.attackReason(state, P, plan);
-    if (!plan.missiles.length && !plan.hangars.length && plan.strikeTo === undefined) reason = attack.arm.length ? 'Click the map to give each missile a target' : 'Pick missiles, mechs or the strike';
-    else if (attack.strikeOn && attack.strikeTo === undefined) reason = 'Click a target for the strike';
+    if (!plan.missiles.length && !plan.hangars.length && plan.strikeTo === undefined) reason = attack.arm.length ? tap + ' the map to give each missile a target' : 'Pick missiles, mechs or the strike';
+    else if (attack.strikeOn && attack.strikeTo === undefined) reason = tap + ' a target for the strike';
     const byTarget = {};
     for (const m of plan.missiles) byTarget[m.to] = (byTarget[m.to] || 0) + 1;
     const odds = Object.keys(byTarget).map(to => describeCell(+to) + ': ' + salvoOdds(+to, byTarget[to])).join('<br>');
-    const hint = { fire: 'Click a target for each missile', drop: 'Click where the mechs land: they fight inside the 5×5 box', strike: 'Click the strike\'s target' }[attack.cursor];
+    const hint = { fire: tap + ' a target for each missile', drop: tap + ' where the mechs land: they fight inside the 5×5 box', strike: tap + ' the strike\'s target' }[attack.cursor];
     UI.showAttack({
       target: hint + ' · time stopped',
       silos: R.buildingsOf(state, P, 'silo').map(siloItem),
       hangars: R.buildingsOf(state, P, 'hangar').map(hangarItem),
       strike: up ? { cell: up.cell, label: 'Strike', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strikeOn,
-        status: up.charge < CONST.STRIKE_CHARGE ? Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%' : attack.strikeTo !== undefined ? '→ ' + cellName(attack.strikeTo) : attack.strikeOn ? 'click map' : 'ready' } : null,
+        status: up.charge < CONST.STRIKE_CHARGE ? Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%' : attack.strikeTo !== undefined ? '→ ' + cellName(attack.strikeTo) : attack.strikeOn ? tap.toLowerCase() + ' map' : 'ready' } : null,
       cost: Realtime.attackCost(plan), energy: state.sides[P].energy,
       reason,
       odds: odds + (unaimed > 0 ? (odds ? '<br>' : '') + unaimed + ' armed missile' + (unaimed > 1 ? 's have' : ' has') + ' no target yet and will stay home' : '')
@@ -2393,7 +2420,7 @@
         else if (own) UI.log('Your missile slipped past ' + shotBy(e.by), 'good');
         return false;
       case 'robotMove': animateRobotMove(e); return false;
-      case 'mine': animateMine(e, e.steps * 0.42); return false;
+      case 'mine': animateMine(e, e.landed ? 0.3 : e.steps * 0.42); return false;
       case 'robotHit': animateRobotHit(e, idAt); return false;
       case 'robotFight': animateRobotFight(e); return false;
       case 'gunfire': animateGunfire(e, idAt); return false;
@@ -2455,13 +2482,18 @@
     if (sid && seen) Renderer.openHatch(sid);
     SND.play(e.kind === 'ship' ? 'podLaunch' : 'missileLaunch', seen ? { pan: panAt(e.from) } : { pan: 0.6, gain: 0.6, far: true });
     if (own) return;
+    // dropships always get their own line: mechs are a different threat from missiles
+    if (e.kind === 'ship') {
+      UI.log('⚠ Enemy dropship with ' + e.mechs + ' mech' + (e.mechs > 1 ? 's' : '') + ' inbound → ' + (e.detected ? describeCell(e.to) : 'landing zone unknown') + ' · lands in ' + Math.round(e.flight) + 's', 'bad');
+      if (state.rt.t - lastWave <= 2.5) return;
+    }
     // one warning per enemy wave; the orders panel lists every inbound flight with its countdown
     if (state.rt.t - lastWave > 2.5) {
       lastWave = state.rt.t;
       SND.play('alarm');
       const eta = Math.round(e.flight);
       UI.toast('⚠ Enemy launch! Impact in ' + eta + 's' + (e.detected ? '' : ' — build Radar to see the target'), 'bad');
-      UI.log('⚠ Enemy attack inbound → ' + (e.detected ? describeCell(e.to) : 'target unknown') + ' · impact in ' + eta + 's', 'bad');
+      if (e.kind !== 'ship') UI.log('⚠ Enemy missiles inbound → ' + (e.detected ? describeCell(e.to) : 'target unknown') + ' · impact in ' + eta + 's', 'bad');
     }
   }
 
