@@ -432,7 +432,9 @@
     const rectOf = id => { const el = document.getElementById(id); if (!el || el.offsetParent === null) return null; return el.getBoundingClientRect(); };
     // Keep the map clear of the orders/log panel, HUD and build dock. The briefing panel is
     // short and closable and only overlaps the player's rear corner, so it doesn't count.
-    const ord = rectOf('orders'), hud = rectOf('hud'), dock = rectOf('dock');
+    const ord = rectOf('orders'), dock = rectOf('dock');
+    // on a phone the briefing bar sits right under the HUD and would hide the top rows
+    const hud = UI.isCompact() && rectOf('objectives') ? rectOf('objectives') : rectOf('hud');
     const dockH = dock && !document.getElementById('dock').classList.contains('hidden') ? window.innerHeight - dock.top : (UI.isCompact() ? 40 : 120);
     Renderer.setOcclusion(0, ord ? window.innerWidth - ord.left : 0, hud ? hud.bottom : 80, Math.max(dockH, UI.isCompact() ? 64 : 120));
     Renderer.frameAll(instant);
@@ -1987,6 +1989,15 @@
     const ps = state.sides[P].stats, as = state.sides[A].stats;
     const mine = t => R.buildingsOf(state, P, t).length, theirs = t => R.buildingsOf(state, A, t).length;
     const landed = as.missilesFired - state.missiles.filter(m => m.side === A && !m.strike).length;
+    // real time: name the first base that fell and what took it
+    const f = state.realtime && basesFallen[0];
+    if (f) {
+      const where = (f.type === 'hq' ? 'Your Command Center' : 'Your base at ' + cellName(f.cell));
+      if (f.by === 'mechs') return where + ' fell to enemy mechs. Hidden Minefields [N] and a Sentry Turret beside each base stop raids.';
+      if (f.by === 'strike') return where + ' fell to an orbital strike. AA can\'t stop strikes, but a Shield Generator next to each base absorbs them.';
+      if (!f.aa) return where + ' fell to missiles with no AA covering it. Give every base an AA Battery within ' + BUILDINGS.aa.range + ' cells, not just the Command Center.';
+      return where + ' fell to missiles despite ' + f.aa + ' AA ' + (f.aa > 1 ? 'Batteries' : 'Battery') + '. Salvos overwhelm batteries while they reload: stack more AA there' + (f.shield ? '.' : ', or add a Shield.');
+    }
     if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot ' + (state.realtime ? 'in the first minute.' : 'in the first five turns.');
     if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
     if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Sentry Turret near your HQ, a garrison mech, or Minefields [N] on the approaches stop them.';
@@ -2067,7 +2078,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; if (first) basesFallen = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2352,8 +2363,18 @@
   }
 
   // ── Live events → effects ──
+  // How each of your bases fell, for the defeat debrief
+  let basesFallen = [];
+  function noteBaseLoss(hit, by) {
+    if (!hit || !hit.destroyed || hit.side !== P || (hit.type !== 'base' && hit.type !== 'hq')) return;
+    const aa = R.buildingsOf(state, P, 'aa').filter(b => R.dist(b.cell, hit.cell) <= BUILDINGS.aa.range + 0.01).length;
+    const shield = R.buildingsOf(state, P, 'shield').some(b => R.cheb(b.cell, hit.cell) <= BUILDINGS.shield.range);
+    basesFallen.push({ cell: hit.cell, type: hit.type, by, aa, shield });
+  }
   function liveEvent(e, idAt) {
     const own = e.side === P;
+    if (e.type === 'impact') for (const h of e.hits) noteBaseLoss(h, e.strike ? 'strike' : 'missiles');
+    if (e.type === 'robotHit') noteBaseLoss(e.hit, 'mechs');
     switch (e.type) {
       case 'launch': liveLaunch(e, idAt); return false;
       case 'aaShot': {
