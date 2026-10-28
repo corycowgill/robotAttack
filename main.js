@@ -1670,6 +1670,12 @@
     const wet = !R.isLand(state, ev.cell);
     const big = ev.strike;
     if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('splash', { pan: panAt(ev.cell), gain: 0.8 }); }
+    // only the owner learns that shelling set off their buried mines
+    if (!own && ev.cleared && ev.cleared.length) {
+      for (const c of ev.cleared) Fx.dustRing(Renderer.cellCenter(c).setY(0.5), 0.8);
+      Renderer.setMines(R.minesOf(state, P));
+      UI.log('Enemy fire set off ' + (ev.cleared.length > 1 ? ev.cleared.length + ' of your minefields' : 'your minefield') + ' at ' + ev.cleared.map(cellName).join(', '), 'bad');
+    }
     else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play(big ? 'strikeImpact' : 'explosion', { pan: panAt(ev.cell), big: hqHit }); }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);

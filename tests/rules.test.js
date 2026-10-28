@@ -515,6 +515,10 @@ test('minefields: hidden from structures, max 6, undo refunds, and they blow up 
   assert.ok(boom && boom.cell === plan.path[0] && boom.side === A && boom.robotSide === P);
   assert.equal(mech.hp, 50 - BUILDINGS.mine.damage);
   assert.equal(R.minesOf(s2, A).length, 0, 'a mine goes off once');
+  // shelling clears mines on and around the impact, and only the defender's
+  s2.mines.push({ id: 5002, side: A, cell: depotCell }, { id: 5003, side: P, cell: 3 });
+  assert.deepEqual(R.clearMines(s2, A, depotCell), [depotCell]);
+  assert.equal(R.minesOf(s2, P).length, 1);
   // the AI's own mechs walk over its mines
   const own = { id: 1, side: A, cell: 0, hp: 50 };
   s2.mines.push({ id: 5001, side: A, cell: 7 });

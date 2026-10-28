@@ -321,6 +321,12 @@
   // Minefields live in their own list so nothing that looks at structures can give them away
   function minesOf(state, side) { return (state.mines || []).filter(m => m.side === side); }
   function mineAt(state, cell) { return (state.mines || []).find(m => m.cell === cell) || null; }
+  // A shell landing on or next to buried mines sets them off harmlessly: shelling an approach clears it
+  function clearMines(state, side, cell) {
+    const gone = (state.mines || []).filter(m => m.side === side && cheb(m.cell, cell) <= 1);
+    if (gone.length) state.mines = state.mines.filter(m => !gone.includes(m));
+    return gone.map(m => m.cell);
+  }
 
   function buildingsOf(state, side, type) {
     const out = [];
@@ -970,7 +976,8 @@
       // Impact reveals the area for the attacker next planning phase
       const reveal = [m.to].concat(neighbors(m.to, C.IMPACT_REVEAL_RADIUS)).filter(c => ownerOfCell(c) === enemyOf(atk));
       sideOf(atk).intel.nextReveal = (sideOf(atk).intel.nextReveal || []).concat(reveal);
-      ev(BEAT.IMPACT, { type: 'impact', id: m.id, side: atk, cell: m.to, hits, reveal, strike: !!m.strike });
+      const cleared = clearMines(state, enemyOf(atk), m.to);
+      ev(BEAT.IMPACT, { type: 'impact', id: m.id, side: atk, cell: m.to, hits, reveal, strike: !!m.strike, cleared });
     }
 
     // 3. SENTRY TURRETS fire at enemy robots
@@ -1129,7 +1136,7 @@
   const Rules = {
     BEAT, W, H, N,
     idx, xy, inBounds, cheb, dist, neighbors, cellsInRadius, ownerOfCell, enemyOf, hqCell, rand,
-    newGame, generateIslands, isLand, apparent, missionMedals, dailyScore, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, minesOf, mineAt, countOf, walkPath, robotAt, robotsOf, income, energyCap,
+    newGame, generateIslands, isLand, apparent, missionMedals, dailyScore, stat, upgradeCost, upgradeInfo, upgrade, buildingsOf, buildingAt, minesOf, mineAt, clearMines, countOf, walkPath, robotAt, robotsOf, income, energyCap,
     visibleEnemyCells, updateIntel, detectedIncoming,
     buildableReason, buildCost, inBuildZone, build, repairInfo, repair, sell, sellValue,
     freeLaunchers, missileReason, queueMissile, strikeReadyReason, strikeReason, queueStrike, dropReadyReason, dropReason, queueDrop, cancelOrder, undo,
