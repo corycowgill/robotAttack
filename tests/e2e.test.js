@@ -483,6 +483,9 @@ test('daily operation: seeded by date, scored, best kept; achievements unlock', 
   // retry replays the same seeded battle
   await page.click('#go-again');
   await page.waitForFunction(() => __game.phase === 'planning');
-  assert.strictEqual(await page.evaluate(() => __game.state.mapSeed), first.seed);
+  const again = await page.evaluate(() => ({ key: __game.state.daily, seed: __game.state.mapSeed }));
+  // (if the clock passed midnight during the test, the retry is rightly the next day's battle)
+  if (again.key === first.key) assert.strictEqual(again.seed, first.seed);
+  else assert.notStrictEqual(again.seed, first.seed);
   assert.deepStrictEqual(errors, []);
 });
