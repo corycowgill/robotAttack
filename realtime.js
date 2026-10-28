@@ -481,6 +481,11 @@
       robots.push(Object.assign({}, r));
     });
     ev({ type: 'deploy', id: f.id, side: f.side, to: f.to, garrison, robots });
+    // a mech dropped straight onto a buried mine sets it off as it lands
+    for (const r of state.robots.filter(x => robots.some(y => y.id === x.id))) {
+      const walk = R.walkPath(state, r, [r.cell]);
+      if (walk.blast) ev(Object.assign({ type: 'mine', id: r.id, robotSide: r.side, landed: true }, walk.blast));
+    }
     if (!garrison && robots.length) scramble(state, R.enemyOf(f.side), f.to, ev);
   }
 

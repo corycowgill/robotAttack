@@ -1055,6 +1055,8 @@
         state.robots.push(robot);
         sideOf(side).stats.robotsDeployed++;
         ev(BEAT.DROPS, { type: 'drop', side, from: o.from, to: cell, aimed: o.to, robot: Object.assign({}, robot) });
+        const walk = walkPath(state, robot, [cell]);
+        if (walk.blast) ev(BEAT.DROPS, Object.assign({ type: 'mine', id: robot.id, robotSide: side, landed: true }, walk.blast));
       }
     }
 

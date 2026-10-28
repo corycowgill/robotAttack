@@ -1108,8 +1108,12 @@
     g.name = 'mine';
     var GM = MAT.gunmetal(), T = trim(side);
     [[-2.2, -2.0], [2.3, -1.4], [-1.2, 2.4], [2.6, 2.6]].forEach(function (p) {
-      add(g, cyl(1.1, 1.3, 0.35, 10), GM, p[0], 0.15, p[1]);
-      addFlat(g, cyl(0.28, 0.28, 0.12, 8), T, p[0], 0.38, p[1]);
+      add(g, cyl(1.3, 1.5, 0.4, 10), GM, p[0], 0.18, p[1]);
+      addFlat(g, cyl(0.6, 0.6, 0.14, 10), T, p[0], 0.44, p[1]);
+    });
+    // a faint team-coloured outline marks the cell for its owner
+    [[0, -4.6, 9.2, 0.25], [0, 4.6, 9.2, 0.25], [-4.6, 0, 0.25, 9.2], [4.6, 0, 0.25, 9.2]].forEach(function (e) {
+      addFlat(g, box(e[2], 0.06, e[3]), T, e[0], 0.05, e[1]);
     });
     g.userData = { type: 'mine', side: side, _own: [] };
     return g;

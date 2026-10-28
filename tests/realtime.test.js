@@ -269,3 +269,19 @@ test('minefields go off under raiding mechs in real time', () => {
   assert.equal(s.mines.length, before - ev.filter(e => e.type === 'mine').length);
   assert.ok(!s.robots.some(r => r.id === 9000) || s.robots.find(r => r.id === 9000).hp <= 50 - BUILDINGS.mine.damage);
 });
+
+test('a mech dropped straight onto a mine sets it off as it lands', () => {
+  const s = game(5);
+  s.sides[P].credits = 9999;
+  const h = buildAt(s, P, 'hangar');
+  run(s, RT.HANGAR_RELOAD);
+  s.sides[P].energy = 30;
+  let to = -1;
+  for (let c = 0; c < R.N && to < 0; c++) if (R.ownerOfCell(c) === A && R.isLand(s, c) && R.cheb(c, R.hqCell(A)) > 4 && RTE.landingCells(s, P, c).length) to = c;
+  for (const c of RTE.landingCells(s, P, to)) s.mines.push({ id: 8000 + c, side: A, cell: c });
+  assert.ok(RTE.launchAttack(s, P, { to, hangars: [h.cell] }).ok);
+  const ev = run(s, RT.SHIP_FLIGHT + 1.5);
+  const boom = ev.find(e => e.type === 'mine');
+  assert.ok(boom && boom.landed, 'the landing sets the mine off');
+  assert.equal(boom.robotSide, P);
+});
