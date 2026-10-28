@@ -186,7 +186,7 @@ const BUILDINGS = {
   mine: {
     name: 'Minefield', short: 'MIN', key: 'N', cost: 40, hp: 0, max: 6, mine: true, damage: 40,
     desc: 'Buried charges the enemy cannot see. Blows up under the first enemy mech that walks onto it.',
-    stats: () => ['40 damage to the mech that trips it', 'Invisible to the enemy · max 6', 'Mechs only: missiles pass over it'],
+    stats: () => ['40 damage to the mech that trips it', 'Invisible to the enemy · max 6', 'A missile or strike landing on or beside it sets it off harmlessly'],
   },
   uplink: {
     name: 'Strike Uplink', short: 'UPL', key: '0', cost: 200, hp: 70, max: 1,

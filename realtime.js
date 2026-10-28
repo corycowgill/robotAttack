@@ -461,7 +461,8 @@
     state.cells[f.to].scorch = 1;
     const rev = [f.to].concat(R.neighbors(f.to, C.IMPACT_REVEAL_RADIUS)).filter(c => R.ownerOfCell(c) === R.enemyOf(atk));
     reveal(state, atk, rev);
-    ev({ type: 'impact', id: f.id, side: atk, cell: f.to, hits, reveal: rev, strike: f.kind === 'strike' });
+    const cleared = R.clearMines(state, R.enemyOf(atk), f.to);
+    ev({ type: 'impact', id: f.id, side: atk, cell: f.to, hits, reveal: rev, strike: f.kind === 'strike', cleared });
   }
 
   function land(state, f, ev) {
