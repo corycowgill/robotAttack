@@ -260,6 +260,7 @@ const ACHIEVEMENTS = [
   { id: 'untouched',   name: 'Untouchable',      desc: 'Win with your Command Center at full health' },
   { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10 (in real time: within 3:20)' },
   { id: 'tycoon',      name: 'Tycoon',           desc: 'Own 5 Supply Depots at once' },
+  { id: 'tripwire',    name: 'Tripwire',         desc: 'Destroy 3 enemy mechs with minefields in one battle' },
   { id: 'warlord',     name: 'Warlord Slayer',   desc: 'Beat the Warlord in a skirmish' },
   { id: 'campaign',    name: 'Victory in the Pacific', desc: 'Complete the campaign' },
   { id: 'all_medals',  name: 'Decorated',        desc: 'Earn all 21 campaign medals' },

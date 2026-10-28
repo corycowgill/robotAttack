@@ -464,10 +464,14 @@ test('an AA Battery that fires at a missile is revealed to the attacker', () => 
 });
 
 test('opponent styles shape the AI build: blitz masses silos, fortress AA, raider hangars', () => {
+  // totals over a few games, so one battle's twists don't decide it
   const play = style => {
-    const s = R.newGame('commander', 77, { aiStyle: style });
-    for (let t = 0; t < 12 && !s.winner; t++) { AI.planTurn(s, 'player'); AI.planTurn(s, 'ai'); R.resolveTurn(s); }
-    return t => R.buildingsOf(s, 'ai', t).length;
+    const games = [77, 78, 79, 80].map(seed => {
+      const s = R.newGame('commander', seed, { aiStyle: style });
+      for (let t = 0; t < 12 && !s.winner; t++) { AI.planTurn(s, 'player'); AI.planTurn(s, 'ai'); R.resolveTurn(s); }
+      return s;
+    });
+    return t => games.reduce((n, s) => n + R.buildingsOf(s, 'ai', t).length, 0);
   };
   const base = play('balanced'), blitz = play('blitz'), fort = play('fortress'), raid = play('raider');
   assert.ok(blitz('silo') > base('silo'), 'blitz builds more silos');
