@@ -201,8 +201,8 @@ The browser remembers your choices. The map options also apply to Two Players; t
 ## Controls
 
 | Input | Action |
+|---|---|
 | `1`–`9`, `0`, `N`, `B` | Select a structure to build: `N` minefield, `B` factory (real time). Shift+click places several |
-| `1`–`9`, `0` | Select a structure to build (Shift+click places several) |
 | Left click | Place / target / select |
 | Right click, `Esc` | Cancel |
 | `Q` / `E` / `R` | Fire missile / drop mech / orbital strike. Pressing the key again keeps aiming, so `Q` click `Q` click queues two missiles. |

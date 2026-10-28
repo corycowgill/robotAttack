@@ -1080,6 +1080,7 @@
         floatAt(c, '-' + BUILDINGS.mine.cost + 'c', 'info');
         UI.log('Minefield laid at ' + cellName(c) + ' — the enemy can\'t see it', 'player');
         if (!keepMode) { mode = 'select'; buildType = null; }
+        refreshAll();
         return;
       }
       SND.play('build', { pan: panAt(c) });
@@ -1151,7 +1152,7 @@
     if ((state.locked || []).includes(type)) return fail(def.name + ' is not available in this mission');
     const cost = R.buildCost(state, P, type);
     if (state.sides[P].credits < cost) return fail('Need ' + cost + ' credits for ' + def.name);
-    if (def.max && R.buildingsOf(state, P, type).length >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
+    if (def.max && R.countOf(state, P, type) >= def.max) return fail('Max ' + def.max + ' ' + def.name + 's');
     SND.play('uiClick');
     pendingTap = -1;
     if (phase === 'live' && livePaused) return fail('Paused: Space resumes the battle');
@@ -1390,6 +1391,8 @@
     if (!realState) return;
     for (let c = 0; c < R.N; c++) if (R.ownerOfCell(c) === P2) realState.cells[c] = state.cells[c];
     realState.sides[P2] = state.sides[P2];
+    // Player 2's minefields were laid on the copy too
+    realState.mines = (realState.mines || []).filter(m => m.side !== P2).concat((state.mines || []).filter(m => m.side === P2));
     realState.nextId = state.nextId;
     state = realState;
     realState = null;
@@ -1682,13 +1685,13 @@
     const wet = !R.isLand(state, ev.cell);
     const big = ev.strike;
     if (wet) { Fx.splash(pos.clone().setY(-1)); SND.play('splash', { pan: panAt(ev.cell), gain: 0.8 }); }
+    else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play(big ? 'strikeImpact' : 'explosion', { pan: panAt(ev.cell), big: hqHit }); }
     // only the owner learns that shelling set off their buried mines
     if (!own && ev.cleared && ev.cleared.length) {
       for (const c of ev.cleared) Fx.dustRing(Renderer.cellCenter(c).setY(0.5), 0.8);
       Renderer.setMines(R.minesOf(state, P));
       UI.log('Enemy fire set off ' + (ev.cleared.length > 1 ? ev.cleared.length + ' of your minefields' : 'your minefield') + ' at ' + ev.cleared.map(cellName).join(', '), 'bad');
     }
-    else { Fx.explosion(pos, big ? 2.2 : hqHit ? 1.3 : 1); SND.play(big ? 'strikeImpact' : 'explosion', { pan: panAt(ev.cell), big: hqHit }); }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
     if (hqHit) slowMotion(0.55, 0.35);
@@ -2070,7 +2073,7 @@
   // The board runs continuously (realtime.js): resources flow, launchers reload, either side
   // can attack at any moment and every launch is announced to its target with a countdown.
   // Building, repairs, upgrades and sales work exactly as in planning.
-  let livePaused = false, liveVis = {}, liveUi = 0, liveSync = 0, lastWave = -99, combatHold = 0, lastRecall = '';
+  let livePaused = false, liveVis = {}, liveUi = 0, liveSync = 0, lastWave = -99, lastSalvoLog = -99, combatHold = 0, lastRecall = '';
   let attack = null;   // the attack being put together: { to, silos: Set, hangars: Set, strike }
 
   function fmtClock(sec) {
@@ -2081,7 +2084,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; if (first) basesFallen = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2280,8 +2283,8 @@
     refreshAttack();
   }
   function refreshAttack() {
-    const tap = lastPointer === 'touch' || matchMedia('(hover: none)').matches ? 'Tap' : 'Click';
     if (!attack) return;
+    const tap = lastPointer === 'touch' || matchMedia('(hover: none)').matches ? 'Tap' : 'Click';
     // launchers can be destroyed while the panel is open
     attack.arm = attack.arm.filter(c => R.buildingAt(state, c));
     for (const c of attack.hangars) if (!R.buildingAt(state, c)) attack.hangars.delete(c);
@@ -2506,18 +2509,18 @@
     if (sid && seen) Renderer.openHatch(sid);
     SND.play(e.kind === 'ship' ? 'podLaunch' : 'missileLaunch', seen ? { pan: panAt(e.from) } : { pan: 0.6, gain: 0.6, far: true });
     if (own) return;
-    // dropships always get their own line: mechs are a different threat from missiles
-    if (e.kind === 'ship') {
-      UI.log('⚠ Enemy dropship with ' + e.mechs + ' mech' + (e.mechs > 1 ? 's' : '') + ' inbound → ' + (e.detected ? describeCell(e.to) : 'landing zone unknown') + ' · lands in ' + Math.round(e.flight) + 's', 'bad');
-      if (state.rt.t - lastWave <= 2.5) return;
-    }
-    // one warning per enemy wave; the orders panel lists every inbound flight with its countdown
+    // one alarm and toast per enemy wave; the log names each dropship and each missile salvo
+    // (the orders panel lists every inbound flight with its countdown)
+    const eta = Math.round(e.flight);
     if (state.rt.t - lastWave > 2.5) {
       lastWave = state.rt.t;
       SND.play('alarm');
-      const eta = Math.round(e.flight);
       UI.toast('⚠ Enemy launch! Impact in ' + eta + 's' + (e.detected ? '' : ' — build Radar to see the target'), 'bad');
-      if (e.kind !== 'ship') UI.log('⚠ Enemy missiles inbound → ' + (e.detected ? describeCell(e.to) : 'target unknown') + ' · impact in ' + eta + 's', 'bad');
+    }
+    if (e.kind === 'ship') UI.log('⚠ Enemy dropship with ' + e.mechs + ' mech' + (e.mechs > 1 ? 's' : '') + ' inbound → ' + (e.detected ? describeCell(e.to) : 'landing zone unknown') + ' · lands in ' + eta + 's', 'bad');
+    else if (state.rt.t - lastSalvoLog > 2.5) {
+      lastSalvoLog = state.rt.t;
+      UI.log('⚠ Enemy missiles inbound → ' + (e.detected ? describeCell(e.to) : 'target unknown') + ' · impact in ' + eta + 's', 'bad');
     }
   }
 
