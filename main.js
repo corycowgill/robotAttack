@@ -1820,7 +1820,10 @@
       const p = Renderer.cellCenter(e.cell).setY(2);
       const seen = e.side === P || e.robotSide === P || playerSees(e.cell);
       if (seen) {
+        // a sharp click as the mech steps on it, then the blast and a ring of dust
+        SND.play('uiClick', { pan: panAtPos(p), gain: 0.9 });
         Fx.explosion(p, 0.8);
+        Fx.dustRing(p.clone().setY(0.5), 1.1);
         SND.play('explosion', { pan: panAtPos(p) });
         Renderer.addTrauma(0.2, p);
         floatAt(e.cell, '-' + e.dmg, 'dmg', 16);
