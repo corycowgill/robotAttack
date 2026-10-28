@@ -1965,7 +1965,7 @@
     const landed = as.missilesFired - state.missiles.filter(m => m.side === A && !m.strike).length;
     if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot ' + (state.realtime ? 'in the first minute.' : 'in the first five turns.');
     if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
-    if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Sentry Turret near your HQ, or a garrison mech, stops them.';
+    if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Sentry Turret near your HQ, a garrison mech, or Minefields [N] on the approaches stop them.';
     if (ps.missilesFired >= 4 && ps.missilesHit / Math.max(1, ps.missilesFired) < 0.35) return 'Most of your missiles were shot down. Fire several in the same turn, or aim at targets outside the enemy\'s AA cover (the aim tooltip shows the odds).';
     if (ps.missilesFired < state.turn / 2) return 'You fired only ' + ps.missilesFired + ' missiles. More silos and power plants keep the pressure on.';
     return 'Diversify: mix missile salvos with a mech drop or an orbital strike so the enemy can\'t defend against everything.';
@@ -2021,7 +2021,8 @@
           ['Missiles past defenses', acc(ps, P), acc(as, A)],
           ['Enemy missiles shot down', ps.intercepts, as.intercepts],
           ['Mechs deployed', ps.robotsDeployed, as.robotsDeployed],
-          ['Enemy mechs destroyed', ps.robotsKilled, as.robotsKilled]
+          ['Enemy mechs destroyed', ps.robotsKilled, as.robotsKilled],
+          ['Mines set off', ps.minesHit || 0, as.minesHit || 0]
         ]
       });
     }, 2600);

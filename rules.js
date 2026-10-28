@@ -90,7 +90,7 @@
     return {
       damageDealt: 0, damageTaken: 0, built: 0, destroyed: 0, lost: 0,
       missilesFired: 0, missilesHit: 0, intercepts: 0, strikes: 0, missileDamageTaken: 0,
-      robotsDeployed: 0, robotsLost: 0, robotsKilled: 0
+      robotsDeployed: 0, robotsLost: 0, robotsKilled: 0, minesHit: 0
     };
   }
 
@@ -801,6 +801,10 @@
       const dmg = B.mine.damage;
       r.hp = Math.max(0, r.hp - dmg);
       const killed = r.hp <= 0;
+      state.sides[m.side].stats.minesHit = (state.sides[m.side].stats.minesHit || 0) + 1;
+      // the mech's side now knows a minefield was there (the AI steers later raids away from it)
+      const intel = state.sides[r.side].intel;
+      if (intel) { intel.mines = (intel.mines || []).concat([path[i]]).slice(-10); }
       if (killed) { state.sides[m.side].stats.robotsKilled++; state.sides[r.side].stats.robotsLost++; }
       return { path: path.slice(0, i + 1), blast: { cell: path[i], side: m.side, dmg, killed, hpAfter: r.hp, steps: i + 1 } };
     }
