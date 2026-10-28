@@ -182,7 +182,7 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   const launched = await page.evaluate(() => {
     const s = __game.state;
     s.sides.ai.energy = 30;
-    for (const b of Rules.buildingsOf(s, 'ai', 'silo')) b.readyAt = 0;
+    for (const b of Rules.buildingsOf(s, "ai", "silo")) { b.readyAt = 0; b.progress = 1; }
     return Realtime.launchAttack(s, 'ai', { to: Rules.hqCell('player'), silos: Rules.buildingsOf(s, 'ai', 'silo').map(b => b.cell) });
   });
   assert.ok(launched.ok, launched.reason);
