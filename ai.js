@@ -426,7 +426,9 @@
         let best = null, bs = -Infinity;
         for (const t of targets) {
           const covered = gunpods.filter(g => R.dist(g.cell, t.cell) <= B.gunpod.range + 1).length;
-          const sc = (TARGET_SCORE[t.type] || 1) - covered * 4 + R.rand(state);
+          // raids that hit minefields there before go elsewhere
+          const mined = (s.intel.mines || []).filter(c => R.cheb(c, t.cell) <= 2).length;
+          const sc = (TARGET_SCORE[t.type] || 1) - covered * 4 - mined * 3 + R.rand(state);
           if (sc > bs) { bs = sc; best = t; }
         }
         if (best) goal = best.cell;
