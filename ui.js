@@ -414,6 +414,11 @@ window.UI = (function () {
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
   .abtn.nudge, .card.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
+  #danger { position: absolute; inset: 0; pointer-events: none; z-index: 1; --dg: 0; opacity: var(--dg); transition: opacity .35s;
+    box-shadow: inset 0 0 160px 30px rgba(255,40,24,.55), inset 0 0 40px 4px rgba(255,60,30,.35); }
+  #danger.pulse { animation: dangerPulse .7s ease-in-out infinite alternate; }
+  @keyframes dangerPulse { from { filter: brightness(.55); } to { filter: brightness(1.25); } }
+  @media (prefers-reduced-motion: reduce) { #danger.pulse { animation: none; } }
   #b-log { display: none; position: relative; }
   #b-log.alert { border-color: var(--c-bad); animation: logpulse 1s ease-in-out infinite alternate; }
   #b-log.alert::after { content: attr(data-n); position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--c-bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
@@ -556,6 +561,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'toasts' }));
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
+    root.appendChild(el('div', { id: 'danger' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
     root.appendChild(el('div', { id: 'report', class: 'panel' }));
     root.appendChild(el('div', { id: 'attack', class: 'panel pi' }));
@@ -1013,6 +1019,12 @@ window.UI = (function () {
     setTimeout(() => f.remove(), 1150);
   }
 
+  // red at the screen edges: incoming fire about to land (pulsing) or bases badly hurt (steady)
+  function setDanger(level, pulse) {
+    const d = $('danger');
+    d.style.setProperty('--dg', Math.max(0, Math.min(1, level)).toFixed(2));
+    d.classList.toggle('pulse', !!pulse && level > 0);
+  }
   function setCombatHint(on, speed) {
     $('combathint').classList.toggle('show', on);
     $('spd').textContent = (speed || 1) + 'x';
@@ -1319,7 +1331,7 @@ window.UI = (function () {
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
-    toast, showTip, hideTip, banner, floatText, setCombatHint, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
+    toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
 })();
