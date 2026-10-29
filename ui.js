@@ -73,6 +73,8 @@ window.UI = (function () {
   #hud-turn { text-align: center; min-width: 150px !important; }
   #hud-turn .val { font-size: 20px; letter-spacing: .08em; }
   #hud-turn.late .val { color: var(--c-warn); text-shadow: 0 0 10px rgba(255,176,0,.5); }   /* last turns before the limit */
+  #hud-turn.late .val { animation: clockPulse .9s ease-in-out infinite alternate; }
+  @keyframes clockPulse { to { color: #ff5a44; text-shadow: 0 0 16px rgba(255,70,40,.8); } }
   #hud-phase { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--c-warn); }
   .hq-cell { min-width: 150px !important; }
   #hud .full { animation: pulse 1s infinite; }
@@ -88,7 +90,7 @@ window.UI = (function () {
   #dock { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; transition: transform .35s, opacity .35s; max-width: calc(100vw - 16px); }
   #dock.hidden { transform: translate(-50%, 140%); opacity: 0; }
   #cards { display: flex; gap: 6px; padding: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .card { flex: none; width: clamp(64px, 5.7vw, 92px); height: clamp(76px, 5.9vw, 92px); border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: transform .12s, border-color .12s, background .12s; }
+  .card { flex: 0 1 clamp(64px, 5.7vw, 92px); min-width: 54px; height: clamp(76px, 5.9vw, 92px); border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: transform .12s, border-color .12s, background .12s; }
   .card .ico { width: 30px; height: 30px; color: var(--c-player); }
   .card .nm { font-size: 13px; font-weight: 700; letter-spacing: .02em; text-align: center; line-height: 1; }
   .card .cost { font-size: 13px; color: var(--c-credit); font-weight: 700; }
@@ -416,6 +418,10 @@ window.UI = (function () {
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
   #danger { position: absolute; inset: 0; pointer-events: none; z-index: 1; --dg: 0; opacity: var(--dg); transition: opacity .35s;
     box-shadow: inset 0 0 160px 30px rgba(255,40,24,.55), inset 0 0 40px 4px rgba(255,60,30,.35); }
+  #flash { position: absolute; inset: 0; pointer-events: none; z-index: 1; background: #dfe9ff; opacity: 0; }
+  #flash.go { animation: boltFlash .45s ease-out; }
+  @keyframes boltFlash { 0% { opacity: .55; } 12% { opacity: .1; } 22% { opacity: .4; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { #flash.go { animation: none; } }
   #danger.pulse { animation: dangerPulse .7s ease-in-out infinite alternate; }
   @keyframes dangerPulse { from { filter: brightness(.55); } to { filter: brightness(1.25); } }
   @media (prefers-reduced-motion: reduce) { #danger.pulse { animation: none; } }
@@ -562,6 +568,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.appendChild(el('div', { id: 'danger' }));
+    root.appendChild(el('div', { id: 'flash' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
     root.appendChild(el('div', { id: 'report', class: 'panel' }));
     root.appendChild(el('div', { id: 'attack', class: 'panel pi' }));
@@ -1003,11 +1010,12 @@ window.UI = (function () {
   }
   function hideTip() { $('tip').style.display = 'none'; }
 
-  function banner(text, sub, red) {
+  function banner(text, sub, red, secs) {
     const b = $('banner');
     b.querySelector('.t').textContent = text;
     b.querySelector('.s').textContent = sub || '';
     b.className = red ? 'red' : '';
+    b.style.animationDuration = (secs || 1.7) + 's';   // longer for lines meant to be read
     void b.offsetWidth;
     b.classList.add('show');
   }
@@ -1020,6 +1028,7 @@ window.UI = (function () {
   }
 
   // red at the screen edges: incoming fire about to land (pulsing) or bases badly hurt (steady)
+  function flashScreen() { const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
   function setDanger(level, pulse) {
     const d = $('danger');
     d.style.setProperty('--dg', Math.max(0, Math.min(1, level)).toFixed(2));
@@ -1331,7 +1340,7 @@ window.UI = (function () {
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
-    toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
+    toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
 })();

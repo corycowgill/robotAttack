@@ -137,7 +137,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 
 Seven real-time missions, each on a fixed island map against a named enemy commander. Each one opens with a briefing from your CO, Gen. Hale. Clearing a mission unlocks the next, and progress is saved in the browser.
 
-Missions are fought in their own light: missions 3 and 6 at dusk, mission 4 in a lightning storm, and missions 5 and 7 at night. Enemy commanders talk on the radio when a base falls. Every base going down is a set piece: a flash, a shockwave, a chain of secondary blasts and a beat of slow motion, and the last one gets the camera. The music turns to its climax track when either side is down to its last base, badly hurt, or under two minutes from time. In real time, the screen edges pulse red in the last seconds before enemy missiles land, and glow red while your bases are badly hurt.
+Missions are fought in their own light: missions 3 and 6 at dusk, mission 4 in a storm (rain, lightning that lights up the battlefield, thunder), and missions 5 and 7 at night. Each mission opens on the enemy's island with the commander's taunt while the clock holds (any key or click skips it). Enemy commanders talk on the radio when a base falls. Every base going down is a set piece: a flash, a shockwave, a chain of secondary blasts and a beat of slow motion, and the last one gets the camera. The music turns to its climax track when either side is down to its last base, badly hurt, or under two minutes from time. In real time, the screen edges pulse red in the last seconds before enemy missiles land, and glow red while your bases are badly hurt.
 
 | # | Mission | Opponent | Twist |
 |---|---|---|---|

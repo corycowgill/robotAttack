@@ -51,6 +51,12 @@
   function boot() {
     window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; } }; // debug handle
     Renderer.init();
+    // storms: a screen flash with each bolt, and the thunder rolling in a moment later
+    Renderer.setLightningHook(() => {
+      if (phase === 'menu') return;
+      UI.flashScreen();
+      setTimeout(() => SND.play('explosionBig', { gain: 0.3, far: true }), 500 + Math.random() * 1400);
+    });
     UI.init({
       onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut && diff !== 'warlord', null, null, false, UI.getSkirmishOptions()),
       onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true, UI.getSkirmishOptions()),
@@ -238,8 +244,13 @@
     all[id] = Date.now();
     try { localStorage.setItem('ra_ach', JSON.stringify(all)); } catch (e) { /* ignore */ }
     const a = ACHIEVEMENTS.find(x => x.id === id);
-    if (a) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('achievement'); }
+    if (!a) return;
+    // recorded at once; while the final blow plays its toast waits for the debrief
+    if (achHeld) { achHeld.push(a); return; }
+    UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('achievement');
   }
+  let achHeld = null;
+  function releaseAch() { const list = achHeld || []; achHeld = null; for (const a of list) { UI.toast('🏆 Achievement unlocked: ' + a.name, 'good'); SND.play('achievement'); } }
   // checked after every resolved turn
   let mineKills = 0;   // this battle's mechs destroyed by your mines (Tripwire)
   function checkTurnAchievements(events) {
@@ -361,7 +372,11 @@
     backdrop = s; backdropFx = []; volleyIn = intro ? 4.5 : 1.5;
   }
   function leaveBackdrop() {
-    backdrop = null; backdropFx = [];
+    // missiles still flying over the title screen must leave with it (done() skips their blast
+    // once the backdrop is gone)
+    backdrop = null;
+    for (const f of backdropFx) f.done();
+    backdropFx = [];
     Renderer.setDecorHidden(false);
     Renderer.setCinematic(null);
   }
@@ -1072,6 +1087,7 @@
   }
 
   function clickCell(c, keepMode) {
+    if (introHold > 0) { introHold = 0; endIntro(); return; }
     reportTimer = Math.min(reportTimer, 0.01);
     if (phase === 'live' && livePaused && mode !== 'select') return fail('Paused: you can look around, but orders wait — Space resumes');
     if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
@@ -1278,6 +1294,7 @@
   function onKey(e) {
     if (!/Tab|Shift|Control|Alt/.test(e.key)) reportTimer = Math.min(reportTimer, 0.01);
     if (e.repeat && e.code !== 'Tab') return;
+    if (introHold > 0 && phase === 'live') { introHold = 0; endIntro(); }
     if (UI.isBriefingOpen()) {
       if (e.code === 'Escape') UI.closeBriefing();
       return;
@@ -1582,8 +1599,14 @@
       Renderer.addTrauma(0.25, p);
     }));
     lastBaseFall = cell;
+    // real time: the camera leans in on the blast, then goes back to the whole map
+    // (not while you plan an attack or just moved the camera yourself)
+    if (phase === 'live' && !attack && !state.winner) {
+      Renderer.focusCell(cell, hq ? 150 : 170, false);
+      Timeline.tween(2.4, () => {}, () => { if (phase === 'live' && !attack) frameView(false); });
+    }
   }
-  let lastBaseFall = null;
+  let lastBaseFall = null, lastHqSlow = -1e9;
 
   function animateLaunch(e, idAt) {
     if (e.strike) return animateStrikeLaunch(e);
@@ -1722,7 +1745,8 @@
     }
     if (big) for (const n of R.neighbors(ev.cell, 1)) if (R.isLand(state, n)) Fx.smallBlast(Renderer.cellCenter(n).setY(2), 0xffd28a);
     Renderer.addTrauma(big ? 0.9 : wet ? 0.15 : hqHit ? 0.6 : 0.38, pos);
-    if (hqHit) slowMotion(0.55, 0.35);
+    // (at most once every few seconds, so a salvo doesn't stutter the clock)
+    if (hqHit && performance.now() - lastHqSlow > 3500) { lastHqSlow = performance.now(); slowMotion(0.55, 0.35); }
     // the target's own damage, with splash on its neighbours reported separately
     let direct = 0, splash = 0, absorbed = 0;
     for (const h of ev.hits) { const d = shownDmg(h, h.dmg); if (h.cell === ev.cell) direct += d; else splash += d; absorbed += h.absorbed > 0 ? h.absorbed : 0; }
@@ -2044,6 +2068,9 @@
   function gameOver() {
     phase = 'gameover';
     UI.setDanger(0);
+    achHeld = achHeld || [];
+    checkEndAchievements();
+    setTimeout(releaseAch, state.realtime ? 4200 : 2600);
     clearSave();
     const mission = state.mission ? CAMPAIGN[state.mission - 1] : null;
     if (mission && state.winner === P && campaignDone() < mission.id) {
@@ -2053,7 +2080,6 @@
     const newBest = medals ? recordMedals(mission.id, medals) : false;
     const daily = state.daily ? { score: R.dailyScore(state, P) } : null;
     if (daily) daily.prev = recordDaily(state.daily, daily.score);
-    checkEndAchievements();
     UI.setDock(false);
     UI.setOrders([], []);
     Renderer.setMarkers([], []);
@@ -2066,7 +2092,8 @@
     UI.banner(title, hotseat ? seatReason : state.endReason, !hotseat && w !== P);
     // victory flares burst over your island
     if (w === P && !hotseat) {
-      const home = Renderer.cellCenter(R.hqCell(P));
+      // over the base that fell last (where the camera is), else over your own HQ
+      const home = Renderer.cellCenter(state.realtime && lastBaseFall !== null ? lastBaseFall : R.hqCell(P));
       for (let i = 0; i < 7; i++) setTimeout(() => {
         if (phase !== 'gameover') return;
         const p = home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 60, 30 + Math.random() * 25, (Math.random() - 0.5) * 50));
@@ -2109,7 +2136,7 @@
           ['Mines set off', ps.minesHit || 0, as.minesHit || 0]
         ]
       });
-    }, 2600);
+    }, state.realtime ? 4200 : 2600);   // real time: let the last base's chain of blasts play out
   }
 
   // ══ Real-time battle ═════════════════
@@ -2127,7 +2154,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastBaseFall = null; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastBaseFall = null; introHold = 0; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; lastTick = 99; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.setDanger(0);
     UI.hideAttack();
@@ -2150,10 +2177,11 @@
     if (first) frameView(false);
     // campaign: open on the enemy's island with the commander's taunt, then pull back to the whole map
     const m = first && state.mission && CAMPAIGN[state.mission - 1];
+    // (the clock holds while it plays: see liveTick)
     if (m) {
       Renderer.focusCell(R.hqCell(A), 190, true);
-      UI.banner('MISSION ' + m.id + ' · ' + m.name.toUpperCase(), COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', true);
-      Timeline.tween(2.6, () => {}, () => { if (phase === 'live') { frameView(false); UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true); } });
+      UI.banner('MISSION ' + m.id + ' · ' + m.name.toUpperCase(), COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', true, 4.2);
+      introHold = 3.6;
     }
   }
 
@@ -2166,7 +2194,14 @@
     refreshHUD();
   }
 
+  let introHold = 0;
+  function endIntro() {
+    frameView(false);
+    UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true);
+  }
   function liveTick(raw) {
+    // mission opening: the battle clock waits for the flyover (any key or click skips it)
+    if (introHold > 0) { introHold -= raw; if (introHold <= 0) endIntro(); return; }
     // time stops while an attack is being planned, paused, or in menus
     if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) return;
     // ids by cell before the step, so effects can find structures that die during it
@@ -2176,6 +2211,7 @@
     const events = Realtime.step(state, raw, { ai: [A] });
     let resync = false;
     for (const e of events) resync = liveEvent(e, idAt) || resync;
+    if (state.winner) achHeld = achHeld || [];   // the final blow's toasts wait for the debrief
     if (events.length) checkTurnAchievements(events);
     Timeline.update(raw);
     syncFlights();
@@ -2198,11 +2234,15 @@
       const me = Realtime.baseIntegrity(state, P), foe = Realtime.baseIntegrity(state, A);
       const lead = Math.abs(me - foe) < 0.005 ? 'level on base health' : me > foe ? 'you lead on base health (' + Math.round(me * 100) + '% vs ' + Math.round(foe * 100) + '%)' : 'the enemy leads on base health (' + Math.round(foe * 100) + '% vs ' + Math.round(me * 100) + '%)';
       const msg = fmtClock(at) + ' left: ' + lead + '. When the clock runs out, more base health wins.';
-      UI.toast(msg, me >= foe ? 'good' : 'warn');
+      UI.banner(fmtClock(at) + ' LEFT', lead, me < foe, 2.8);
       UI.log(msg, 'sys');
       SND.play('alarm', { gain: 0.5 });
     }
+    // the last ten seconds tick down
+    const sec = Math.ceil(left);
+    if (left > 0 && sec <= 10 && sec !== lastTick) { lastTick = sec; SND.play('select', { gain: 0.8 }); }
   }
+  let lastTick = 99;
 
   // a decoy posing as a base looks finished from the start: bases are never built
   function shownProgress(b) { return b.side !== P && R.apparent(b).type === 'base' ? 1 : b.progress; }
