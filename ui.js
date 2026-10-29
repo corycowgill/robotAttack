@@ -69,6 +69,8 @@ window.UI = (function () {
   #hud .val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
   #hud .inc { font-size: 13px; color: var(--c-dim); font-weight: 600; margin-left: 4px; }
   #hud .bar { height: 5px; background: rgba(255,255,255,.08); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  #hud .bar.notched { position: relative; }
+  #hud .bar.notched::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 calc(var(--notch) - 1px), rgba(10,14,20,.9) calc(var(--notch) - 1px) var(--notch)); }
   #hud .segs { display: flex; gap: 3px; margin-top: 6px; }
   #hud .segs span { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
   #hud .segs span.hq { flex: 1.4; }
@@ -422,7 +424,7 @@ window.UI = (function () {
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
   .abtn.nudge, .card.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
-  #danger { position: absolute; inset: 0; pointer-events: none; z-index: 1; --dg: 0; opacity: var(--dg); transition: opacity .35s;
+  #danger { position: absolute; inset: 0; pointer-events: none; --dg: 0; opacity: var(--dg); transition: opacity .35s;
     box-shadow: inset 0 0 160px 30px rgba(255,40,24,.55), inset 0 0 40px 4px rgba(255,60,30,.35); }
   /* enemy commander on the radio: a portrait card that slides in for a few seconds */
   #comms { position: absolute; left: 12px; top: 96px; display: flex; gap: 10px; align-items: center; max-width: min(380px, 60vw); padding: 8px 14px 8px 8px; pointer-events: none; z-index: 3;
@@ -581,7 +583,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'toasts' }));
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
-    root.appendChild(el('div', { id: 'danger' }));
+    root.insertBefore(el('div', { id: 'danger' }), root.firstChild);   // under the HUD and panels, over the map
     root.appendChild(el('div', { id: 'flash' }));
     root.appendChild(el('div', { id: 'comms', class: 'panel' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
@@ -816,6 +818,9 @@ window.UI = (function () {
     const eb = $('h-enb');
     eb.style.width = (100 * h.energy / h.energyCap) + '%';
     eb.parentElement.classList.toggle('full', h.energy >= h.energyCap);
+    // a notch every missile's worth of energy: how many missiles the bar can pay for at a glance
+    eb.parentElement.classList.add('notched');
+    eb.parentElement.style.setProperty('--notch', (100 * CONST.MISSILE_ENERGY / h.energyCap) + '%');
     if (h.clock) {
       // real time: a battle clock instead of the turn counter
       $('h-turn').textContent = h.clock;
