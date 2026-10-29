@@ -2124,7 +2124,7 @@
     SND.setMode('planning');
     Timeline.open();
     if (first) {
-      UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true);
+      if (!state.mission) UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true);
       UI.log('Real-time battle: credits and energy flow every second, and silos and hangars reload on their own.', 'sys');
       UI.log('To attack, press Q (missiles), E (mechs) or R (orbital strike): time stops while you click a target for each missile, where the mechs land and where the strike falls. Enter launches.', 'sys');
       UI.log('Enemy launches are announced with a countdown: repair, shield or build AA before they land. Space pauses.', 'sys');
@@ -2134,6 +2134,13 @@
     syncWorld(true);
     refreshAll();
     if (first) frameView(false);
+    // campaign: open on the enemy's island with the commander's taunt, then pull back to the whole map
+    const m = first && state.mission && CAMPAIGN[state.mission - 1];
+    if (m) {
+      Renderer.focusCell(R.hqCell(A), 190, true);
+      UI.banner('MISSION ' + m.id + ' · ' + m.name.toUpperCase(), COMMANDERS[m.enemy].name + ': “' + m.taunt + '”', true);
+      Timeline.tween(2.6, () => {}, () => { if (phase === 'live') { frameView(false); UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true); } });
+    }
   }
 
   function setPaused(on) {
