@@ -13,7 +13,7 @@ window.Renderer = (function () {
   const MARGIN = 140;
 
   let scene, camera, renderer;
-  let sun;
+  let sun, hemi, rim;
   let gridMat, zoneTex, zoneData, fogTex, fogData, fogMat;
   let hover, hoverMat, rangeGroup = null, buildGhost = null;
   const buildings = {};   // id -> rec
@@ -114,7 +114,7 @@ window.Renderer = (function () {
   }
 
   function createLights() {
-    const hemi = new THREE.HemisphereLight(0x8fa3c0, 0x3a2814, 0.65);
+    hemi = new THREE.HemisphereLight(0x8fa3c0, 0x3a2814, 0.65);
     scene.add(hemi);
     sun = new THREE.DirectionalLight(0xffd9a0, 2.3);
     sun.position.set(MAP_W / 2 - 170, 280, MAP_H / 2 + 140);
@@ -126,9 +126,36 @@ window.Renderer = (function () {
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.4;
     scene.add(sun); scene.add(sun.target);
-    const rim = new THREE.DirectionalLight(0x5fa8ff, 0.45);
+    rim = new THREE.DirectionalLight(0x5fa8ff, 0.45);
     rim.position.set(MAP_W / 2 + 200, 120, MAP_H / 2 - 220);
     scene.add(rim);
+  }
+
+  // ── Atmospheres: the light a battle is fought in (campaign missions pick one) ──
+  const ATMOS = {
+    day:   { sun: [0xffd9a0, 2.3], sunPos: [-170, 280, 140], sky: [0x8fa3c0, 0x3a2814, 0.65], rim: [0x5fa8ff, 0.45], bg: 0x111b24, fog: 1, exp: 1.1 },
+    dusk:  { sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
+    night: { sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
+    storm: { sun: [0xc6d0dc, 1.25], sunPos: [-120, 300, 80], sky: [0x6c7a88, 0x22201c, 0.62], rim: [0x8aaccc, 0.3], bg: 0x161c22, fog: 1.45, exp: 1.0, lightning: true }
+  };
+  let atmos = ATMOS.day, atmosName = 'day', nextBolt = 0;
+  function setAtmosphere(name) {
+    atmosName = ATMOS[name] ? name : 'day';
+    atmos = ATMOS[atmosName];
+    sun.color.set(atmos.sun[0]); sun.intensity = atmos.sun[1];
+    sun.position.set(MAP_W / 2 + atmos.sunPos[0], atmos.sunPos[1], MAP_H / 2 + atmos.sunPos[2]);
+    hemi.color.set(atmos.sky[0]); hemi.groundColor.set(atmos.sky[1]); hemi.intensity = atmos.sky[2];
+    rim.color.set(atmos.rim[0]); rim.intensity = atmos.rim[1];
+    scene.background.set(atmos.bg); scene.fog.color.set(atmos.bg);
+    renderer.toneMappingExposure = atmos.exp;
+    nextBolt = time + 4;
+  }
+  // storms: now and then a lightning flash somewhere over the sea
+  function weather() {
+    if (!atmos.lightning || cinema || time < nextBolt) return;
+    nextBolt = time + 5 + Math.random() * 9;
+    Fx.flashLight({ x: Math.random() * MAP_W, y: 90, z: Math.random() * MAP_H }, 0xcfe0ff, 14, 0.25);
+    if (Math.random() < 0.5) setTimeout(() => Fx.flashLight({ x: Math.random() * MAP_W, y: 90, z: Math.random() * MAP_H }, 0xcfe0ff, 10, 0.18), 160);
   }
 
   // ── Islands: terrain, sea, grid and scenery rebuilt per map ─
@@ -1521,7 +1548,8 @@ window.Renderer = (function () {
     updateCamera(dt, keyboardEnabled);
     fogMat.uniforms.time.value = time;
     // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
-    scene.fog.density = cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist);
+    scene.fog.density = (cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist)) * (cinema ? 1 : atmos.fog);
+    weather();
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {
@@ -1612,7 +1640,7 @@ window.Renderer = (function () {
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
     addRobot, removeRobot, getRobot, setRobotHp, hitRobot, allRobotIds,
-    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines,
+    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines, setAtmosphere,
     get camera() { return camera; }, get time() { return time; }
   };
 })();

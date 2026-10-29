@@ -303,6 +303,7 @@ const CAMPAIGN = [
   },
   {
     id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
+    atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
     rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
@@ -312,6 +313,7 @@ const CAMPAIGN = [
   },
   {
     id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 17, locked: ['uplink'],
+    atmos: 'storm',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
     win: 'The fortress fell. Only one enemy remains.',
@@ -320,6 +322,7 @@ const CAMPAIGN = [
   },
   {
     id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 16, locked: ['uplink'],
+    atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
@@ -329,6 +332,7 @@ const CAMPAIGN = [
   },
   {
     id: 6, name: 'Skyfall', enemy: 'kord', difficulty: 'commander', mapSeed: 6637, land: 115, par: 26,
+    atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Kord bought NYX\'s orbital codes. His Strike Uplink is already charging, and no AA can stop what it calls down. Spread out, shield the HQ, and get our own Uplink online.',
     taunt: 'Look up, Commander. The sky belongs to me now.',
     win: 'Kord\'s uplink is scrap. But those codes came from somewhere higher up.',
@@ -337,6 +341,7 @@ const CAMPAIGN = [
   },
   {
     id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 16,
+    atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Director Sol runs the orbital network itself: strikes early and often, shields that go up the moment you fire, eyes on everything. Our Uplink is half charged. Make the first strike count.',
     taunt: 'I have watched your little war from above. It ends today.',
     win: 'The network is down and the skies are clear. Now the war is over, Commander.',
