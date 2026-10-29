@@ -536,10 +536,12 @@
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
   const lsPut = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage blocked */ } };
   let showIntents = lsGet('ra_intents', '1') !== '0';
+  // real-time pace: the battle clock runs at this multiple of real time (everything scales with it)
+  let pace = [0.75, 1, 1.5].includes(+lsGet('ra_pace', '1')) ? +lsGet('ra_pace', '1') : 1;
   function currentSettings() {
     return { vol: SND.getVolume(), musicOn: SND.isMusicEnabled() ? 1 : 0, music: SND.getMusicVolume(), sfx: SND.getSfxVolume(),
       ui: SND.getUiVolume(), amb: SND.getAmbVolume(), style: SND.getStyle(), bgMute: SND.getBgMute() ? 1 : 0, quality: Renderer.getQuality(),
-      speed, shake: lsGet('ra_shake', '1') === '0' ? 0 : 1, intents: showIntents ? 1 : 0 };
+      speed, pace, shake: lsGet('ra_shake', '1') === '0' ? 0 : 1, intents: showIntents ? 1 : 0 };
   }
   // a sample of the channel being adjusted, once the slider settles
   let previewTimer = 0;
@@ -555,6 +557,7 @@
     if (key === 'bgMute') SND.setBgMute(!!v);
     if (key === 'quality') Renderer.setQuality(v);
     if (key === 'speed') { speed = v; lsPut('ra_speed', v); }
+    if (key === 'pace') { pace = v; lsPut('ra_pace', v); }
     if (key === 'shake') { Renderer.setShake(!!v); lsPut('ra_shake', v); }
     if (key === 'intents') { showIntents = !!v; lsPut('ra_intents', v); if (state && planning()) refreshMarkers(); }
     if (!['sfx', 'ui', 'amb', 'vol', 'music'].includes(key)) SND.play('uiClick');
@@ -638,7 +641,7 @@
     const s = state.sides[P];
     const inc = R.income(state, P);
     const hq = R.buildingsOf(state, P, 'hq')[0];
-    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : attack ? 'Planning' : 'Live' }[phase] || '';
+    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : attack ? 'Planning' : pace === 1 ? 'Live' : 'Live ×' + pace }[phase] || '';
     if (state.realtime) {
       const left = Math.max(0, state.rt.timeLimit - state.rt.t);
       // the HQ bars follow every base, Command Center included
@@ -2121,6 +2124,7 @@
     // ids by cell before the step, so effects can find structures that die during it
     const idAt = {};
     for (let c = 0; c < R.N; c++) { const b = state.cells[c].building; if (b) idAt[c] = b.id; }
+    raw *= pace;
     const events = Realtime.step(state, raw, { ai: [A] });
     let resync = false;
     for (const e of events) resync = liveEvent(e, idAt) || resync;

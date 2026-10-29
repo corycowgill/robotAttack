@@ -635,7 +635,8 @@ window.UI = (function () {
         <div class="setrow"><span>In background<small>When the game's tab or app is hidden</small></span>${seg('bgMute', [[1, 'Mute'], [0, 'Keep playing']])}</div>
         <h3 class="sethead">Game</h3>
         <div class="setrow"><span>Graphics<small>Auto lowers detail if the frame rate drops</small></span>${seg('quality', [['auto', 'Auto'], [0, 'Low'], [1, 'Medium'], [2, 'High']])}</div>
-        <div class="setrow"><span>Combat playback</span>${seg('speed', [[1, '1x'], [2, '2x'], [3, '3x']])}</div>
+        <div class="setrow"><span>Real-time pace<small>How fast the battle clock runs. Slow gives you more time to think</small></span>${seg('pace', [[0.75, 'Slow'], [1, 'Normal'], [1.5, 'Fast']])}</div>
+        <div class="setrow"><span>Combat playback<small>Turn-based battles</small></span>${seg('speed', [[1, '1x'], [2, '2x'], [3, '3x']])}</div>
         <div class="setrow"><span>Camera shake</span>${seg('shake', [[1, 'On'], [0, 'Off']])}</div>
         <div class="setrow"><span>Mech arrows<small>Where visible mechs go next turn</small></span>${seg('intents', [[1, 'On'], [0, 'Off']])}</div>
         <p style="text-align:center;margin:16px 0 0"><button class="bigbtn" id="set-done">Done</button></p>

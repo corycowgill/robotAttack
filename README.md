@@ -215,7 +215,7 @@ The browser remembers your choices. The map options also apply to Two Players; t
 | `H` / `F` | Camera to your HQ / whole map |
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
-| Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); combat playback speed; camera shake; mech arrows. Saved in the browser. |
+| Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); real-time pace (Slow 0.75×, Normal, Fast 1.5×: the battle clock and everything on it run at that speed); combat playback speed (turn-based); camera shake; mech arrows. Saved in the browser. |
 | `?` | Help |
 | Touch | Tap to select / place / target; drag one finger to pan, pinch to zoom |
 
