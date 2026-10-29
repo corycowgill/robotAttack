@@ -199,13 +199,17 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   // E opens the planner and stops the clock: pick the landing cell only then, so nothing moves onto it
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#attack.show');
-  const to = await page.evaluate(() => {
+  // landing spots near an enemy silo; the AI's buildings decide which ones the planner accepts
+  const spots = await page.evaluate(() => {
     const s = __game.state, silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
-    return Rules.neighbors(silo.cell, 2).find(c => Realtime.landingCells(s, 'player', c).length);
+    return Rules.neighbors(silo.cell, 2).filter(c => Realtime.landingCells(s, 'player', c).length);
   });
-  await clickCell(page, to);
-  await page.waitForFunction(() => !document.getElementById('at-go').disabled, null, { timeout: 10000 })
-    .catch(async () => { throw new Error('Launch stays disabled: ' + await page.evaluate(() => document.getElementById('attack').innerText)); });
+  let to = -1;
+  for (const c of spots.slice(0, 6)) {
+    await clickCell(page, c);
+    if (await page.evaluate(() => !document.getElementById('at-go').disabled)) { to = c; break; }
+  }
+  if (to < 0) throw new Error('Launch stays disabled: ' + await page.evaluate(() => document.getElementById('attack').innerText + ' | ' + document.getElementById('toasts').innerText));
   await page.click('#at-go');   // the panel takes clicks over the map (regression)
   await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'player' && f.kind === 'ship') || __game.state.robots.some(r => r.side === 'player'), null, { timeout: 5000 })
     .catch(async () => { throw new Error('no dropship launched: ' + await page.evaluate(() => document.getElementById('attack').innerText + ' | ' + document.getElementById('log').innerText.slice(-300))); });
