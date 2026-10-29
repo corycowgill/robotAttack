@@ -190,17 +190,22 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   await page.waitForFunction(() => /MISSILE/.test(document.getElementById('orderlist').textContent) || /Enemy missiles inbound/.test(document.getElementById('log').textContent), null, { timeout: 60000 });
   await page.waitForFunction(() => /Enemy missiles inbound/.test(document.getElementById('log').textContent));
   // our mechs: land next to an enemy structure, fight, then fly home
-  const to = await page.evaluate(() => {
+  await page.evaluate(() => {
     const s = __game.state;
     s.sides.player.credits = 2000; s.sides.player.energy = 30;
     for (let c = 0; c < Rules.N; c++) if (!Rules.buildableReason(s, 'player', 'hangar', c)) { Rules.build(s, 'player', 'hangar', c); break; }
     for (const h of Rules.buildingsOf(s, 'player', 'hangar')) { h.progress = 1; h.readyAt = 0; }   // skip construction
-    const silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
+  });
+  // E opens the planner and stops the clock: pick the landing cell only then, so nothing moves onto it
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#attack.show');
+  const to = await page.evaluate(() => {
+    const s = __game.state, silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
     return Rules.neighbors(silo.cell, 2).find(c => Realtime.landingCells(s, 'player', c).length);
   });
-  await page.keyboard.press('KeyE');
   await clickCell(page, to);
-  await page.waitForSelector('#attack.show');
+  await page.waitForFunction(() => !document.getElementById('at-go').disabled, null, { timeout: 10000 })
+    .catch(async () => { throw new Error('Launch stays disabled: ' + await page.evaluate(() => document.getElementById('attack').innerText)); });
   await page.click('#at-go');   // the panel takes clicks over the map (regression)
   await page.waitForFunction(() => __game.state.rt.flights.some(f => f.side === 'player' && f.kind === 'ship') || __game.state.robots.some(r => r.side === 'player'), null, { timeout: 5000 })
     .catch(async () => { throw new Error('no dropship launched: ' + await page.evaluate(() => document.getElementById('attack').innerText + ' | ' + document.getElementById('log').innerText.slice(-300))); });
