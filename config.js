@@ -274,11 +274,16 @@ const UPGRADE_HP = 1.5;       // max HP multiplier
 // Positions in `start` are relative to that side's HQ (dx points toward the enemy).
 const COMMANDERS = {
   hale:  { name: 'Gen. Hale',      title: 'Your commanding officer', look: { color: '#2ec4ff', visor: '#bff3ff', gear: 'beret' } },
-  rusk:  { name: 'Cmdr. Rusk',     title: 'Coastal garrison',        look: { color: '#ff7a3d', visor: '#ffd2a8', gear: 'none' } },
-  vey:   { name: 'Capt. Vey',      title: 'Reef fortress warden',    look: { color: '#ffb000', visor: '#fff0b0', gear: 'patch' } },
-  kord:  { name: 'Marshal Kord',   title: 'Strait fleet command',    look: { color: '#ff4422', visor: '#ffb3a3', gear: 'antenna' } },
-  nyx:   { name: 'Overseer NYX',   title: 'Autonomous war AI',       look: { color: '#c04dff', visor: '#f0c2ff', gear: 'crown' } },
-  sol:   { name: 'Director Sol',   title: 'Orbital network command', look: { color: '#ff3d7f', visor: '#ffc2d6', gear: 'antenna' } }
+  rusk:  { name: 'Cmdr. Rusk',     title: 'Coastal garrison',        look: { color: '#ff7a3d', visor: '#ffd2a8', gear: 'none' },
+    lines: { lost: ['Lucky shot. You won\'t get another.', 'Hold the beach! Nobody falls back!'], won: ['One down. Start swimming, rookie.', 'That\'s my sandbar you\'re shelling.'] } },
+  vey:   { name: 'Capt. Vey',      title: 'Reef fortress warden',    look: { color: '#ffb000', visor: '#fff0b0', gear: 'patch' },
+    lines: { lost: ['A crack in the wall. Seal it.', 'You\'ll pay for every stone of that.'], won: ['Walls win wars, Commander.', 'Did you think I only defend?'] } },
+  kord:  { name: 'Marshal Kord',   title: 'Strait fleet command',    look: { color: '#ff4422', visor: '#ffb3a3', gear: 'antenna' },
+    lines: { lost: ['Noted. Adjusting the plan.', 'An acceptable loss. Recalculating.'], won: ['Predictable.', 'I read you three moves ago.'] } },
+  nyx:   { name: 'Overseer NYX',   title: 'Autonomous war AI',       look: { color: '#c04dff', visor: '#f0c2ff', gear: 'crown' },
+    lines: { lost: ['NODE LOST. REROUTING.', 'ANOMALY LOGGED. ESCALATING RESPONSE.'], won: ['TARGET NEUTRALIZED.', 'SURVIVAL PROBABILITY: DECREASING.'] } },
+  sol:   { name: 'Director Sol',   title: 'Orbital network command', look: { color: '#ff3d7f', visor: '#ffc2d6', gear: 'antenna' },
+    lines: { lost: ['You scratched the ground. I own the sky.', 'Insignificant. Charge the array.'], won: ['From orbit, everything is a target.', 'The network sees every one of you.'] } }
 };
 
 const CAMPAIGN = [

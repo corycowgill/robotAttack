@@ -2396,6 +2396,15 @@
   }
 
   // ── Live events → effects ──
+  // Campaign: the enemy commander reacts on the radio when a base falls
+  function commanderSays(kind, n) {
+    const m = state.mission && CAMPAIGN[state.mission - 1], c = m && COMMANDERS[m.enemy];
+    if (!c || !c.lines) return;
+    const list = c.lines[kind];
+    const line = list[n % list.length];
+    setTimeout(() => { if (phase === 'live') { UI.log(c.name + ': “' + line + '”', 'enemy'); UI.toast(c.name + ': “' + line + '”', 'info'); SND.play('radio', { gain: 0.6 }); } }, 1400);
+  }
+
   // How each of your bases fell, for the defeat debrief
   let basesFallen = [];
   function noteBaseLoss(hit, by) {
@@ -2500,6 +2509,7 @@
           UI.toast((own ? 'Base lost! ' : 'Enemy base destroyed! ') + e.left + ' ' + (own ? 'of yours' : 'enemy base' + (e.left > 1 ? 's' : '')) + ' left', own ? 'bad' : 'good');
           UI.log((own ? 'You lost your ' : 'Destroyed the enemy ') + (e.kind === 'hq' ? 'Command Center' : 'base') + ' at ' + cellName(e.cell) + ' — ' + e.left + ' ' + (own ? 'of your bases remain' : 'enemy bases remain'), own ? 'bad' : 'good');
           SND.play(own ? 'alarm' : 'achievement');
+          commanderSays(own ? 'won' : 'lost', e.left);
         }
         return true;
       }
