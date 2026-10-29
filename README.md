@@ -212,7 +212,7 @@ The browser remembers your choices. The map options also apply to Two Players; t
 | `Tab` | Playback speed 1x / 2x / 3x |
 | WASD / arrows, right-drag | Pan |
 | Mouse wheel | Zoom |
-| `H` / `F` | Camera to your HQ / whole map |
+| `H` / `F` / `J` | Camera to your HQ / whole map / the latest alert (real time: an inbound target, a raid landing, a hit on your island or a mine blast) |
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
 | Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); real-time pace (Slow 0.75×, Normal, Fast 1.5×: the battle clock and everything on it run at that speed); combat playback speed (turn-based); camera shake; mech arrows. Saved in the browser. |
