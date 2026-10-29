@@ -400,6 +400,7 @@ test('settings: gear opens them, choices apply and persist across a reload', asy
   await page.click('#settings button[data-set="quality"][data-v="0"]');
   await page.click('#settings button[data-set="style"][data-v="retro"]');
   await page.click('#settings button[data-set="bgMute"][data-v="0"]');
+  await page.click('#settings button[data-set="pace"][data-v="1.5"]');
   await page.locator('#settings input[data-set="music"]').fill('0.3');
   await page.locator('#settings input[data-set="ui"]').fill('0.4');
   await page.locator('#settings input[data-set="amb"]').fill('0.2');
@@ -410,7 +411,7 @@ test('settings: gear opens them, choices apply and persist across a reload', asy
   await dismissSplash(page);
   await page.click('#m-settings');
   const on = await page.locator('#settings button.on').evaluateAll(bs => bs.map(b => b.dataset.set + '=' + b.dataset.v).sort().join(','));
-  assert.strictEqual(on, 'bgMute=0,intents=0,musicOn=1,quality=0,shake=0,speed=3,style=retro');
+  assert.strictEqual(on, 'bgMute=0,intents=0,musicOn=1,pace=1.5,quality=0,shake=0,speed=3,style=retro');
   assert.strictEqual(+(await page.locator('#settings input[data-set="music"]').inputValue()), 0.3);
   assert.strictEqual(+(await page.locator('#settings input[data-set="ui"]').inputValue()), 0.4);
   assert.strictEqual(+(await page.locator('#settings input[data-set="amb"]').inputValue()), 0.2);
