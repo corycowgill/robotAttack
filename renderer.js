@@ -554,10 +554,13 @@ window.Renderer = (function () {
           float fog = texture2D(map, vUv).a;
           if (fog < 0.01) discard;
           vec2 p = vUv * res;
-          float cl = n(p * 0.9 + vec2(time * 0.25, time * 0.11)) * 0.6 + n(p * 2.3 - vec2(time * 0.17, 0.0)) * 0.4;
-          float scan = 0.04 * sin((vUv.y * res.y * 6.0) + time * 2.0);
-          vec3 col = mix(vec3(0.05, 0.06, 0.10), vec3(0.16, 0.19, 0.27), cl) + scan;
-          float a = fog * (0.74 + cl * 0.2);
+          // drifting banks of cloud (warped, three octaves) instead of scanlines
+          vec2 q = p * 0.55 + vec2(time * 0.06, time * 0.025);
+          vec2 w = vec2(n(q + 3.1), n(q + 7.7)) * 1.6;
+          float cl = n(q + w) * 0.55 + n(q * 2.1 - w + time * 0.04) * 0.3 + n(q * 4.3 + 11.0) * 0.15;
+          vec3 col = mix(vec3(0.04, 0.05, 0.09), vec3(0.19, 0.22, 0.31), smoothstep(0.25, 0.85, cl));
+          col += vec3(0.05, 0.08, 0.12) * pow(n(q * 1.3 - time * 0.05), 6.0);   // a faint glint here and there
+          float a = fog * (0.7 + cl * 0.25);
           gl_FragColor = vec4(col, a);
         }`
     });
