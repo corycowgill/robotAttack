@@ -134,8 +134,8 @@ window.Renderer = (function () {
   // ── Atmospheres: the light a battle is fought in (campaign missions pick one) ──
   const ATMOS = {
     day:   { sun: [0xffd9a0, 2.3], sunPos: [-170, 280, 140], sky: [0x8fa3c0, 0x3a2814, 0.65], rim: [0x5fa8ff, 0.45], bg: 0x111b24, fog: 1, exp: 1.1 },
-    dusk:  { sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
-    night: { sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
+    dusk:  { glow: 1.4, sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
+    night: { glow: 2.2, sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
     storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true }
   };
   let atmos = ATMOS.day, atmosName = 'day', nextBolt = 0, bolt = null, boltT = 0, rain = null;
@@ -148,6 +148,7 @@ window.Renderer = (function () {
     rim.color.set(atmos.rim[0]); rim.intensity = atmos.rim[1];
     scene.background.set(atmos.bg); scene.fog.color.set(atmos.bg);
     renderer.toneMappingExposure = atmos.exp;
+    Models.setGlow(atmos.glow || 1);
     nextBolt = time + 4;
     if (!bolt) {
       // lightning lights the whole battlefield for an instant
@@ -1590,6 +1591,9 @@ window.Renderer = (function () {
     // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
     scene.fog.density = (cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist)) * (cinema ? 1 : atmos.fog);
     weather(dt);
+    // mechs grow a little when the camera is far out, so a raid still reads at whole-map framing
+    const ms = 1.3 * Math.max(1, Math.min(1.7, cam.dist / 360));
+    for (const id in robots) robots[id].group.scale.setScalar(ms);
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {

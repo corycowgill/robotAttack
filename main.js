@@ -2494,7 +2494,7 @@
     if (!c || !c.lines) return;
     const list = c.lines[kind];
     const line = list[n % list.length];
-    setTimeout(() => { if (phase === 'live') { UI.log(c.name + ': “' + line + '”', 'enemy'); UI.toast(c.name + ': “' + line + '”', 'info'); SND.play('radio', { gain: 0.6 }); } }, 1400);
+    setTimeout(() => { if (phase === 'live') { UI.log(c.name + ': “' + line + '”', 'enemy'); UI.comms(c, line); SND.play('radio', { gain: 0.6 }); } }, 1400);
   }
 
   // How each of your bases fell, for the defeat debrief
@@ -2692,7 +2692,7 @@
       if (!v) {
         v = liveVis[f.id] = flightPath(f);
         v.obj = f.kind === 'ship' ? Models.pod(f.side) : Models.missile(f.side);
-        v.obj.scale.setScalar(f.kind === 'ship' ? 2.4 : missileScale());
+        v.obj.scale.setScalar(f.kind === 'ship' ? missileScale() * 1.15 : missileScale());   // both grow with camera distance
         v.prev = v.a.clone();
         Renderer.add(v.obj);
       }
