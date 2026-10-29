@@ -2064,6 +2064,17 @@
     SND.play(w === P || (hotseat && w !== 'draw') ? 'victory' : 'defeat');
     const seatReason = w === 'draw' || /Turn limit/.test(state.endReason) ? state.endReason : seatName(R.enemyOf(w)) + '\'s Command Center destroyed';
     UI.banner(title, hotseat ? seatReason : state.endReason, !hotseat && w !== P);
+    // victory flares burst over your island
+    if (w === P && !hotseat) {
+      const home = Renderer.cellCenter(R.hqCell(P));
+      for (let i = 0; i < 7; i++) setTimeout(() => {
+        if (phase !== 'gameover') return;
+        const p = home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 60, 30 + Math.random() * 25, (Math.random() - 0.5) * 50));
+        Fx.smallBlast(p, [0x66ccff, 0xffd060, 0x9dffb0][i % 3]);
+        Fx.flashLight(p, 0xbfe6ff, 3, 0.4);
+        SND.play('flak', { gain: 0.35 });
+      }, 900 + i * 320);
+    }
     // real time: the camera swoops in on the base that fell last
     if (state.realtime && lastBaseFall !== null && state.cells[lastBaseFall]) Renderer.focusCell(lastBaseFall, 150, true);
     refreshHUD();
@@ -2514,7 +2525,14 @@
         dropVis(e.id);
         const b = Renderer.cellCenter(e.to);
         const seen = own || playerSees(e.to);
-        if (seen) { Fx.dustRing(b, 1.1); Renderer.addTrauma(0.2, b); }
+        if (seen) {
+          // touchdown: a flash, a shockwave and a scorch where the pods came down
+          Fx.dustRing(b, 1.4);
+          Fx.ring(b, own ? 0x66ccff : 0xff7a50, 7, 0.6);
+          Fx.flashLight(b, 0xffb070, 4, 0.35);
+          Fx.scorch(b, 9);
+          Renderer.addTrauma(own ? 0.25 : 0.45, b);
+        }
         SND.play('robotLand', { pan: panAt(e.to), gain: seen ? 1 : 0.6, far: !seen });
         const n = e.robots.length;
         if (e.garrison) UI.log((own ? 'Garrison mechs' : 'Enemy garrison') + ' deployed at ' + cellName(e.to), own ? 'player' : 'enemy');
@@ -2587,6 +2605,12 @@
     const seen = own || playerSees(e.from);
     const sid = idAt[e.from];
     if (sid && seen) Renderer.openHatch(sid);
+    if (seen) {
+      // a flash and a ring of exhaust at the pad
+      const pad = Renderer.cellCenter(e.from);
+      Fx.flashLight(pad, e.kind === 'ship' ? 0x9fd8ff : 0xffc080, 3, 0.3);
+      Fx.dustRing(pad.clone().setY(0.6), e.kind === 'ship' ? 0.9 : 0.6);
+    }
     SND.play(e.kind === 'ship' ? 'podLaunch' : 'missileLaunch', seen ? { pan: panAt(e.from) } : { pan: 0.6, gain: 0.6, far: true });
     if (own) return;
     // one alarm and toast per enemy wave; the log names each dropship and each missile salvo
@@ -2640,7 +2664,11 @@
       if (f.kind !== 'ship') orient(v.obj, p.clone().sub(v.prev));
       // launches from the fog show up once they are out over the sea
       v.obj.visible = f.side === P || playerSees(f.from) || k > 0.3;
-      if (v.obj.visible && p.distanceToSquared(v.prev) > 0.01) Fx.trail(p, f.kind === 'ship' ? 'pod' : 'missile', f.side === P ? 0x66ccff : 0xff6a00);
+      if (v.obj.visible && p.distanceToSquared(v.prev) > 0.01) {
+        Fx.trail(p, f.kind === 'ship' ? 'pod' : 'missile', f.side === P ? 0x66ccff : 0xff6a00);
+        // dropships fire their retro thrusters on the way down
+        if (f.kind === 'ship' && k > 0.82) Fx.trail(p.clone().setY(p.y - 2.5), 'pod', 0xffd080);
+      }
       v.prev.copy(p);
     }
     for (const id in liveVis) if (!alive.has(+id)) dropVis(+id);
