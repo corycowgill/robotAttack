@@ -761,7 +761,7 @@ window.UI = (function () {
         <div><kbd>Q</kbd> fire missile &nbsp; <kbd>E</kbd> drop mech</div><div><kbd>R</kbd> orbital strike</div>
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
         <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
-        <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map</div>
+        <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map &nbsp; <kbd>J</kbd> latest alert</div>
         <div><kbd>Esc</kbd> cancel &nbsp; Touch: tap, drag to pan, pinch to zoom</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
       <h4>Credits</h4>

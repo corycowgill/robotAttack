@@ -1297,8 +1297,8 @@ window.Renderer = (function () {
     clampCam();
   }
   function focusCell(cell, dist, force) {
-    const p = cellCenter(cell);
-    focus(p.x, p.z + 8, dist, force);
+    const p = cellCenter(cell), a = camAxes();
+    focus(p.x - a.fx * 8, p.z - a.fz * 8, dist, force);   // a little toward the camera, whichever way it faces
   }
   // Fit the labelled map into the screen area not covered by UI panels, by
   // projecting its corners from candidate camera positions (exact under perspective).

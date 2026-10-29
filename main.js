@@ -1012,7 +1012,10 @@
     const known = knownDefences(cell);
     if (!known.length) return '<span class="good">No known air defence covers this cell: all ' + n + ' should land</span>';
     const stops = Math.min(n, known.reduce((a, d) => a + d.p, 0));
-    return n + ' missile' + (n > 1 ? 's' : '') + ' vs ' + known.length + ' known shot' + (known.length > 1 ? 's' : '') + ' (' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ') + ') → ~' + (n - stops).toFixed(1) + ' expected to land';
+    const land = n - stops;
+    return n + ' missile' + (n > 1 ? 's' : '') + ' vs ' + known.length + ' known shot' + (known.length > 1 ? 's' : '') + ' (' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ') + ') → ~' + land.toFixed(1) + ' expected to land'
+      // batteries fire once, then reload: more missiles than shots get through
+      + (land < 0.5 ? ' <span class="bad">— likely all shot down. Wait for more silos to load and send ' + (Math.ceil(known.length) + 1) + '+ together, or pick a target outside the AA</span>' : '');
   }
   function knownDefences(cell) {
     const seen = state.sides[P].intel.seen;
@@ -1291,6 +1294,8 @@
     if (!state) return;
     if (e.code === 'Tab') { e.preventDefault(); cycleSpeed(); return; }
     if (e.code === 'KeyH') { Renderer.focusCell(R.hqCell(P), 250, true); return; }
+    // J: jump to the latest alert (inbound target, raid landing, hit on your island, mine blast)
+    if (e.code === 'KeyJ') { if (lastAlert >= 0) Renderer.focusCell(lastAlert, 220, true); else UI.toast('No alerts yet', 'warn'); return; }
     if (e.code === 'KeyF') { frameView(false); return; }
     if (phase === 'live' && attack && e.code === 'Enter') { e.preventDefault(); attackAction('launch'); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); action('end'); return; }
@@ -2076,7 +2081,7 @@
   // The board runs continuously (realtime.js): resources flow, launchers reload, either side
   // can attack at any moment and every launch is announced to its target with a countdown.
   // Building, repairs, upgrades and sales work exactly as in planning.
-  let livePaused = false, liveVis = {}, liveUi = 0, liveSync = 0, lastWave = -99, lastSalvoLog = -99, combatHold = 0, lastRecall = '';
+  let livePaused = false, liveVis = {}, liveUi = 0, liveSync = 0, lastWave = -99, lastSalvoLog = -99, lastAlert = -1, combatHold = 0, lastRecall = '';
   let attack = null;   // the attack being put together: { to, silos: Set, hangars: Set, strike }
 
   function fmtClock(sec) {
@@ -2087,7 +2092,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2384,6 +2389,8 @@
   function liveEvent(e, idAt) {
     const own = e.side === P;
     if (e.type === 'impact') for (const h of e.hits) noteBaseLoss(h, e.strike ? 'strike' : 'missiles');
+    if ((e.type === 'launch' && !own && e.detected) || (e.type === 'deploy' && !own && !e.garrison)) lastAlert = e.to;
+    if ((e.type === 'impact' && !own && R.ownerOfCell(e.cell) === P) || e.type === 'mine') lastAlert = e.cell;
     if (e.type === 'robotHit') noteBaseLoss(e.hit, 'mechs');
     switch (e.type) {
       case 'launch': liveLaunch(e, idAt); return false;
@@ -2519,7 +2526,8 @@
     if (state.rt.t - lastWave > 2.5) {
       lastWave = state.rt.t;
       SND.play('alarm');
-      UI.toast('⚠ Enemy launch! Impact in ' + eta + 's' + (e.detected ? '' : ' — build Radar to see the target'), 'bad');
+      const touch = lastPointer === 'touch' || matchMedia('(hover: none)').matches;
+      UI.toast('⚠ Enemy launch! Impact in ' + eta + 's' + (e.detected ? (touch ? '' : ' — J to look') : ' — build Radar to see the target'), 'bad');
     }
     if (e.kind === 'ship') UI.log('⚠ Enemy dropship with ' + e.mechs + ' mech' + (e.mechs > 1 ? 's' : '') + ' inbound → ' + (e.detected ? describeCell(e.to) : 'landing zone unknown') + ' · lands in ' + eta + 's', 'bad');
     else if (state.rt.t - lastSalvoLog > 2.5) {
