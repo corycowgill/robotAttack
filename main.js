@@ -424,6 +424,7 @@
     UI.showGameUI(false);
     UI.setCombatHint(false);
     state = null;
+    UI.setDanger(0);
     Renderer.setAtmosphere('day');
     setupBackdrop(false);
     refreshContinue();
@@ -2042,6 +2043,7 @@
 
   function gameOver() {
     phase = 'gameover';
+    UI.setDanger(0);
     clearSave();
     const mission = state.mission ? CAMPAIGN[state.mission - 1] : null;
     if (mission && state.winner === P && campaignDone() < mission.id) {
@@ -2116,6 +2118,7 @@
     mode = 'select'; buildType = null;
     livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastBaseFall = null; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
+    UI.setDanger(0);
     UI.hideAttack();
     UI.setDock(true);
     UI.setCombatHint(false);
@@ -2203,6 +2206,11 @@
     refreshOrders();
     refreshMarkers();
     clockWarning();
+    // danger at the screen edges: inbound fire about to land pulses; badly hurt bases glow steadily
+    const etas = Realtime.inbound(state, P).filter(f => f.kind !== 'ship').map(f => f.eta);
+    const soon = etas.length ? Math.min(...etas) : Infinity;
+    const hurt = Realtime.baseIntegrity(state, P);
+    UI.setDanger(soon < 6 ? 0.45 + 0.55 * (1 - soon / 6) : hurt < 0.35 ? 0.35 : 0, soon < 6);
     if (attack) refreshAttack();
     if (selectedCell >= 0) { const info = selectionInfo(selectedCell); if (info) UI.showSelected(info); }
     // combat music while anything is in the air, with a little hold so it doesn't flicker

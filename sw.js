@@ -1,6 +1,6 @@
 // Offline support: the game's own files are fetched network-first (so updates show up as soon as
 // you're online) with the cache as fallback; web fonts are cache-first.
-const CACHE = 'robot-attack-v21';
+const CACHE = 'robot-attack-v22';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'vendor/three.min.js', 'config.js', 'rules.js', 'ai.js', 'realtime.js', 'audio.js', 'models.js', 'fx.js', 'renderer.js', 'ui.js', 'main.js',
