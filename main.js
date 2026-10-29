@@ -671,7 +671,7 @@
         red: false, credits: s.credits, creditInc: (inc.credits / RT.ROUND).toFixed(1) + '/s',
         energy: s.energy, energyCap: R.energyCap(state, P), energyInc: (inc.energy / RT.ROUND).toFixed(1) + '/s',
         clock: fmtClock(state.rt.t) + ' / ' + fmtClock(state.rt.timeLimit), late: left < 60, phase: phaseName,
-        hq: { hp: sum(P), max: state.rt.baseMax[P] || BUILDINGS.hq.hp }, enemyHq: { hp: sum(A), max: state.rt.baseMax[A] || BUILDINGS.hq.hp, known: true }
+        hq: { hp: sum(P), max: state.rt.baseMax[P] || BUILDINGS.hq.hp, segs: baseSegs(P) }, enemyHq: { hp: sum(A), max: state.rt.baseMax[A] || BUILDINGS.hq.hp, known: true, segs: baseSegs(A) }
       };
     }
     return ({
@@ -681,6 +681,14 @@
       turn: state.turn, maxTurns: state.maxTurns || CONST.MAX_TURNS, phase: phaseName,
       hq: { hp: hq ? hq.hp : 0, max: BUILDINGS.hq.hp }, enemyHq: enemyHqView()
     });
+  }
+
+  // one HUD segment per base (Command Center first), each filled to its health; fallen ones empty
+  function baseSegs(side) {
+    const alive = Realtime.bases(state, side).sort((a, b) => (b.type === 'hq') - (a.type === 'hq'));
+    const segs = alive.map(b => ({ f: b.hp / b.maxHp, hq: b.type === 'hq' }));
+    while (segs.length < RT.BASES_PER_SIDE + 1) segs.push({ f: 0, hq: false });
+    return segs;
   }
 
   function refreshDock() {
