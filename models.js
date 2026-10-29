@@ -96,9 +96,13 @@
   // ── Material cache ─────────────────────────────────────────
   var MC = {};
   function std(key, opts) {
-    if (!MC[key]) MC[key] = new THREE.MeshStandardMaterial(opts);
+    if (!MC[key]) { MC[key] = new THREE.MeshStandardMaterial(opts); MC[key].userData.glow0 = MC[key].emissiveIntensity; applyGlow(MC[key]); }
     return MC[key];
   }
+  // night battles: lamps, windows and team lights burn brighter (a multiple of their own glow)
+  var glowMul = 1;
+  function applyGlow(m) { if (m.emissive && (m.emissive.r || m.emissive.g || m.emissive.b)) m.emissiveIntensity = m.userData.glow0 * glowMul; }
+  function setGlow(k) { glowMul = k; for (var key in MC) applyGlow(MC[key]); }
   var MAT = {
     concrete: function () { return std('concrete', { color: 0x8a8478, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
     concreteDS: function () { return std('concreteDS', { color: 0x8a8478, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
@@ -1250,6 +1254,7 @@
     missile: missile,
     interceptor: interceptor,
     mine: mine,
+    setGlow: setGlow,
     pod: pod,
     ghost: ghost,
     glowTexture: glowTexture,

@@ -418,6 +418,14 @@ window.UI = (function () {
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
   #danger { position: absolute; inset: 0; pointer-events: none; z-index: 1; --dg: 0; opacity: var(--dg); transition: opacity .35s;
     box-shadow: inset 0 0 160px 30px rgba(255,40,24,.55), inset 0 0 40px 4px rgba(255,60,30,.35); }
+  /* enemy commander on the radio: a portrait card that slides in for a few seconds */
+  #comms { position: absolute; left: 12px; top: 96px; display: flex; gap: 10px; align-items: center; max-width: min(380px, 60vw); padding: 8px 14px 8px 8px; pointer-events: none; z-index: 3;
+    opacity: 0; transform: translateX(-30px); transition: opacity .3s, transform .3s; border-left: 3px solid var(--cc, var(--c-ai)); }
+  #comms.show { opacity: 1; transform: none; }
+  #comms svg { width: 52px; height: 52px; flex: none; }
+  #comms .who { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--cc, var(--c-ai)); }
+  #comms .line { font-size: 15px; line-height: 1.3; color: #e8eef4; }
+  body.compact #comms { top: 46px; max-width: 70vw; } body.compact #comms svg { width: 38px; height: 38px; } body.compact #comms .line { font-size: 13px; }
   #flash { position: absolute; inset: 0; pointer-events: none; z-index: 1; background: #dfe9ff; opacity: 0; }
   #flash.go { animation: boltFlash .45s ease-out; }
   @keyframes boltFlash { 0% { opacity: .55; } 12% { opacity: .1; } 22% { opacity: .4; } 100% { opacity: 0; } }
@@ -569,6 +577,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.appendChild(el('div', { id: 'danger' }));
     root.appendChild(el('div', { id: 'flash' }));
+    root.appendChild(el('div', { id: 'comms', class: 'panel' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
     root.appendChild(el('div', { id: 'report', class: 'panel' }));
     root.appendChild(el('div', { id: 'attack', class: 'panel pi' }));
@@ -1028,6 +1037,15 @@ window.UI = (function () {
   }
 
   // red at the screen edges: incoming fire about to land (pulsing) or bases badly hurt (steady)
+  let commsTimer = 0;
+  function comms(c, line) {
+    const box = $('comms');
+    box.style.setProperty('--cc', c.look.color);
+    box.innerHTML = portrait(c) + `<div><div class="who">${esc(c.name)} · radio</div><div class="line">“${esc(line)}”</div></div>`;
+    box.classList.add('show');
+    clearTimeout(commsTimer);
+    commsTimer = setTimeout(() => box.classList.remove('show'), 4200);
+  }
   function flashScreen() { const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
   function setDanger(level, pulse) {
     const d = $('danger');
@@ -1340,7 +1358,7 @@ window.UI = (function () {
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
-    toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
+    toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, comms, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
 })();
