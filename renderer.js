@@ -612,7 +612,8 @@ window.Renderer = (function () {
     fogTex.needsUpdate = true;
   }
 
-  function setGridEmphasis(on) { gridMat.opacity = on ? 0.3 : 0.09; }
+  let gridBase = 0.09;
+  function setGridEmphasis(on) { gridBase = on ? 0.3 : 0.09; }
 
   function setHover(cell, color) {
     if (cell < 0) { hover.visible = false; return; }
@@ -808,10 +809,12 @@ window.Renderer = (function () {
   // ── Buildings ─────────────────────────────────────────────
   function makeHpBar(width) {
     const g = new THREE.Group();
-    const bg = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.6, 1.5), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.65, depthTest: false }));
+    // HUD-like overlays: no fog or tone mapping, so the colours stay true at any distance; both
+    // halves are transparent so renderOrder (not the opaque pass) puts the fill over its backing
+    const bg = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.6, 1.5), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.65, depthTest: false, fog: false, toneMapped: false }));
     const fgGeo = new THREE.PlaneGeometry(width, 0.9);
     fgGeo.translate(width / 2, 0, 0.01);
-    const fg = new THREE.Mesh(fgGeo, new THREE.MeshBasicMaterial({ color: 0x66ff66, depthTest: false }));
+    const fg = new THREE.Mesh(fgGeo, new THREE.MeshBasicMaterial({ color: 0x66ff66, transparent: true, depthTest: false, fog: false, toneMapped: false }));
     fg.position.x = -width / 2;
     bg.renderOrder = 30; fg.renderOrder = 31;
     g.add(bg); g.add(fg);
@@ -1606,6 +1609,8 @@ window.Renderer = (function () {
     // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
     scene.fog.density = (cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist)) * (cinema ? 1 : atmos.fog);
     weather(dt);
+    // the cell grid fades as the camera comes in close (the terrain carries the scene up close)
+    if (gridMat) gridMat.opacity = gridBase * Math.max(gridBase > 0.1 ? 0.7 : 0.35, Math.min(1, cam.dist / 420));
     // mechs grow a little when the camera is far out, so a raid still reads at whole-map framing
     const ms = 1.3 * Math.max(1, Math.min(1.7, cam.dist / 360));
     for (const id in robots) robots[id].group.scale.setScalar(ms);
