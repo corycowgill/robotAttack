@@ -302,6 +302,7 @@
     UI.setLiveMode(false);
     if (!saved) { state.history = []; recordHistory(); }   // turn 0: the starting position
     Renderer.setMap(state.land);
+    Renderer.setAtmosphere(state.mission ? CAMPAIGN[state.mission - 1].atmos || 'day' : 'day');
     mode = 'select'; buildType = null; selectedCell = -1;
     syncWorld(true);
     const m = state.mission ? CAMPAIGN[state.mission - 1] : null;
@@ -423,6 +424,7 @@
     UI.showGameUI(false);
     UI.setCombatHint(false);
     state = null;
+    Renderer.setAtmosphere('day');
     setupBackdrop(false);
     refreshContinue();
     UI.showMenu(true, true);
@@ -1564,6 +1566,23 @@
   // A beat of slow motion on the moments that matter (HQ hits, the killing blow)
   let slowmo = 0, slowmoRate = 1;
   function slowMotion(seconds, rate) { if (seconds > slowmo) { slowmo = seconds; slowmoRate = rate; } }
+  // A base going down is a set piece: a flash, a shockwave, a chain of secondary blasts and a
+  // moment of slow motion
+  function baseFalls(pos, hq, cell) {
+    slowMotion(hq ? 1.6 : 1.1, hq ? 0.25 : 0.35);
+    Fx.flashLight(pos, 0xffb060, hq ? 9 : 7, 0.9);
+    Fx.ring(pos, 0xffc880, hq ? 14 : 11, 1.1);
+    Fx.dustRing(pos.clone().setY(0.5), hq ? 2 : 1.6);
+    [0.22, 0.45, 0.75, 1.05].forEach((d, i) => Timeline.tween(d, () => {}, () => {
+      const a = i * 2.1 + Math.random(), r = 2 + Math.random() * 3;
+      const p = pos.clone().add(new THREE.Vector3(Math.cos(a) * r, 1 + Math.random() * 3, Math.sin(a) * r));
+      Fx.explosion(p, 0.7 + Math.random() * 0.4);
+      SND.play('explosion', { pan: panAtPos(p), gain: 0.5 });
+      Renderer.addTrauma(0.25, p);
+    }));
+    lastBaseFall = cell;
+  }
+  let lastBaseFall = null;
 
   function animateLaunch(e, idAt) {
     if (e.strike) return animateStrikeLaunch(e);
@@ -1746,8 +1765,9 @@
       const pos = Renderer.cellCenter(h.cell);
       Renderer.setBuildingVisible(h.id, true);
       Renderer.removeBuilding(h.id, false);
-      Fx.explosion(pos, h.type === 'hq' ? 2 : 1.2);
+      Fx.explosion(pos, h.type === 'hq' || h.type === 'base' ? 2 : 1.2);
       if (h.type === 'hq') slowMotion(1.4, 0.25); // the killing blow
+      if (h.type === 'hq' || h.type === 'base') baseFalls(pos, h.type === 'hq', h.cell);
       Fx.setEmitter('ruin' + h.cell, { x: pos.x, y: 1, z: pos.z }, 'fire', 6);
       if (h.type === 'decoy') SND.play('decoyPop', { pan: panAt(h.cell) });
       else SND.play('destroyed', { pan: panAt(h.cell), big: h.type === 'hq' });
@@ -2042,6 +2062,8 @@
     SND.play(w === P || (hotseat && w !== 'draw') ? 'victory' : 'defeat');
     const seatReason = w === 'draw' || /Turn limit/.test(state.endReason) ? state.endReason : seatName(R.enemyOf(w)) + '\'s Command Center destroyed';
     UI.banner(title, hotseat ? seatReason : state.endReason, !hotseat && w !== P);
+    // real time: the camera swoops in on the base that fell last
+    if (state.realtime && lastBaseFall !== null && state.cells[lastBaseFall]) Renderer.focusCell(lastBaseFall, 150, true);
     refreshHUD();
     const ps = state.sides[P].stats, as = state.sides[A].stats;
     // missiles still in the air when the game ended never had a chance to land
@@ -2092,7 +2114,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastBaseFall = null; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2140,7 +2162,8 @@
     if (resync || liveSync <= 0) { liveSync = 1; syncWorld(true); refreshObjectives(); }
     liveUi -= raw;
     if (liveUi <= 0) { liveUi = 0.2; refreshLive(); }
-    if (state.winner) { recordHistory(); Timeline.cancel(); clearFlights(); closeAttack(); gameOver(); }
+    // (the timeline keeps running: the last base's secondary blasts play under the end banner)
+    if (state.winner) { recordHistory(); clearFlights(); closeAttack(); gameOver(); }
   }
 
   // With 2:00 and 0:30 left, say who would win on the clock (what is left of the bases)
@@ -2178,6 +2201,9 @@
     // combat music while anything is in the air, with a little hold so it doesn't flicker
     const busy = state.rt.flights.some(f => f.launched) || state.robots.length > 0;
     combatHold = busy ? 6 : combatHold - 0.2;
+    // the climax track once either side is down to its last base, a side is badly hurt, or time is short
+    const last = side => Realtime.bases(state, side).length <= 1 || Realtime.baseIntegrity(state, side) < 0.4;
+    SND.setTension(last(P) || last(A) || state.rt.timeLimit - state.rt.t < 120);
     SND.setMode(combatHold > 0 ? 'combat' : 'planning');
   }
 
@@ -2660,7 +2686,14 @@
     const raw = Math.min(0.25, (now - lastFrame) / 1000);   // real time, so slow machines don't slow playback
     const dt = Math.min(0.05, raw);
     lastFrame = now;
-    if (phase === 'live') liveTick(raw);
+    // real time: slow motion slows the battle clock and the effects with it
+    let fxDt = dt;
+    if (phase === 'live' || phase === 'gameover') {
+      let r = raw;
+      if (slowmo > 0) { slowmo -= raw; r = raw * slowmoRate; }
+      if (phase === 'live') liveTick(r);
+      if (state && state.realtime) { if (phase === 'gameover') Timeline.update(r); fxDt = Math.min(0.05, r); }
+    }
     if (phase === 'resolving') {
       let rate = speed;
       if (slowmo > 0) { slowmo -= raw; rate = Math.min(speed, slowmoRate); }
@@ -2669,7 +2702,7 @@
     backdropTick(raw);
     if (reportTimer > 0) { reportTimer -= raw; if (reportTimer <= 0) UI.hideReport(); }
     // highlight hovered order's target
-    Renderer.render(dt, !UI.isHelpOpen() && phase !== 'menu');
+    Renderer.render(fxDt, !UI.isHelpOpen() && phase !== 'menu');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
