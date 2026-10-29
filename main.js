@@ -2092,7 +2092,7 @@
   function beginLive(first) {
     phase = 'live';
     mode = 'select'; buildType = null;
-    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; fireReadySince = null; starvedSince = null; starvedTold = -999;
+    livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();
     UI.hideAttack();
     UI.setDock(true);
@@ -2143,6 +2143,23 @@
     if (state.winner) { recordHistory(); Timeline.cancel(); clearFlights(); closeAttack(); gameOver(); }
   }
 
+  // With 2:00 and 0:30 left, say who would win on the clock (what is left of the bases)
+  let clockWarned = [];
+  function clockWarning() {
+    const left = state.rt.timeLimit - state.rt.t;
+    for (const at of [120, 30]) {
+      if (left > at || clockWarned.includes(at)) continue;
+      clockWarned.push(at);
+      if (left < at - 15) continue;   // resumed past it
+      const me = Realtime.baseIntegrity(state, P), foe = Realtime.baseIntegrity(state, A);
+      const lead = Math.abs(me - foe) < 0.005 ? 'level on base health' : me > foe ? 'you lead on base health (' + Math.round(me * 100) + '% vs ' + Math.round(foe * 100) + '%)' : 'the enemy leads on base health (' + Math.round(foe * 100) + '% vs ' + Math.round(me * 100) + '%)';
+      const msg = fmtClock(at) + ' left: ' + lead + '. When the clock runs out, more base health wins.';
+      UI.toast(msg, me >= foe ? 'good' : 'warn');
+      UI.log(msg, 'sys');
+      SND.play('alarm', { gain: 0.5 });
+    }
+  }
+
   // a decoy posing as a base looks finished from the start: bases are never built
   function shownProgress(b) { return b.side !== P && R.apparent(b).type === 'base' ? 1 : b.progress; }
   // HUD, dock, warnings and the attack panel follow the clock a few times a second
@@ -2155,6 +2172,7 @@
     refreshDock();
     refreshOrders();
     refreshMarkers();
+    clockWarning();
     if (attack) refreshAttack();
     if (selectedCell >= 0) { const info = selectionInfo(selectedCell); if (info) UI.showSelected(info); }
     // combat music while anything is in the air, with a little hold so it doesn't flicker
