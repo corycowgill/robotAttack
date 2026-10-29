@@ -424,6 +424,8 @@ window.UI = (function () {
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
   .abtn.nudge, .card.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
+  #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 48%, transparent 55%, rgba(2,5,9,.42) 100%); }
+  body.splash-on #vignette { display: none; }
   #danger { position: absolute; inset: 0; pointer-events: none; --dg: 0; opacity: var(--dg); transition: opacity .35s;
     box-shadow: inset 0 0 160px 30px rgba(255,40,24,.55), inset 0 0 40px 4px rgba(255,60,30,.35); }
   /* enemy commander on the radio: a portrait card that slides in for a few seconds */
@@ -584,6 +586,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'tip', class: 'panel' }));
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.insertBefore(el('div', { id: 'danger' }), root.firstChild);   // under the HUD and panels, over the map
+    root.insertBefore(el('div', { id: 'vignette' }), root.firstChild);   // a soft dark frame around the battlefield
     root.appendChild(el('div', { id: 'flash' }));
     root.appendChild(el('div', { id: 'comms', class: 'panel' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
