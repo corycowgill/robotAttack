@@ -392,6 +392,7 @@ window.Renderer = (function () {
     decorGroup = new THREE.Group();
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.95, flatShading: true });
     const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+    const foamMat = new THREE.MeshBasicMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.32, depthWrite: false });
     let seed = 7;
     for (let k = 0; k < GW * GH; k++) seed = (seed * 31 + (land[k] ? 1 : 0)) % 2147483647;
     const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -406,9 +407,16 @@ window.Renderer = (function () {
       const s = offshore ? 4 + r() * 6 : 1.2 + r() * 3;
       m.scale.set(s, s * (offshore ? 1.2 : 0.6 + r() * 0.5), s * (0.7 + r() * 0.6));
       m.rotation.set(r() * 3, r() * 3, r() * 3);
-      m.position.set(x, Math.max(terrainHeight(x, z), SEA_Y - 1.5) + s * (offshore ? 0.1 : 0.25), z);
+      m.position.set(x, Math.max(terrainHeight(x, z), SEA_Y - 1.5) + s * (offshore ? -0.05 : 0.25), z);
       m.castShadow = true; m.receiveShadow = true;
       decorGroup.add(m);
+      // sea stacks sit in a ring of surf, so they read as rising from the water rather than floating
+      if (offshore) {
+        const foam = new THREE.Mesh(new THREE.RingGeometry(s * 0.9, s * 1.7, 18), foamMat);
+        foam.rotation.x = -Math.PI / 2;
+        foam.position.set(x, SEA_Y + 0.15, z);
+        decorGroup.add(foam);
+      }
       placed++;
     }
     scene.add(decorGroup);
@@ -498,7 +506,8 @@ window.Renderer = (function () {
   }
   function makeBadge(type, side) {
     const s = new THREE.Sprite(badgeMaterial(type, side));
-    s.scale.set(type === 'hq' ? 14 : 10, type === 'hq' ? 14 : 10, 1);
+    const k = type === 'hq' ? 14 : type === 'base' ? 12 : 8.5;   // bases stand out; the rest stay small
+    s.scale.set(k, k, 1);
     s.renderOrder = 28;
     return s;
   }
@@ -1605,7 +1614,7 @@ window.Renderer = (function () {
       if (m.dash) m.obj.material.dashOffset = -time * 8;
     }
     const q = camera.quaternion;
-    const badgeAlpha = decorHidden ? 0 : Math.max(0, Math.min(1, (cam.dist - 310) / 110));
+    const badgeAlpha = decorHidden ? 0 : 0.9 * Math.max(0, Math.min(1, (cam.dist - 310) / 110));
     for (const k in badgeMats) badgeMats[k].opacity = badgeAlpha;
     for (const id in buildings) {
       const rec = buildings[id];

@@ -69,6 +69,12 @@ window.UI = (function () {
   #hud .val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
   #hud .inc { font-size: 13px; color: var(--c-dim); font-weight: 600; margin-left: 4px; }
   #hud .bar { height: 5px; background: rgba(255,255,255,.08); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  #hud .segs { display: flex; gap: 3px; margin-top: 6px; }
+  #hud .segs span { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+  #hud .segs span.hq { flex: 1.4; }
+  #hud .segs span.dead { background: repeating-linear-gradient(135deg, rgba(255,80,60,.35) 0 3px, transparent 3px 6px); }
+  #hud .segs i { display: block; height: 100%; transition: width .35s, background .35s; }
+  body.compact #hud .segs { margin-top: 2px; } body.compact #hud .segs span { height: 3px; }
   #hud .bar > i { display: block; height: 100%; border-radius: 3px; transition: width .35s; }
   #hud-turn { text-align: center; min-width: 150px !important; }
   #hud-turn .val { font-size: 20px; letter-spacing: .08em; }
@@ -540,8 +546,8 @@ window.UI = (function () {
       <div class="cell"><div class="lbl" style="color:var(--c-credit)">${icon('credits')} Credits</div><div class="val" style="color:var(--c-credit)"><span id="h-cr">0</span><span class="inc" id="h-cri"></span></div></div>
       <div class="cell"><div class="lbl" style="color:var(--c-energy)">${icon('energy')} Energy</div><div class="val" style="color:var(--c-energy)"><span id="h-en">0</span><span class="inc" id="h-eni"></span></div><div class="bar"><i id="h-enb" style="background:var(--c-energy)"></i></div></div>
       <div class="cell" id="hud-turn"><div class="val" id="h-turn">TURN 1</div><div id="hud-phase">Planning</div></div>
-      <div class="cell hq-cell"><div class="lbl" id="h-hql" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq" data-tag="You">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div></div>
-      <div class="cell hq-cell"><div class="lbl" id="h-ehql" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq" data-tag="Foe">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-hql" style="color:var(--c-player)">Your HQ</div><div class="val" id="h-hq" data-tag="You">200</div><div class="bar"><i id="h-hqb" style="background:var(--c-player)"></i></div><div class="segs" id="h-hqs"></div></div>
+      <div class="cell hq-cell"><div class="lbl" id="h-ehql" style="color:var(--c-ai)">Enemy HQ</div><div class="val" id="h-ehq" data-tag="Foe">200</div><div class="bar"><i id="h-ehqb" style="background:var(--c-ai)"></i></div><div class="segs" id="h-ehqs"></div></div>
     `));
 
     root.appendChild(el('div', { id: 'sysbtns', class: 'pi' }, `
@@ -832,6 +838,22 @@ window.UI = (function () {
     $('h-ehql').style.color = $('h-ehqb').style.background = theirs;
     $('h-ehq').textContent = (h.enemyHq.known ? '' : '~') + Math.ceil(h.enemyHq.hp) + ' / ' + h.enemyHq.max;
     $('h-ehqb').style.width = (100 * h.enemyHq.hp / h.enemyHq.max) + '%';
+    // real time: a segment per base instead of one total, so a base about to fall stands out
+    paintSegs('h-hqs', 'h-hqb', h.hq.segs, mine);
+    paintSegs('h-ehqs', 'h-ehqb', h.enemyHq.segs, theirs);
+  }
+  function paintSegs(id, barId, segs, col) {
+    const box = $(id), bar = $(barId).parentNode;
+    box.style.display = segs ? '' : 'none';
+    bar.style.display = segs ? 'none' : '';
+    if (!segs) return;
+    if (box.children.length !== segs.length) box.innerHTML = segs.map(() => '<span><i></i></span>').join('');
+    segs.forEach((s, i) => {
+      const sp = box.children[i], fill = sp.firstChild;
+      sp.classList.toggle('hq', s.hq); sp.classList.toggle('dead', s.f <= 0);
+      fill.style.width = (100 * Math.max(0, s.f)) + '%';
+      fill.style.background = s.f < 0.34 ? 'var(--c-bad)' : col;
+    });
   }
 
   function setDock(visible) { $('dock').classList.toggle('hidden', !visible); }
