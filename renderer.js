@@ -136,9 +136,9 @@ window.Renderer = (function () {
     day:   { sun: [0xffd9a0, 2.3], sunPos: [-170, 280, 140], sky: [0x8fa3c0, 0x3a2814, 0.65], rim: [0x5fa8ff, 0.45], bg: 0x111b24, fog: 1, exp: 1.1 },
     dusk:  { sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
     night: { sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
-    storm: { sun: [0xc6d0dc, 1.25], sunPos: [-120, 300, 80], sky: [0x6c7a88, 0x22201c, 0.62], rim: [0x8aaccc, 0.3], bg: 0x161c22, fog: 1.45, exp: 1.0, lightning: true }
+    storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true }
   };
-  let atmos = ATMOS.day, atmosName = 'day', nextBolt = 0;
+  let atmos = ATMOS.day, atmosName = 'day', nextBolt = 0, bolt = null, boltT = 0, rain = null;
   function setAtmosphere(name) {
     atmosName = ATMOS[name] ? name : 'day';
     atmos = ATMOS[atmosName];
@@ -149,14 +149,54 @@ window.Renderer = (function () {
     scene.background.set(atmos.bg); scene.fog.color.set(atmos.bg);
     renderer.toneMappingExposure = atmos.exp;
     nextBolt = time + 4;
+    if (!bolt) {
+      // lightning lights the whole battlefield for an instant
+      bolt = new THREE.DirectionalLight(0xd6e4ff, 0);
+      bolt.position.set(MAP_W / 2 + 80, 400, MAP_H / 2 - 60);
+      bolt.target.position.set(MAP_W / 2, 0, MAP_H / 2);
+      scene.add(bolt); scene.add(bolt.target);
+    }
+    setRain(!!atmos.lightning);
+  }
+  // rain: streaks falling over the islands (storms only)
+  function setRain(on) {
+    if (!on) { if (rain) rain.visible = false; return; }
+    if (!rain) {
+      const n = 1400, pos = new Float32Array(n * 6);
+      for (let i = 0; i < n; i++) {
+        const x = Math.random() * (MAP_W + 200) - 100, y = Math.random() * 160, z = Math.random() * (MAP_H + 160) - 80;
+        pos.set([x, y, z, x - 0.6, y - 5, z + 0.3], i * 6);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8bccf, transparent: true, opacity: 0.32, depthWrite: false }));
+      rain.frustumCulled = false;
+      scene.add(rain);
+    }
+    rain.visible = true;
+  }
+  function rainTick(dt) {
+    if (!rain || !rain.visible) return;
+    const a = rain.geometry.attributes.position, arr = a.array;
+    const fall = 140 * dt;
+    for (let i = 0; i < arr.length; i += 6) {
+      arr[i + 1] -= fall; arr[i + 4] -= fall; arr[i] -= fall * 0.12; arr[i + 3] -= fall * 0.12;
+      if (arr[i + 4] < 0) { const y = 150 + Math.random() * 10, x = arr[i] + 18 > MAP_W + 100 ? arr[i] + 18 - MAP_W - 200 : arr[i] + 18; arr[i + 1] = y; arr[i + 4] = y - 5; arr[i] = x; arr[i + 3] = x - 0.6; }
+    }
+    a.needsUpdate = true;
   }
   // storms: now and then a lightning flash somewhere over the sea
-  function weather() {
+  function weather(dt) {
+    rainTick(dt);
+    if (bolt) { boltT = Math.max(0, boltT - dt); bolt.intensity = boltT > 0 ? 3.2 * Math.min(1, boltT / 0.08) * (0.6 + 0.4 * Math.random()) : 0; }
     if (!atmos.lightning || cinema || time < nextBolt) return;
-    nextBolt = time + 5 + Math.random() * 9;
-    Fx.flashLight({ x: Math.random() * MAP_W, y: 90, z: Math.random() * MAP_H }, 0xcfe0ff, 14, 0.25);
-    if (Math.random() < 0.5) setTimeout(() => Fx.flashLight({ x: Math.random() * MAP_W, y: 90, z: Math.random() * MAP_H }, 0xcfe0ff, 10, 0.18), 160);
+    nextBolt = time + 6 + Math.random() * 10;
+    boltT = 0.22;
+    if (onLightning) onLightning();
+    if (Math.random() < 0.5) setTimeout(() => { boltT = 0.14; }, 180);
   }
+  let onLightning = null;   // main.js hooks the screen flash and the thunder here
+  function setLightningHook(fn) { onLightning = fn; }
 
   // ── Islands: terrain, sea, grid and scenery rebuilt per map ─
   let terrainMesh = null, gridMesh = null, decorGroup = null, landField = null, water = null, landTex = null;
@@ -1549,7 +1589,7 @@ window.Renderer = (function () {
     fogMat.uniforms.time.value = time;
     // keep the atmosphere consistent when zoomed far out (narrow screens frame from further away)
     scene.fog.density = (cinema ? 0.0011 : 0.0012 * 420 / Math.max(420, cam.dist)) * (cinema ? 1 : atmos.fog);
-    weather();
+    weather(dt);
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {
@@ -1640,7 +1680,7 @@ window.Renderer = (function () {
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
     addRobot, removeRobot, getRobot, setRobotHp, hitRobot, allRobotIds,
-    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines, setAtmosphere,
+    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines, setAtmosphere, setLightningHook,
     get camera() { return camera; }, get time() { return time; }
   };
 })();
