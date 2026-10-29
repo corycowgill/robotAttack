@@ -292,6 +292,7 @@
     lastReportP2 = null; roundStart = null; realState = null;
     mechHintShown = false;
     mineKills = 0;
+    introHold = 0; lastAlert = -1; lastBaseFall = null; achHeld = null;   // per-battle presentation state
     objectivesHidden = saved ? saved.objectivesHidden : !tutorial;
     Timeline.cancel();
     leaveBackdrop();
@@ -1087,7 +1088,7 @@
   }
 
   function clickCell(c, keepMode) {
-    if (introHold > 0) { introHold = 0; endIntro(); return; }
+    if (introHold > 0 && phase === 'live') { introHold = 0; endIntro(); return; }
     reportTimer = Math.min(reportTimer, 0.01);
     if (phase === 'live' && livePaused && mode !== 'select') return fail('Paused: you can look around, but orders wait — Space resumes');
     if (phase === 'live' && (mode === 'fire' || mode === 'drop' || mode === 'strike')) {
@@ -1591,22 +1592,24 @@
     Fx.flashLight(pos, 0xffb060, hq ? 9 : 7, 0.9);
     Fx.ring(pos, 0xffc880, hq ? 14 : 11, 1.1);
     Fx.dustRing(pos.clone().setY(0.5), hq ? 2 : 1.6);
-    [0.22, 0.45, 0.75, 1.05].forEach((d, i) => Timeline.tween(d, () => {}, () => {
+    [0.22, 0.45, 0.75, 1.05].forEach((d, i) => setTimeout(() => {
+      if (phase === 'menu' || !state) return;
       const a = i * 2.1 + Math.random(), r = 2 + Math.random() * 3;
       const p = pos.clone().add(new THREE.Vector3(Math.cos(a) * r, 1 + Math.random() * 3, Math.sin(a) * r));
       Fx.explosion(p, 0.7 + Math.random() * 0.4);
       SND.play('explosion', { pan: panAtPos(p), gain: 0.5 });
       Renderer.addTrauma(0.25, p);
-    }));
-    lastBaseFall = cell;
+    }, d * 1000 / (slowmoRate || 1)));
+    lastBaseFall = cell; lastBaseFallAt = state.realtime ? state.rt.t : 0;
     // real time: the camera leans in on the blast, then goes back to the whole map
     // (not while you plan an attack or just moved the camera yourself)
-    if (phase === 'live' && !attack && !state.winner) {
-      Renderer.focusCell(cell, hq ? 150 : 170, false);
-      Timeline.tween(2.4, () => {}, () => { if (phase === 'live' && !attack) frameView(false); });
+    if (phase === 'live' && !attack && !state.winner && Renderer.focusCell(cell, hq ? 150 : 170, false)) {
+      setTimeout(() => { if (phase === 'live' && !attack && !Renderer.userPannedWithin(2.4)) frameView(false); }, 2400);
     }
   }
-  let lastBaseFall = null, lastHqSlow = -1e9;
+  let lastBaseFall = null, lastBaseFallAt = 0, lastHqSlow = -1e9;
+  // the base that fell in the battle's last moments (the final blow), if any
+  function finalBlowCell() { return state.realtime && lastBaseFall !== null && state.rt.t - lastBaseFallAt < 8 ? lastBaseFall : null; }
 
   function animateLaunch(e, idAt) {
     if (e.strike) return animateStrikeLaunch(e);
@@ -1791,7 +1794,6 @@
       Renderer.setBuildingVisible(h.id, true);
       Renderer.removeBuilding(h.id, false);
       Fx.explosion(pos, h.type === 'hq' || h.type === 'base' ? 2 : 1.2);
-      if (h.type === 'hq') slowMotion(1.4, 0.25); // the killing blow
       if (h.type === 'hq' || h.type === 'base') baseFalls(pos, h.type === 'hq', h.cell);
       Fx.setEmitter('ruin' + h.cell, { x: pos.x, y: 1, z: pos.z }, 'fire', 6);
       if (h.type === 'decoy') SND.play('decoyPop', { pan: panAt(h.cell) });
@@ -2068,9 +2070,6 @@
   function gameOver() {
     phase = 'gameover';
     UI.setDanger(0);
-    achHeld = achHeld || [];
-    checkEndAchievements();
-    setTimeout(releaseAch, state.realtime ? 4200 : 2600);
     clearSave();
     const mission = state.mission ? CAMPAIGN[state.mission - 1] : null;
     if (mission && state.winner === P && campaignDone() < mission.id) {
@@ -2080,6 +2079,10 @@
     const newBest = medals ? recordMedals(mission.id, medals) : false;
     const daily = state.daily ? { score: R.dailyScore(state, P) } : null;
     if (daily) daily.prev = recordDaily(state.daily, daily.score);
+    // after progress and medals are saved, so the campaign/medal achievements see them
+    achHeld = achHeld || [];
+    checkEndAchievements();
+    setTimeout(releaseAch, state.realtime ? 4200 : 2600);
     UI.setDock(false);
     UI.setOrders([], []);
     Renderer.setMarkers([], []);
@@ -2093,7 +2096,7 @@
     // victory flares burst over your island
     if (w === P && !hotseat) {
       // over the base that fell last (where the camera is), else over your own HQ
-      const home = Renderer.cellCenter(state.realtime && lastBaseFall !== null ? lastBaseFall : R.hqCell(P));
+      const home = Renderer.cellCenter(finalBlowCell() !== null ? finalBlowCell() : R.hqCell(P));
       for (let i = 0; i < 7; i++) setTimeout(() => {
         if (phase !== 'gameover') return;
         const p = home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 60, 30 + Math.random() * 25, (Math.random() - 0.5) * 50));
@@ -2103,7 +2106,7 @@
       }, 900 + i * 320);
     }
     // real time: the camera swoops in on the base that fell last
-    if (state.realtime && lastBaseFall !== null && state.cells[lastBaseFall]) Renderer.focusCell(lastBaseFall, 150, true);
+    if (finalBlowCell() !== null) Renderer.focusCell(finalBlowCell(), 150, true);
     refreshHUD();
     const ps = state.sides[P].stats, as = state.sides[A].stats;
     // missiles still in the air when the game ended never had a chance to land
@@ -2202,8 +2205,8 @@
   function liveTick(raw) {
     // mission opening: the battle clock waits for the flyover (any key or click skips it)
     if (introHold > 0) { introHold -= raw; if (introHold <= 0) endIntro(); return; }
-    // time stops while an attack is being planned, paused, or in menus
-    if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) return;
+    // time stops while an attack is being planned, paused, or in menus (and nothing is about to land)
+    if (livePaused || attack || UI.isHelpOpen() || UI.isSettingsOpen()) { UI.setDanger(0); return; }
     // ids by cell before the step, so effects can find structures that die during it
     const idAt = {};
     for (let c = 0; c < R.N; c++) { const b = state.cells[c].building; if (b) idAt[c] = b.id; }
@@ -2219,8 +2222,8 @@
     if (resync || liveSync <= 0) { liveSync = 1; syncWorld(true); refreshObjectives(); }
     liveUi -= raw;
     if (liveUi <= 0) { liveUi = 0.2; refreshLive(); }
-    // (the timeline keeps running: the last base's secondary blasts play under the end banner)
-    if (state.winner) { recordHistory(); clearFlights(); closeAttack(); gameOver(); }
+    // (the final base's secondary blasts are timers, so they still play under the end banner)
+    if (state.winner) { recordHistory(); Timeline.cancel(); clearFlights(); closeAttack(); gameOver(); }
   }
 
   // With 2:00 and 0:30 left, say who would win on the clock (what is left of the bases)
@@ -2775,7 +2778,7 @@
       let r = raw;
       if (slowmo > 0) { slowmo -= raw; r = raw * slowmoRate; }
       if (phase === 'live') liveTick(r);
-      if (state && state.realtime) { if (phase === 'gameover') Timeline.update(r); fxDt = Math.min(0.05, r); }
+      if (state && state.realtime) fxDt = Math.min(0.05, r);
     }
     if (phase === 'resolving') {
       let rate = speed;

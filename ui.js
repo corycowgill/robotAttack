@@ -462,7 +462,7 @@ window.UI = (function () {
   body.compact #dock { bottom: calc(var(--safe-b) + 3px); gap: 4px; max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 8px); }
   body.compact #cards { padding: 4px; gap: 4px; overflow-x: auto; max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 230px); scrollbar-width: none; }
   body.compact #cards::-webkit-scrollbar { display: none; }
-  body.compact .card { flex: none; width: 52px; height: 56px; border-radius: 6px; gap: 1px; }
+  body.compact .card { flex: none; min-width: 0; width: 52px; height: 56px; border-radius: 6px; gap: 1px; }
   body.compact .card .ico { width: 20px; height: 20px; }
   body.compact .card .nm { font-size: 8.5px; letter-spacing: 0; }
   body.compact .card .cost { font-size: 10px; }
@@ -1036,7 +1036,7 @@ window.UI = (function () {
     setTimeout(() => f.remove(), 1150);
   }
 
-  // red at the screen edges: incoming fire about to land (pulsing) or bases badly hurt (steady)
+  // enemy commander on the radio: portrait, name and line for a few seconds
   let commsTimer = 0;
   function comms(c, line) {
     const box = $('comms');
@@ -1046,7 +1046,9 @@ window.UI = (function () {
     clearTimeout(commsTimer);
     commsTimer = setTimeout(() => box.classList.remove('show'), 4200);
   }
+  // storms: a lightning flash over the whole screen
   function flashScreen() { const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+  // red at the screen edges: incoming fire about to land (pulsing) or bases badly hurt (steady)
   function setDanger(level, pulse) {
     const d = $('danger');
     d.style.setProperty('--dg', Math.max(0, Math.min(1, level)).toFixed(2));

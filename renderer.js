@@ -1358,16 +1358,19 @@ window.Renderer = (function () {
     cam.gz = Math.max(cam.yaw ? -60 : -20, Math.min(MAP_H + 60, cam.gz));
   }
 
+  // returns false when it held back because the player just moved the camera
   function focus(x, z, dist, force) {
-    if (!force && time - cam.userPanAt < 2) return;
+    if (!force && time - cam.userPanAt < 2) return false;
     cam.gx = x; cam.gz = z;
     if (dist) cam.gdist = dist;
     clampCam();
+    return true;
   }
   function focusCell(cell, dist, force) {
     const p = cellCenter(cell), a = camAxes();
-    focus(p.x - a.fx * 8, p.z - a.fz * 8, dist, force);   // a little toward the camera, whichever way it faces
+    return focus(p.x - a.fx * 8, p.z - a.fz * 8, dist, force);   // a little toward the camera, whichever way it faces
   }
+  function userPannedWithin(sec) { return time - cam.userPanAt < sec; }
   // Fit the labelled map into the screen area not covered by UI panels, by
   // projecting its corners from candidate camera positions (exact under perspective).
   let occl = { left: 0, right: 0, top: 0, bottom: 0 };
@@ -1684,7 +1687,7 @@ window.Renderer = (function () {
     addBuilding, removeBuilding, setBuildingHp, setBuildingVisible, setBarsForced, setShieldPool, flashShield, aimTurret, openHatch, muzzleWorld,
     getBuilding, allBuildingIds, setGhosts, setCrater,
     addRobot, removeRobot, getRobot, setRobotHp, hitRobot, allRobotIds,
-    add, remove, focus, focusCell, frameAll, addTrauma, setBuildingProgress, setMines, setAtmosphere, setLightningHook,
+    add, remove, focus, focusCell, userPannedWithin, frameAll, addTrauma, setBuildingProgress, setMines, setAtmosphere, setLightningHook,
     get camera() { return camera; }, get time() { return time; }
   };
 })();
