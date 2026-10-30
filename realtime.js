@@ -435,7 +435,7 @@
         bat.reloadAt = t + (bat.type === 'hq' ? T.HQ_PD_RELOAD : T.AA_RELOAD * (bat.level > 1 ? 0.75 : 1));
         // Radar guides the batteries in its range
         const guided = bat.type === 'aa' && radars.some(r => R.dist(r.cell, bat.cell) <= R.stat(r, 'range') + 0.01);
-        const chance = Math.min(T.AA_MAX_CHANCE, R.stat(bat, 'hitChance') + (guided ? T.RADAR_AA_BOOST : 0));
+        const chance = Math.min(T.AA_MAX_CHANCE, R.stat(bat, 'hitChance') * T.AA_HIT_MUL + (guided ? T.RADAR_AA_BOOST : 0));
         const hit = R.rand(state) < chance;
         rt.shots.push({ by: bat.cell, byId: bat.id, flight: best.id, hit, chance, at: t + T.SHOT_TIME });
         if (bat.type === 'aa') reveal(state, best.side, [bat.cell]);

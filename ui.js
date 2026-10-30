@@ -610,11 +610,10 @@ window.UI = (function () {
         <div id="m-warn" class="warnline"></div>
         <div class="sect">Campaign</div>
         <div class="missions" id="m-missions"></div>
-        <div class="sect">Skirmish &amp; two players &mdash; random islands</div>
+        <div class="sect">Skirmish &mdash; random islands</div>
         <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span data-l="${k}">${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
         <div class="diffs">${diffs}</div>
         <div class="panel hotseat daily" id="m-daily"><div><h3>DAILY OPERATION <span id="dl-date"></span></h3><p id="dl-desc"></p></div><div class="vs" id="dl-best"></div></div>
-        <div class="panel hotseat" id="m-hotseat"><div><h3>TWO PLAYERS</h3><p>Pass &amp; play on one device: plan in turns, each behind a hand-off screen.</p></div><div class="vs"><b>P1</b> vs <b>P2</b></div></div>
         <div class="menu-foot">
           <span class="lnk" id="m-help">How to play</span>
           <span class="lnk" id="m-settings">Settings</span>
@@ -669,7 +668,6 @@ window.UI = (function () {
         <h3 class="sethead">Game</h3>
         <div class="setrow"><span>Graphics<small>Auto lowers detail if the frame rate drops</small></span>${seg('quality', [['auto', 'Auto'], [0, 'Low'], [1, 'Medium'], [2, 'High']])}</div>
         <div class="setrow"><span>Real-time pace<small>How fast the battle clock runs. Slow gives you more time to think</small></span>${seg('pace', [[0.75, 'Slow'], [1, 'Normal'], [1.5, 'Fast']])}</div>
-        <div class="setrow"><span>Combat playback<small>Turn-based battles</small></span>${seg('speed', [[1, '1x'], [2, '2x'], [3, '3x']])}</div>
         <div class="setrow"><span>Camera shake</span>${seg('shake', [[1, 'On'], [0, 'Off']])}</div>
         <div class="setrow"><span>Mech arrows<small>Where visible mechs go next turn</small></span>${seg('intents', [[1, 'On'], [0, 'Off']])}</div>
         <p style="text-align:center;margin:16px 0 0"><button class="bigbtn" id="set-done">Done</button></p>
@@ -684,7 +682,6 @@ window.UI = (function () {
       d.addEventListener('mouseenter', () => H.onHover && H.onHover());
     });
     $('m-help').addEventListener('click', () => showHelp(true));
-    $('m-hotseat').addEventListener('click', () => H.onHotseat());
     root.querySelectorAll('#m-opts button').forEach(b => b.addEventListener('click', () => {
       skirmishOpts[b.dataset.k] = +b.dataset.v;
       try { localStorage.setItem('ra_skirmish', JSON.stringify(skirmishOpts)); } catch (e) { /* storage blocked */ }
@@ -759,29 +756,23 @@ window.UI = (function () {
     }).join('');
     return `<div class="menu-box panel">
       <h2>How to play</h2>
-      <p><b>Goal (real time):</b> destroy every enemy base: the <b style="color:var(--c-ai)">Command Center</b> and its ${RT.BASES_PER_SIDE} outer <b>Bases</b>, all marked on the right side of the map. Lose all of yours and you lose. When the ${Math.round(CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60)}-minute clock runs out, the side with more base health left wins.<br>
-      <b>Goal (turn-based skirmish):</b> destroy the enemy Command Center before yours falls; after ${CONST.MAX_TURNS} turns the healthier HQ wins.</p>
-      <h4>Real-time battles (the campaign, and skirmish by default)</h4>
+      <p><b>Goal:</b> destroy every enemy base: the <b style="color:var(--c-ai)">Command Center</b> and its ${RT.BASES_PER_SIDE} outer <b>Bases</b>, all marked on the right side of the map. Lose all of yours and you lose. When the ${Math.round(CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60)}-minute clock runs out, the side with more base health left wins.</p>
+      <h4>Real-time battle</h4>
       <ul>
         <li><b>Destroy every enemy base.</b> Each side has its Command Center and ${RT.BASES_PER_SIDE} more Bases, all marked on the map (decoys may pose as one). Lose all yours and the war is lost. Bases can't be repaired.</li>
         <li><b>Resources flow every second.</b> Build, repair and upgrade at any moment, and the enemy does the same.</li>
         <li><b>Construction takes time.</b> A new structure is a building site (cyan bar) and does nothing until it's finished: a depot takes ${RT.BUILD_TIME.depot}s, a silo ${RT.BUILD_TIME.silo}s. Each <b>Factory</b> <kbd>B</kbd> makes construction ${Math.round(RT.FACTORY_BUILD_BOOST * 100)}% faster and silo reloads and mech production ${Math.round(RT.FACTORY_RELOAD_BOOST * 100)}% faster (max 3; upgraded, one counts as two).</li>
         <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>: <b>time stops</b> while you click a target for each missile (up to ${RT.MAX_MISSILES_PER_ATTACK}), the 5×5 box the mechs land in, and the strike's target. <kbd>Enter</kbd> launches.</li>
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
+        <li><b>You can only build</b> within ${CONST.BUILD_RADIUS} cells of your existing structures.</li>
         <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through. A Radar guides the batteries in its range (+${Math.round(RT.RADAR_AA_BOOST * 100)}% to hit).</li>
         <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside their 5×5 box for ${RT.MECH_TIME}s (sentry turrets and mechs first, or a base close by), then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later. Mechs waiting in your hangars scramble to defend when raiders land.</li>
-        <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. The turn limit becomes a clock (${CONST.MAX_TURNS} turns = ${CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60} minutes). Choose <b>Pace: Turns</b> in the battle options for the classic turn-based game.</li>
+        <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. Settings has a <b>Real-time pace</b> option if you want more (or less) time to think.</li>
       </ul>
-      <h4>Each turn (turn-based games)</h4>
-      <ol>
-        <li><b>Plan.</b> Spend <span style="color:var(--c-credit)">credits</span> on buildings and repairs, and <span style="color:var(--c-energy)">energy</span> on missiles and mech drops. You can only build within ${CONST.BUILD_RADIUS} cells of your existing buildings.</li>
-        <li><b>End turn.</b> Both sides' orders resolve at the same time: missiles launched <i>last</i> turn come down, AA intercepts, sentry turrets fire, mechs fight, drop pods land, and new missiles launch.</li>
-        <li><b>React.</b> Missiles are in the air for a full turn. Red reticles show enemy missiles your Radar (or HQ) has detected — build AA, shields or repair before they land.</li>
-      </ol>
       <h4>Defenses</h4>
-      <p>Every Command Center has a point-defense gun that hits 40% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit 70%; if one misses, another battery in range gets a shot. One missile at a time rarely gets through — <b>fire several in the same turn</b> to overwhelm the defenses.</p>
+      <p>Every Command Center has a point-defense gun that hits ${Math.round(BUILDINGS.hq.hitChance * RT.AA_HIT_MUL * 100)}% of missiles aimed within 2 cells, plus a close-defense gun against mechs, and enemy drop pods can't land within 2 cells of it. AA Batteries hit ${Math.round(BUILDINGS.aa.hitChance * RT.AA_HIT_MUL * 100)}% (upgraded ${Math.round(UPGRADES.aa.hitChance * RT.AA_HIT_MUL * 100)}%), never more than ${Math.round(RT.AA_MAX_CHANCE * 100)}% even with radar; if one misses, another battery in range gets a shot. <b>Fire several missiles together</b> to overwhelm the defenses while they reload.</p>
       <h4>Orbital strikes</h4>
-      <p>A <b>Strike Uplink</b> charges for ${CONST.STRIKE_CHARGE} turns, then press <kbd>R</kbd> to call down a strike: ${CONST.STRIKE_DAMAGE} damage to the target and ${CONST.STRIKE_SPLASH} to everything around it. AA cannot touch it, but Shields absorb it — and every strike is detected, so the target gets a turn to spread out, shield or repair. Not available in missions 1–5.</p>
+      <p>A <b>Strike Uplink</b> charges for ${RT.STRIKE_CHARGE_TIME}s, then press <kbd>R</kbd> to call down a strike: ${CONST.STRIKE_DAMAGE} damage to the target and ${Math.round(CONST.STRIKE_SPLASH * RT.STRIKE_SPLASH_MUL)} to everything around it. AA cannot touch it, but Shields absorb it, and every strike is detected, so the target has a few seconds to shield or repair. Not available in missions 1–5.</p>
       <h4>Upgrades</h4>
       <p>Select one of your structures and press <kbd>U</kbd> to upgrade it once (about 75% of its price, +50% HP): ${Object.keys(UPGRADES).map(k => '<b>' + BUILDINGS[k].name + '</b> — ' + esc(UPGRADES[k].desc)).join('; ')}.</p>
       <h4>Counters</h4>
@@ -790,10 +781,10 @@ window.UI = (function () {
       <table><tr><th>Key</th><th>Name</th><th>Cost</th><th>HP</th><th>Effect</th></tr>${rows}</table>
       <h4>Controls</h4>
       <div class="keys">
-        <div><kbd>1</kbd>–<kbd>0</kbd> select structure &nbsp; <kbd>N</kbd> minefield &nbsp; <kbd>B</kbd> factory (real time)</div><div><kbd>Left click</kbd> place / target / select</div>
+        <div><kbd>1</kbd>–<kbd>0</kbd> select structure &nbsp; <kbd>N</kbd> minefield &nbsp; <kbd>B</kbd> factory</div><div><kbd>Left click</kbd> place / target / select</div>
         <div><kbd>Q</kbd> fire missile &nbsp; <kbd>E</kbd> drop mech</div><div><kbd>R</kbd> orbital strike</div>
         <div><kbd>T</kbd> repair &nbsp; <kbd>U</kbd> upgrade &nbsp; <kbd>X</kbd> sell selected</div><div><kbd>Z</kbd> undo last action</div>
-        <div><kbd>Space</kbd> end turn / skip playback</div><div><kbd>Tab</kbd> playback speed</div>
+        <div><kbd>Space</kbd> pause / resume</div><div><kbd>Enter</kbd> launch the planned attack</div>
         <div><kbd>WASD</kbd>/arrows or right-drag: pan</div><div><kbd>Wheel</kbd> zoom &nbsp; <kbd>H</kbd> home &nbsp; <kbd>F</kbd> whole map &nbsp; <kbd>J</kbd> latest alert</div>
         <div><kbd>Esc</kbd> cancel &nbsp; Touch: tap, drag to pan, pinch to zoom</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
@@ -955,13 +946,13 @@ window.UI = (function () {
   function paintOpts() {
     document.querySelectorAll('#m-opts button').forEach(b => b.classList.toggle('on', skirmishOpts[b.dataset.k] === +b.dataset.v));
     // real time measures the battle on the clock (two-player games are always turn by turn)
-    const live = skirmishOpts.pace !== 0;
+    const live = true;   // every battle is real time
     const l = document.querySelector('#m-opts [data-l="turns"]');
     if (l) l.textContent = live ? 'Battle clock' : SKIRMISH_OPTIONS.turns.label;
     document.querySelectorAll('#m-opts button[data-k="turns"]').forEach(b => {
       const n = +b.dataset.v;
       b.textContent = live ? (n * RT.CLOCK_PER_TURN / 60) + ' min' : n;
-      b.title = live ? n + ' turns in a turn-based or two-player game' : (n * RT.CLOCK_PER_TURN / 60) + ' minutes in real time';
+      b.title = (n * RT.CLOCK_PER_TURN / 60) + ' minutes on the battle clock';
     });
   }
   function getSkirmishOptions() { return Object.assign({}, skirmishOpts); }
@@ -1373,7 +1364,7 @@ window.UI = (function () {
   function isSettingsOpen() { return $('settings').classList.contains('show'); }
   function setDaily(d) {
     $('dl-date').textContent = d.date;
-    $('dl-desc').textContent = 'Today: ' + d.twist + ' vs ' + d.opponent + ' — same battle for everyone today. Win fast, keep your HQ intact.';
+    $('dl-desc').textContent = 'Today: ' + d.twist + ' vs ' + d.opponent + ' — same battle for everyone today. Win fast, keep your bases intact.';
     $('dl-best').innerHTML = d.best ? 'Best<b>' + d.best + '</b>' : 'Not played<b>—</b>';
   }
   function setAchCount(n, total) { $('ach-count').textContent = '(' + n + '/' + total + ')'; }
