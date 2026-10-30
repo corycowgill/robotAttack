@@ -87,6 +87,7 @@ window.Renderer = (function () {
     document.body.appendChild(renderer.domElement);
 
     createLights();
+    createCloudShadows();
     createZoneOverlay();
     createFog();
     createWater();
@@ -186,9 +187,46 @@ window.Renderer = (function () {
     }
     a.needsUpdate = true;
   }
+  // drifting cloud shadows over the islands (day and dusk): a soft dark noise texture sliding
+  // slowly across a plane just above the ground
+  let cloudShadow = null;
+  function createCloudShadows() {
+    const S = 256, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    let seed = 99;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * S, y = rnd() * S, r = 18 + rnd() * 46;
+      // draw each blob 4 times (wrapped) so the texture tiles seamlessly
+      for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+        const grd = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+        grd.addColorStop(0, 'rgba(0,0,0,0.55)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = grd; g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.fill();
+      }
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2.2, 1.2);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.38, depthWrite: false, fog: false });
+    cloudShadow = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W + 160, MAP_H + 120), mat);
+    cloudShadow.rotation.x = -Math.PI / 2;
+    cloudShadow.position.set(MAP_W / 2, 0.5, MAP_H / 2);
+    cloudShadow.renderOrder = 2;
+    scene.add(cloudShadow);
+  }
+  function cloudTick(dt) {
+    if (!cloudShadow) return;
+    cloudShadow.visible = !cinema && (atmosName === 'day' || atmosName === 'dusk');
+    const m = cloudShadow.material.map;
+    m.offset.x += dt * 0.006; m.offset.y += dt * 0.0025;
+  }
+
   // storms: now and then a lightning flash somewhere over the sea
   function weather(dt) {
     rainTick(dt);
+    cloudTick(dt);
     if (bolt) { boltT = Math.max(0, boltT - dt); bolt.intensity = boltT > 0 ? 3.2 * Math.min(1, boltT / 0.08) * (0.6 + 0.4 * Math.random()) : 0; }
     if (!atmos.lightning || cinema || time < nextBolt) return;
     nextBolt = time + 6 + Math.random() * 10;
