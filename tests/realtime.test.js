@@ -251,7 +251,7 @@ test('raiders landing wake the defenders in their hangars; radar guides AA', () 
   s2.sides[P].energy = 30;
   assert.ok(RTE.launchAttack(s2, P, { missiles: [{ from: R.buildingsOf(s2, P, 'silo')[0].cell, to: aa.cell }] }).ok);
   const shots = run(s2, RT.MISSILE_FLIGHT + 2).filter(e => e.type === 'aaShot' && e.by === aa.cell);
-  if (R.dist(radar.cell, aa.cell) <= BUILDINGS.radar.range) for (const sh of shots) assert.equal(sh.chance, BUILDINGS.aa.hitChance + RT.RADAR_AA_BOOST);
+  if (R.dist(radar.cell, aa.cell) <= BUILDINGS.radar.range) for (const sh of shots) assert.ok(Math.abs(sh.chance - Math.min(RT.AA_MAX_CHANCE, BUILDINGS.aa.hitChance * RT.AA_HIT_MUL + RT.RADAR_AA_BOOST)) < 1e-9);
 });
 
 test('minefields go off under raiding mechs in real time', () => {

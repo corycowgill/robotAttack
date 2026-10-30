@@ -115,8 +115,9 @@ const RT = {
   // Real-time rules
   BASES_PER_SIDE: 2,      // extra Bases besides the Command Center; all must fall to lose
   HQ_HP: 150,             // the Command Center is one base among several here (turn-based: 200)
-  RADAR_AA_BOOST: 0.15,   // AA batteries within an online radar's range hit more often
-  AA_MAX_CHANCE: 0.95,
+  RADAR_AA_BOOST: 0.1,   // AA batteries within an online radar's range hit more often
+  AA_MAX_CHANCE: 0.8,     // no battery is ever a sure thing
+  AA_HIT_MUL: 0.8,        // every AA and point-defence hit chance is scaled by this (AA 56%, upgraded 68%)
   DEFENDERS: 3,           // ready mechs that scramble from their hangars when raiders land
   DEFENDER_STEP: 1.0,     // defenders hurry: seconds per move or blow
   DEFENDER_TIME: 60,
@@ -127,7 +128,7 @@ const RT = {
 const BUILDINGS = {
   hq: {
     name: 'Command Center', short: 'HQ', key: null, cost: 0, hp: 200,
-    desc: 'Your headquarters. Lose it and you lose the war. Provides income and 1 point-defense intercept.',
+    desc: 'Your headquarters, the first of your bases. Provides income, a point-defense gun against missiles and a close-defense gun against mechs.',
     stats: () => ['+' + CONST.BASE_CREDITS + ' credits, +' + CONST.BASE_ENERGY + ' energy / turn', 'Point defense: 1 shot, radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit', 'Defense gun: 15 dmg to a mech within 2', 'No enemy drops within 2 cells'],
     range: 2, hitChance: 0.4,
     gun: { shots: 1, damage: 15, range: 2 }
@@ -145,19 +146,19 @@ const BUILDINGS = {
   },
   radar: {
     name: 'Radar', short: 'RDR', key: '3', cost: 90, hp: 30, range: 12,
-    desc: 'Reveals enemy territory and detects incoming missiles in range. Comes online the turn after it is built.',
+    desc: 'Reveals enemy territory, shows what incoming fire is aimed at, and guides your AA in range. Comes online a few seconds after it is built.',
     stats: () => ['Scan radius 12', 'Shows incoming missile targets']
   },
   silo: {
     name: 'Missile Silo', short: 'SLO', key: '4', cost: 140, hp: 50, max: 5,
-    desc: 'Fires 1 ballistic missile per turn. Missiles land at the START of next turn\'s combat.',
+    desc: 'Fires a ballistic missile whenever it is loaded. Missiles take a few seconds to land, and the enemy sees them coming.',
     stats: () => [CONST.MISSILE_DAMAGE + ' damage + ' + CONST.MISSILE_SPLASH + ' splash', CONST.MISSILE_ENERGY + ' energy per launch', 'Max 5 silos'],
     counter: 'Countered by AA Batteries and Shields'
   },
   aa: {
     name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1, hitChance: 0.7, rtCostStep: 20,   // real time: each AA you own makes the next 20 dearer
-    desc: 'Fires at 1 incoming missile per turn aimed within its range (70% hit). Batteries back each other up on a miss.',
-    stats: () => ['1 shot / turn, 70% hit', 'Covers radius 4']
+    desc: 'Shoots at missiles and dropships aimed within its range, then reloads. Batteries back each other up on a miss.',
+    stats: () => [Math.round(0.7 * RT.AA_HIT_MUL * 100) + '% hit, then reloads', 'Covers radius 4']
   },
   shield: {
     name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 50, range: 1, pool: 50, regen: 20,
@@ -166,7 +167,7 @@ const BUILDINGS = {
   },
   hangar: {
     name: 'Robot Hangar', short: 'HGR', key: '7', cost: 160, hp: 60,
-    desc: 'Drops 1 battle mech per turn into enemy territory. Mechs walk to and smash enemy buildings.',
+    desc: 'Builds battle mechs that ride a dropship into enemy territory and smash what they land near.',
     stats: () => ['Mech: ' + CONST.ROBOT_HP + ' HP, ' + CONST.ROBOT_DAMAGE + ' dmg, moves 2', CONST.DROP_ENERGY + ' energy per drop', 'Drop pods cannot be intercepted', 'Drop on your own island to garrison it'],
     counter: 'Countered by Sentry Turrets'
   },
@@ -190,7 +191,7 @@ const BUILDINGS = {
   },
   uplink: {
     name: 'Strike Uplink', short: 'UPL', key: '0', cost: 200, hp: 70, max: 1,
-    desc: 'Orbital targeting array. Charges for ' + CONST.STRIKE_CHARGE + ' turns, then calls down a strike that AA cannot stop.',
+    desc: 'Orbital targeting array. Charges, then calls down a strike that AA cannot stop.',
     stats: () => ['Orbital strike: ' + CONST.STRIKE_DAMAGE + ' damage + ' + CONST.STRIKE_SPLASH + ' to the 3x3 area', 'Charges ' + CONST.STRIKE_CHARGE + ' turns, ' + CONST.STRIKE_ENERGY + ' energy to fire', 'Cannot be intercepted; Shields absorb it', 'Max 1'],
     counter: 'Strikes are always detected — spread out, shield and repair'
   },
@@ -204,7 +205,7 @@ const BUILDINGS = {
   // Real-time battles only: construction takes time there, and factories speed it up
   factory: {
     name: 'Factory', short: 'FAC', key: 'B', cost: 150, hp: 50, max: 3, rtOnly: true,
-    desc: 'Speeds up construction, missile reloads and mech production. Real-time battles only.',
+    desc: 'Speeds up construction, missile reloads and mech production.',
     stats: () => ['Each factory: builds ' + Math.round(RT.FACTORY_BUILD_BOOST * 100) + '% faster, reloads ' + Math.round(RT.FACTORY_RELOAD_BOOST * 100) + '% faster', 'Max 3']
   }
 };
@@ -214,10 +215,10 @@ const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar'
 // One upgrade level per structure. Values replace the base stats.
 const UPGRADES = {
   silo:   { name: 'Heavy Warheads',  desc: 'Missiles deal 60 damage + 20 splash', dmg: 60, splash: 20 },
-  aa:     { name: 'Fire Control',    desc: '85% hit chance, radius 5', hitChance: 0.85, range: 5 },
-  depot:  { name: 'Logistics Hub',   desc: '+50 credits per turn', credits: 50 },
-  power:  { name: 'Fusion Core',     desc: '+11 energy per turn, +20 capacity', energy: 11, cap: 20 },
-  gunpod: { name: 'Rotary Cannons',  desc: '3 shots per turn', shots: 3 },
+  aa:     { name: 'Fire Control',    desc: 'Higher hit chance, radius 5', hitChance: 0.85, range: 5 },
+  depot:  { name: 'Logistics Hub',   desc: 'More credits per second', credits: 50 },
+  power:  { name: 'Fusion Core',     desc: 'More energy per second, +20 capacity', energy: 11, cap: 20 },
+  gunpod: { name: 'Rotary Cannons',  desc: '3 shots per volley', shots: 3 },
   shield: { name: 'Hardened Field',  desc: 'Dome absorbs 90, regenerates 35', pool: 90, regen: 35 },
   hangar: { name: 'Heavy Mechs',     desc: 'Mechs get 75 HP and hit for 30', mechHp: 75, mechDmg: 30 },
   radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 },
@@ -229,7 +230,6 @@ const SKIRMISH_OPTIONS = {
   credits: { label: 'Start credits', choices: [[250, 'Lean'], [350, 'Standard'], [600, 'Rich']], def: 350 },
   turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 30 },
   uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 },
-  pace:    { label: 'Pace',          choices: [[1, 'Real-time'], [0, 'Turns']], def: 1, solo: true },
   style:   { label: 'Opponent',      choices: [[0, 'Balanced'], [1, 'Blitz'], [2, 'Fortress'], [3, 'Raider']], def: 0, solo: true }
 };
 // Opponent personalities for the 'style' option (index = option value); the AI reads the key
@@ -246,7 +246,7 @@ const DAILY_TWISTS = [
   { id: 'small',   name: 'Cramped islands',   opts: { land: 95 } },
   { id: 'rich',    name: 'War chest',         opts: { credits: 600 } },
   { id: 'lean',    name: 'Lean supply',       opts: { credits: 250 } },
-  { id: 'blitz',   name: 'Blitz (20 turns)',  opts: { turns: 20 } },
+  { id: 'blitz',   name: 'Blitz (10 minutes)', opts: { turns: 20 } },
   { id: 'noorbit', name: 'No superweapons',   opts: { uplink: 0 } }
 ];
 
@@ -258,7 +258,7 @@ const ACHIEVEMENTS = [
   { id: 'orbital',     name: 'Fire From Above',  desc: 'Land an orbital strike' },
   { id: 'garrison',    name: 'Home Guard',       desc: 'Destroy an invading mech with a garrison mech or Sentry Turret' },
   { id: 'untouched',   name: 'Untouchable',      desc: 'Win with your Command Center at full health' },
-  { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win by turn 10 (in real time: within 3:20)' },
+  { id: 'blitz',       name: 'Blitzkrieg',       desc: 'Win within 5:00' },
   { id: 'tycoon',      name: 'Tycoon',           desc: 'Own 5 Supply Depots at once' },
   { id: 'tripwire',    name: 'Tripwire',         desc: 'Destroy 3 enemy mechs with minefields in one battle' },
   { id: 'warlord',     name: 'Warlord Slayer',   desc: 'Beat the Warlord in a skirmish' },
@@ -304,7 +304,7 @@ const CAMPAIGN = [
   {
     id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
     atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
-    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 125,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
@@ -313,6 +313,7 @@ const CAMPAIGN = [
   },
   {
     id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 17, locked: ['uplink'],
+    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'storm',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
@@ -323,7 +324,6 @@ const CAMPAIGN = [
   {
     id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 16, locked: ['uplink'],
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
-    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
     win: 'NYX is silent. Outstanding — but its orbital codes are already being sold.',

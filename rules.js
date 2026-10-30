@@ -379,6 +379,12 @@
   function dailyScore(state, side) {
     side = side || P;
     const limit = state.maxTurns || C.MAX_TURNS;
+    if (state.realtime) {
+      // real time: speed is measured on the clock (30 per turn's worth of time left), health over every base
+      const health = s => buildingsOf(state, s).filter(b => b.type === 'hq' || b.type === 'base').reduce((n, b) => n + b.hp, 0) / ((state.rt.baseMax && state.rt.baseMax[s]) || B.hq.hp);
+      if (state.winner === side) return 1000 + Math.round(Math.max(0, state.rt.timeLimit - state.rt.t) / RTC.CLOCK_PER_TURN * 30) + Math.round(100 * health(side)) * 5;
+      return Math.round(100 * (1 - health(enemyOf(side)))) * 10;
+    }
     const mine = buildingsOf(state, side, 'hq')[0], theirs = buildingsOf(state, enemyOf(side), 'hq')[0];
     if (state.winner === side) return 1000 + Math.max(0, limit - state.turn) * 30 + Math.round(100 * (mine ? mine.hp / mine.maxHp : 0)) * 5;
     return Math.round(100 * (theirs ? 1 - theirs.hp / theirs.maxHp : 1)) * 10;

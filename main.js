@@ -59,7 +59,6 @@
     });
     UI.init({
       onStart: (diff, tut) => confirmOverwrite('skirmish:' + diff) && startGame(diff, tut && diff !== 'warlord', null, null, false, UI.getSkirmishOptions()),
-      onHotseat: () => confirmOverwrite('hotseat') && startGame('commander', false, null, null, true, UI.getSkirmishOptions()),
       onHandoffReady: () => { SND.play('uiClick'); const go = handoffNext; handoffNext = null; UI.hideHandoff(); if (go) go(); },
       onContinue: continueGame,
       onRematch: () => state && state.mission ? startMission(state.mission) : state && state.daily ? startDaily() : startGame(difficulty, tutorial, null, null, !!(state && state.hotseat), state && state.custom),
@@ -127,7 +126,8 @@
   function loadSave() {
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-      return s && s.state && s.state.cells && s.state.cells.length === R.N && !s.state.winner ? s : null;
+      // every battle is real time now: an older turn-based save can't be continued
+      return s && s.state && s.state.cells && s.state.cells.length === R.N && !s.state.winner && s.state.realtime ? s : null;
     } catch (e) { return null; }
   }
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
@@ -163,7 +163,7 @@
     const s = loadSave();
     if (!s || pendingOverwrite === key) { pendingOverwrite = null; UI.warnOverwrite(null); return true; }
     pendingOverwrite = key;
-    UI.warnOverwrite('This replaces your saved game (' + (s.state.hotseat ? 'two players, ' : s.state.mission ? 'Mission ' + s.state.mission + ', ' : '') + 'turn ' + s.state.turn + '). Click again to confirm — or use Continue.');
+    UI.warnOverwrite('This replaces your saved game (' + (s.state.mission ? 'Mission ' + s.state.mission + ', ' : '') + fmtClock(s.state.rt.t) + ' in). Click again to confirm — or use Continue.');
     SND.play('error');
     return false;
   }
@@ -172,7 +172,7 @@
     const s = loadSave();
     refreshDaily();
     UI.setAchCount(Object.keys(loadAch()).filter(id => ACHIEVEMENTS.some(a => a.id === id)).length, ACHIEVEMENTS.length);
-    UI.setContinue(s ? (s.state.daily ? 'Daily Operation · Turn ' + s.state.turn : s.state.hotseat ? 'Two players · Turn ' + s.state.turn : (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + 'Turn ' + s.state.turn + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name)) : null);
+    UI.setContinue(s ? (s.state.daily ? 'Daily Operation · ' + fmtClock(s.state.rt.t) : (s.state.mission ? 'Mission ' + s.state.mission + ' · ' : '') + fmtClock(s.state.rt.t) + ' vs ' + (s.state.mission ? COMMANDERS[CAMPAIGN[s.state.mission - 1].enemy].name : CONST.DIFFICULTY[s.state.difficulty].name)) : null);
     refreshCampaign();
     pendingOverwrite = null;
     UI.warnOverwrite(null);
@@ -198,7 +198,7 @@
     const parts = [];
     if (o.land !== SKIRMISH_OPTIONS.land.def) parts.push(label('land') + ' islands');
     if (o.credits !== SKIRMISH_OPTIONS.credits.def) parts.push(label('credits') + ' start');
-    if (o.turns !== SKIRMISH_OPTIONS.turns.def) parts.push(o.pace !== 0 ? (o.turns * RT.CLOCK_PER_TURN / 60) + '-minute clock' : o.turns + ' turns');
+    if (o.turns !== SKIRMISH_OPTIONS.turns.def) parts.push((o.turns * RT.CLOCK_PER_TURN / 60) + '-minute clock');
     if (!o.uplink) parts.push('no superweapon');
     return parts.join(' · ');
   }
@@ -305,8 +305,8 @@
     if (!saved && !mission && custom) state.custom = Object.assign({}, custom);   // kept for Rematch
     if (mission) state.mission = mission.id;
     if (daily) state.daily = daily.key;
-    // the campaign is always real time and skirmish defaults to it; two players and the daily are turn-based
-    if (!saved && !daily && !hotseat && (mission || (custom && custom.pace !== 0))) {
+    // every battle is fought in real time
+    if (!saved) {
       Realtime.init(state);
       if (mission && mission.rtBonus) state.sides[P].credits += mission.rtBonus;
     }
@@ -928,12 +928,12 @@
     if (!state || !state.realtime) return { desc: d.desc, stats: d.stats() };
     const ps = v => (v / RT.ROUND).toFixed(1);
     const rt = {
-      hq: { stats: ['+' + ps(CONST.BASE_CREDITS) + ' credits, +' + ps(CONST.BASE_ENERGY) + ' energy / s', 'Point defense: radius 2, ' + Math.round(BUILDINGS.hq.hitChance * 100) + '% hit, reloads ' + RT.HQ_PD_RELOAD + 's', 'Defense gun: ' + BUILDINGS.hq.gun.damage + ' dmg to a mech within 2', 'No enemy drops within 2 cells'] },
+      hq: { stats: ['+' + ps(CONST.BASE_CREDITS) + ' credits, +' + ps(CONST.BASE_ENERGY) + ' energy / s', 'Point defense: radius 2, ' + Math.round(BUILDINGS.hq.hitChance * RT.AA_HIT_MUL * 100) + '% hit, reloads ' + RT.HQ_PD_RELOAD + 's', 'Defense gun: ' + BUILDINGS.hq.gun.damage + ' dmg to a mech within 2', 'No enemy drops within 2 cells'] },
       depot: { stats: ['+' + ps(BUILDINGS.depot.credits) + ' credits / s', 'Each depot you own makes the next cost ' + BUILDINGS.depot.costStep + ' more'] },
       power: { stats: ['+' + ps(BUILDINGS.power.energy) + ' energy / s', '+' + BUILDINGS.power.cap + ' energy capacity'] },
       radar: { desc: 'Reveals enemy territory and shows where inbound fire is aimed. Online ' + RT.RADAR_BOOT + 's after it is built.', stats: ['Scan radius ' + BUILDINGS.radar.range, 'Shows inbound targets'] },
       silo: { desc: 'Fires a missile whenever it is loaded. Missiles fly about ' + RT.MISSILE_FLIGHT + 's, and the enemy sees them coming.', stats: [CONST.MISSILE_DAMAGE + ' damage + ' + CONST.MISSILE_SPLASH + ' splash', CONST.MISSILE_ENERGY + ' energy per launch', 'Reloads in ' + RT.SILO_RELOAD + 's', 'Max ' + BUILDINGS.silo.max + ' silos'] },
-      aa: { desc: 'Shoots at missiles and dropships aimed within its range, then reloads. Each AA you own makes the next ' + BUILDINGS.aa.rtCostStep + ' credits dearer.', stats: [Math.round(BUILDINGS.aa.hitChance * 100) + '% hit, reloads ' + RT.AA_RELOAD + 's', 'Covers radius ' + BUILDINGS.aa.range] },
+      aa: { desc: 'Shoots at missiles and dropships aimed within its range, then reloads. Each AA you own makes the next ' + BUILDINGS.aa.rtCostStep + ' credits dearer.', stats: [Math.round(BUILDINGS.aa.hitChance * RT.AA_HIT_MUL * 100) + '% hit (' + Math.round(UPGRADES.aa.hitChance * RT.AA_HIT_MUL * 100) + '% upgraded), +' + Math.round(RT.RADAR_AA_BOOST * 100) + '% under radar, reloads ' + RT.AA_RELOAD + 's', 'Covers radius ' + BUILDINGS.aa.range] },
       shield: { stats: ['Absorbs ' + BUILDINGS.shield.pool + ' damage', 'Regenerates ' + ps(BUILDINGS.shield.regen) + ' / s'] },
       hangar: { desc: 'Builds one mech at a time (' + RT.HANGAR_RELOAD + 's). Mechs ride a dropship behind your missiles (AA can shoot it down) and raid the 5×5 where they land for ' + RT.MECH_TIME + 's, then fly home.', stats: ['Mech: ' + CONST.ROBOT_HP + ' HP, hits for ' + Math.round(CONST.ROBOT_DAMAGE * RT.MECH_DAMAGE_MUL) + ' every ' + RT.MECH_STEP + 's', 'Up to ' + RT.MECHS_PER_SHIP + ' per dropship (' + RT.SHIP_HULL + ' hits to down, +1 per extra mech)'] },
       gunpod: { stats: [BUILDINGS.gunpod.shots + ' shots x ' + BUILDINGS.gunpod.damage + ' damage every ' + RT.GUN_RELOAD + 's', 'Range ' + BUILDINGS.gunpod.range + ' (mechs only)'] },
@@ -1048,12 +1048,15 @@
     const seen = state.sides[P].intel.seen;
     const known = [];
     const hq = R.hqCell(A);
-    if (R.dist(hq, cell) <= BUILDINGS.hq.range + 0.01) known.push({ name: 'HQ', p: BUILDINGS.hq.hitChance });
+    // the same odds the engine uses: scaled, plus the bonus from a radar you've seen nearby, capped
+    const radars = Object.keys(seen).filter(k => seen[k].type === 'radar').map(Number);
+    const odds = (base, at) => Math.min(RT.AA_MAX_CHANCE, base * RT.AA_HIT_MUL + (at >= 0 && radars.some(r => R.dist(r, at) <= BUILDINGS.radar.range + 0.01) ? RT.RADAR_AA_BOOST : 0));
+    if (R.dist(hq, cell) <= BUILDINGS.hq.range + 0.01) known.push({ name: 'HQ', p: odds(BUILDINGS.hq.hitChance, -1) });
     for (const k in seen) {
       if (seen[k].type !== 'aa') continue;
       const lvl2 = seen[k].level === 2;
       const range = lvl2 ? UPGRADES.aa.range : BUILDINGS.aa.range;
-      if (R.dist(+k, cell) <= range + 0.01) known.push({ name: 'AA', p: lvl2 ? UPGRADES.aa.hitChance : BUILDINGS.aa.hitChance });
+      if (R.dist(+k, cell) <= range + 0.01) known.push({ name: 'AA', p: odds(lvl2 ? UPGRADES.aa.hitChance : BUILDINGS.aa.hitChance, +k) });
     }
     return known;
   }
@@ -2068,7 +2071,7 @@
       return where + ' fell to missiles despite ' + f.aa + ' AA ' + (f.aa > 1 ? 'Batteries' : 'Battery') + '. Salvos overwhelm batteries while they reload: stack more AA there' + (f.shield ? '.' : ', or add a Shield.');
     }
     if (theirs('depot') >= mine('depot') + 2) return 'The enemy ran ' + theirs('depot') + ' Supply Depots to your ' + mine('depot') + '. Build a second and third depot ' + (state.realtime ? 'in the first minute.' : 'in the first five turns.');
-    if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to your HQ shoot down 70%, and you can stack them.';
+    if (landed >= 4 && as.missilesHit / landed > 0.6 && ps.intercepts < 3) return as.missilesHit + ' of ' + landed + ' enemy missiles got through. AA Batteries next to each base shoot down ' + Math.round(BUILDINGS.aa.hitChance * RT.AA_HIT_MUL * 100) + '%, and you can stack them.';
     if (as.robotsDeployed >= 2 && ps.robotsKilled < as.robotsDeployed / 2) return 'Enemy mechs did most of the damage. A Sentry Turret near your HQ, a garrison mech, or Minefields [N] on the approaches stop them.';
     if (ps.missilesFired >= 4 && ps.missilesHit / Math.max(1, ps.missilesFired) < 0.35) return 'Most of your missiles were shot down. Fire several in the same turn, or aim at targets outside the enemy\'s AA cover (the aim tooltip shows the odds).';
     if (ps.missilesFired < state.turn / 2) return 'You fired only ' + ps.missilesFired + ' missiles. More silos and power plants keep the pressure on.';

@@ -2,7 +2,7 @@
 
 *Inspired by classic 1990s island-war strategy games. Robot Attack 2026 is an original work and is not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.*
 
-A base-building artillery strategy game in the browser, played in real time or turn by turn, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
+A base-building artillery strategy game in the browser, played in real time, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
 
 Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
 
@@ -44,7 +44,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
-- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). Hit chances are the same as in turn-based games, but an **online Radar guides the batteries in its range**: +15% to hit.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). An AA Battery hits 56% (68% upgraded) and HQ point defence 32%; an **online Radar guides the batteries in its range** (+10%), and no shot is ever better than 80%. Salvos are how you break through.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.
@@ -60,54 +60,33 @@ The campaign is always played in real time, and skirmishes play in real time by 
 
 The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about two thirds of Commander mirrors end with one side's bases all destroyed, in a median of about 11 minutes; the rest are decided on the clock.
 
-Two Players and the Daily Operation stay turn-based. To play a skirmish turn by turn, choose **Pace: Turns** in the battle options.
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3 and 5 give you 250 extra starting credits in real time. In simulations (a Commander-level player) the win rates run about 100, 100, 73, 57, 45, 47 and 53% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3 and 4 give you 125 and 250 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 100, 70, 60, 45, 47 and 30% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
 
-## How a turn works
+## Fog of war and reading the battle
 
-Each side starts on its own island with a Command Center and one Missile Silo. Island shapes are generated fresh every game (the two islands always have the same area); the strait between them is open sea.
-
-
-1. **Plan.**
-   - Spend **credits** on structures and repairs, and **energy** on missiles and mech drops.
-   - You can only build on your side (the blue zone) within 3 cells of one of your existing structures.
-   - Missile and drop orders can be cancelled for a full refund until you end the turn. `Z` undoes your last action.
-   - If a silo, hangar or uplink is destroyed before its order goes off, the order is cancelled and its energy refunded.
-2. **Resolve.** Both sides' orders play out at once, in this order:
-   1. Missiles launched *last* turn come down. AA Batteries and your HQ's point defense shoot at them; shots can miss, and a missed missile is engaged by the next battery in range.
-   2. Missiles hit. Shields absorb damage first; each missile does 45 damage to its target and 15 to adjacent cells.
-   3. Sentry Turrets fire at mechs.
-   4. Mechs move (2 cells) or smash an adjacent structure, Shields or not. Mechs raid: they chew through whatever structures are nearest, so they attack your economy and defences rather than the well-guarded HQ. Raiders fight enemy mechs when no structure is in reach. **Garrison** mechs, dropped on your own island, hunt down invaders.
-   5. Drop pods land. New mechs wait one turn before they act.
-   6. New missiles launch. They are in the air until next turn.
-3. **React.**
-   - During planning, arrows show where every mech you can see will walk next turn. A bracket marks the structure or mech it will attack: solid if the attack happens this turn, faint if it's still walking there. Hovering a mech says the same in words. Build a Sentry Turret or drop a garrison mech in its way.
-   - Enemy missiles are in flight for a full turn.
-   - **Red reticles** mark incoming missiles your Radar (or the area around your HQ) has detected. Build AA or shields, or repair, before they land.
-
-**Winning:** destroy the enemy Command Center. If both HQs fall in the same turn it's a draw. After 30 turns, the side whose HQ has more HP left (as a percentage) wins. If that's a tie, the side with more invested in surviving structures (including upgrades) wins.
-
-**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for your next planning phase). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible. An AA Battery that fires at a missile gives its position away: the attacker sees it during the next planning phase. This works both ways, so a salvo can follow up on a battery that revealed itself.
+**Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for a while). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible. An AA Battery that fires at a missile gives its position away: the attacker sees it for a while. This works both ways, so a salvo can follow up on a battery that revealed itself.
 
 **Reading the battle:**
-- The battle log names who shot each missile down, with its hit chance (for example "AA Battery at I27 (70%)" or "HQ point defence (40%)").
+- The battle log names who shot each missile down, with its hit chance (for example "AA Battery at I27 (56%)" or "HQ point defence (32%)").
 - Impact lines come before the losses they caused, and say how much damage shields absorbed.
 - While aiming, the tooltip lists the known defences covering the target and the chance that one missile gets through.
 - While placing a structure, the tooltip previews what it does from that cell: how many enemy cells a Radar reveals, or which of your structures an AA Battery or Shield covers.
-- The turn report shows what you have seen of the enemy base, and the log notes enemy builds and upgrades you can see.
+- The log notes enemy builds and upgrades you can see.
 - A defeat screen ends with a one-line debrief on the biggest thing that went wrong.
 
 ## Structures
 
+Per-turn figures below arrive over a 15-second round ("per turn" = per 15 s).
+
 | Key | Structure | Cost | HP | Effect |
 |---|---|---|---|---|
-| — | Command Center | — | 200 | +60 credits and +5 energy per turn; 1 point-defense shot (40% hit) within radius 2; close-defense gun (15 damage to a mech within 2); no enemy drops within 2 cells |
+| — | Command Center | — | 200 | +60 credits and +5 energy per turn; point-defense gun (32% hit, reloads 6 s) within radius 2; close-defense gun (15 damage to a mech within 2); no enemy drops within 2 cells |
 | 1 | Supply Depot | 100 (+25 per depot you own) | 40 | +30 credits per turn |
 | 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 12; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 45 damage + 15 splash; maximum 5 |
-| 5 | AA Battery | 110 | 45 | 1 shot per turn (70% hit) at a missile aimed within radius 4; if it misses, other batteries in range get a shot |
+| 5 | AA Battery | 110 | 45 | 56% hit (68% upgraded, +10% under radar, never above 80%) at missiles and dropships aimed within radius 4, then reloads for 3.5 s; if it misses, other batteries in range get a shot |
 | 6 | Shield Generator | 120 | 50 | 50-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Sentry Turret | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
@@ -159,9 +138,8 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 **Skirmish** plays a random island map against any of the three opponents. The options row above the opponent cards sets:
 - island size: small (95 cells), normal (120) or large (150);
 - starting credits: 250, 350 or 600;
-- length: 20, 30 or 45 turns, which in real time is a 10, 15 or 22.5-minute clock;
+- length: a 10, 15 or 22.5-minute battle clock;
 - whether the Strike Uplink is allowed;
-- the pace: **Real-time** (default; see above) or **Turns**;
 - the opponent's style:
   - **Balanced:** the standard AI.
   - **Blitz:** masses silos and heavy warheads to break you early.
@@ -170,20 +148,14 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 
   In simulations against the standard AI, each style wins about as often as Balanced does at the same difficulty.
 
-The browser remembers your choices. The map options also apply to Two Players; the opponent style doesn't, since there is no AI.
+The browser remembers your choices.
 
-**Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 20-turn blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
-- A win scores 1000, plus 30 for every turn under the limit, plus 5 for every % of HQ health left.
-- A loss scores 10 for every % of the enemy HQ you destroyed.
+**Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 10-minute blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
+- A win scores 1000, plus 30 for every 30 seconds left on the clock, plus 5 for every % of your bases' health left.
+- A loss scores 10 for every % of the enemy bases' health you destroyed.
 - The browser keeps your best score for each day, and **Retry Daily** replays the same battle.
 
 **Achievements:** twelve of them, from *First Blood* to *Decorated* (all 21 campaign medals). Find them under **Achievements** on the menu.
-
-**Two players** is a pass-and-play mode on one device:
-- Player 1 (blue, left) plans first.
-- A full-screen hand-off screen hides the board while you pass the device. Then Player 2 (red, right) plans, seeing only their own island and their own battle log.
-- After a second hand-off the battle plays out for Player 1, who plans next. Player 2 gets the same turn report from their side when their turn starts.
-- Neither side gets an income bonus. The game autosaves at the start of each round.
 
 ## Opponents
 
@@ -210,14 +182,13 @@ The browser remembers your choices. The map options also apply to Two Players; t
 | `Q` / `E` / `R` | Fire missile / drop mech / orbital strike. Pressing the key again keeps aiming, so `Q` click `Q` click queues two missiles. |
 | `T` / `U` / `X` | Repair / upgrade / sell the selected structure |
 | `Z` | Undo |
-| `Space` | End turn; during combat, skip the playback |
-| `Tab` | Playback speed 1x / 2x / 3x |
+| `Space` | Pause / resume |
 | WASD / arrows, right-drag | Pan |
 | Mouse wheel | Zoom |
 | `H` / `F` / `J` | Camera to your HQ / whole map / the latest alert (real time: an inbound target, a raid landing, a hit on your island or a mine blast) |
 | `M` | Mute |
 | `G` | Cycle graphics quality (auto-detected by default) |
-| Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); real-time pace (Slow 0.75×, Normal, Fast 1.5×: the battle clock and everything on it run at that speed); combat playback speed (turn-based); camera shake; mech arrows. Saved in the browser. |
+| Gear button / menu **Settings** | Audio: master, music (on/off and volume), sound effects, interface and ambience volume; sound style (Studio or Retro synth); mute in background. Game: graphics quality (Auto / Low / Medium / High); real-time pace (Slow 0.75×, Normal, Fast 1.5×: the battle clock and everything on it run at that speed); camera shake; mech arrows. Saved in the browser. |
 | `?` | Help |
 | Touch | Tap to select / place / target; drag one finger to pan, pinch to zoom |
 
