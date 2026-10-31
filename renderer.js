@@ -136,10 +136,10 @@ window.Renderer = (function () {
 
   // ── Atmospheres: the light a battle is fought in (campaign missions pick one) ──
   const ATMOS = {
-    day:   { sun: [0xe2e8f0, 2.25], sunPos: [-170, 280, 140], sky: [0x7d8a98, 0x23262a, 0.62], rim: [0x5fa8ff, 0.4], bg: 0x0e161d, fog: 1, exp: 1.05 },
-    dusk:  { glow: 1.4, sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
-    night: { glow: 2.2, sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
-    storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true }
+    day:   { sun: [0xe2e8f0, 2.25], sunPos: [-170, 280, 140], sky: [0x7d8a98, 0x23262a, 0.62], rim: [0x5fa8ff, 0.4], bg: 0x0e161d, fog: 1, exp: 1.05, bloom: 0.7 },
+    dusk:  { glow: 1.4, sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05, bloom: 0.95 },
+    night: { glow: 2.2, sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2, bloom: 1.05 },
+    storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true, bloom: 0.9 }
   };
   let atmos = ATMOS.day, atmosName = 'day', nextBolt = 0, bolt = null, boltT = 0, rain = null;
   function setAtmosphere(name) {
@@ -1784,6 +1784,7 @@ window.Renderer = (function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    sizeBloom();
   }
 
   // ── Picking ───────────────────────────────────────────────
@@ -1808,11 +1809,81 @@ window.Renderer = (function () {
   }
 
   // ── Frame ─────────────────────────────────────────────────
+  // ── Bloom (High quality): bright lights, flames and blasts bleed a soft glow ──
+  // The scene renders into a multisampled sRGB target; a bright pass is blurred at half and
+  // quarter resolution and added back over it on a full-screen quad.
+  let bloom = null;
+  function bloomShader(frag, uniforms) {
+    return new THREE.ShaderMaterial({
+      uniforms, depthTest: false, depthWrite: false, toneMapped: false,
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D tex; varying vec2 vUv;\n' + frag
+    });
+  }
+  function makeBloom() {
+    if (!renderer.capabilities.isWebGL2 || !THREE.WebGLMultisampleRenderTarget) return null;
+    const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, encoding: THREE.sRGBEncoding };
+    const main = new THREE.WebGLMultisampleRenderTarget(1, 1, opts); main.samples = 4;
+    const mk = () => new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+    const b = { main, h1: mk(), h2: mk(), q1: mk(), q2: mk() };
+    b.bright = bloomShader(`uniform float threshold;
+      void main() { vec3 c = texture2D(tex, vUv).rgb; float l = max(c.r, max(c.g, c.b));
+        gl_FragColor = vec4(c * smoothstep(threshold, threshold + 0.25, l), 1.0); }`, { tex: { value: null }, threshold: { value: 0.78 } });
+    b.blur = bloomShader(`uniform vec2 dir;
+      void main() { vec3 c = texture2D(tex, vUv).rgb * 0.227;
+        c += (texture2D(tex, vUv + dir * 1.385).rgb + texture2D(tex, vUv - dir * 1.385).rgb) * 0.316;
+        c += (texture2D(tex, vUv + dir * 3.231).rgb + texture2D(tex, vUv - dir * 3.231).rgb) * 0.070;
+        gl_FragColor = vec4(c, 1.0); }`, { tex: { value: null }, dir: { value: new THREE.Vector2() } });
+    b.copy = bloomShader('void main() { gl_FragColor = vec4(texture2D(tex, vUv).rgb, 1.0); }', { tex: { value: null } });
+    b.comp = bloomShader(`uniform sampler2D bh; uniform sampler2D bq; uniform float strength;
+      void main() { vec3 c = texture2D(tex, vUv).rgb;
+        vec3 g = texture2D(bh, vUv).rgb * 0.55 + texture2D(bq, vUv).rgb * 0.75;
+        gl_FragColor = vec4(c + g * strength * (1.0 - c * 0.5), 1.0); }`, { tex: { value: null }, bh: { value: null }, bq: { value: null }, strength: { value: 0.9 } });
+    b.scene = new THREE.Scene();
+    b.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    b.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), b.copy);
+    b.quad.frustumCulled = false;
+    b.scene.add(b.quad);
+    return b;
+  }
+  function sizeBloom() {
+    if (!bloom) return;
+    const v = renderer.getDrawingBufferSize(new THREE.Vector2());
+    bloom.main.setSize(v.x, v.y);
+    const hw = Math.max(1, v.x >> 1), hh = Math.max(1, v.y >> 1), qw = Math.max(1, v.x >> 2), qh = Math.max(1, v.y >> 2);
+    bloom.h1.setSize(hw, hh); bloom.h2.setSize(hw, hh); bloom.q1.setSize(qw, qh); bloom.q2.setSize(qw, qh);
+    bloom.hpx = new THREE.Vector2(1 / hw, 1 / hh); bloom.qpx = new THREE.Vector2(1 / qw, 1 / qh);
+  }
+  function setBloom(on) {
+    if (on && !bloom) { bloom = makeBloom(); sizeBloom(); }
+    else if (!on && bloom) { ['main', 'h1', 'h2', 'q1', 'q2'].forEach(k => bloom[k].dispose()); bloom = null; }
+  }
+  function pass(mat, target) { bloom.quad.material = mat; renderer.setRenderTarget(target); renderer.render(bloom.scene, bloom.cam); }
+  function blur2(src, tmp, px) {
+    const B = bloom.blur;
+    B.uniforms.tex.value = src.texture; B.uniforms.dir.value.set(px.x, 0); pass(B, tmp);
+    B.uniforms.tex.value = tmp.texture; B.uniforms.dir.value.set(0, px.y); pass(B, src);
+  }
+  function renderFrame() {
+    if (!bloom) { renderer.render(scene, camera); return; }
+    renderer.setRenderTarget(bloom.main);
+    renderer.render(scene, camera);
+    bloom.bright.uniforms.tex.value = bloom.main.texture; pass(bloom.bright, bloom.h1);
+    blur2(bloom.h1, bloom.h2, bloom.hpx);
+    bloom.copy.uniforms.tex.value = bloom.h1.texture; pass(bloom.copy, bloom.q1);
+    blur2(bloom.q1, bloom.q2, bloom.qpx);
+    blur2(bloom.q1, bloom.q2, bloom.qpx.clone().multiplyScalar(2));
+    const C = bloom.comp;
+    C.uniforms.tex.value = bloom.main.texture; C.uniforms.bh.value = bloom.h1.texture; C.uniforms.bq.value = bloom.q1.texture;
+    C.uniforms.strength.value = atmos && atmos.bloom !== undefined ? atmos.bloom : 0.9;
+    pass(C, null);
+  }
+
   // ── Graphics quality (auto-detected, overridable with G) ──
   const QUALITY = [
     { name: 'Low', ratio: 1, shadows: false, shadowSize: 512 },
     { name: 'Medium', ratio: 1.5, shadows: true, shadowSize: 1024 },
-    { name: 'High', ratio: 2, shadows: true, shadowSize: 2048 }
+    { name: 'High', ratio: 2, shadows: true, shadowSize: 2048, bloom: true }
   ];
   let quality = 2, qualityLocked = false;
   const perf = { t: 0, frames: 0, warm: 1.5 };
@@ -1829,6 +1900,7 @@ window.Renderer = (function () {
     const q = QUALITY[quality];
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.ratio));
     renderer.setSize(window.innerWidth, window.innerHeight);
+    setBloom(!!q.bloom); sizeBloom();
     sun.castShadow = q.shadows;
     if (sun.shadow.mapSize.x !== q.shadowSize) {
       sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
@@ -1949,7 +2021,7 @@ window.Renderer = (function () {
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
     }
     Fx.update(dt);
-    renderer.render(scene, camera);
+    renderFrame();
   }
 
   function reset() {
