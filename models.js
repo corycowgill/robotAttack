@@ -1102,6 +1102,53 @@
     return g;
   }
 
+  // Ruin left where a structure was destroyed: a charred, cracked pad, jagged wall stubs,
+  // twisted girders and a few embers still glowing in the wreck
+  function ruin(side, w, seed) {
+    var rnd = lcg((seed || 1) * 7919 + 13);
+    var g = new THREE.Group();
+    g.name = 'ruin';
+    g.userData = { _own: [] };
+    var CH = std('charred', { color: 0x1b1a19, roughness: 0.96, metalness: 0.05, map: panelTexture() });
+    var CD = std('charredDark', { color: 0x0b0b0a, roughness: 1, metalness: 0 });
+    var RS = std('rustSteel', { color: 0x4a3426, roughness: 0.8, metalness: 0.5, map: metalTexture() });
+    var EM = std('ember', { color: 0x220800, emissive: 0xff5a14, emissiveIntensity: 1.4, roughness: 1 });
+    w = w || 10;
+    // the pad, broken into tilted slabs
+    var q = w / 2;
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+      var sx = q - 0.15 - rnd() * 0.3, sz = q - 0.15 - rnd() * 0.3;
+      var m = add(g, box(r3(sx), 0.45, r3(sz)), CH, c[0] * q / 2, 0.2 + rnd() * 0.12, c[1] * q / 2);
+      m.rotation.set((rnd() - 0.5) * 0.12, (rnd() - 0.5) * 0.1, (rnd() - 0.5) * 0.12);
+    });
+    add(g, box(w * 0.55, 0.08, w * 0.55), CD, 0, 0.47, 0, true).rotation.y = rnd();
+    // jagged wall stubs
+    var n = 5 + (rnd() * 4 | 0);
+    for (var i = 0; i < n; i++) {
+      var a = rnd() * PI * 2, d = 1 + rnd() * (q - 2);
+      var h = 0.6 + rnd() * 2.6, bw = 0.6 + rnd() * 2.2;
+      var m2 = add(g, box(r3(bw), r3(h), 0.5), rnd() < 0.6 ? CH : CD, Math.cos(a) * d, 0.4 + h / 2, Math.sin(a) * d);
+      m2.rotation.set((rnd() - 0.5) * 0.5, rnd() * PI, (rnd() - 0.5) * 0.5);
+    }
+    // twisted girders
+    for (var k = 0; k < 3; k++) {
+      var ax = (rnd() - 0.5) * w * 0.6, az = (rnd() - 0.5) * w * 0.6;
+      var p0 = V(ax, 0.5, az), p1 = V(ax + (rnd() - 0.5) * 1.5, 1.6 + rnd() * 2, az + (rnd() - 0.5) * 1.5);
+      var p2 = V(p1.x + (rnd() - 0.5) * 3, p1.y - 0.4 - rnd(), p1.z + (rnd() - 0.5) * 3);
+      beam(g, p0, p1, 0.12, RS, 5); beam(g, p1, p2, 0.1, RS, 5);
+    }
+    // debris and embers
+    for (var j = 0; j < 10; j++) {
+      var sz2 = 0.25 + rnd() * 0.7;
+      var m3 = add(g, box(r3(sz2), r3(sz2 * 0.6), r3(sz2 * 1.3)), rnd() < 0.5 ? CH : RS, (rnd() - 0.5) * w * 0.9, 0.5 + sz2 * 0.3, (rnd() - 0.5) * w * 0.9);
+      m3.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+    }
+    for (var e = 0; e < 4; e++) addFlat(g, box(0.35, 0.12, 0.35), EM, (rnd() - 0.5) * w * 0.6, 0.52, (rnd() - 0.5) * w * 0.6);
+    g.userData.embers = EM;
+    g.userData.side = sideKey(side);
+    return g;
+  }
+
   function wrapPi(a) {
     a = (a + PI) % (2 * PI);
     if (a < 0) a += 2 * PI;
@@ -1474,6 +1521,7 @@
 
   window.Models = {
     building: building,
+    ruin: ruin,
     setCharge: setCharge,
     animate: animate,
     robot: robot,

@@ -20,6 +20,7 @@ window.Renderer = (function () {
   const robots = {};      // id -> rec
   const ghosts = {};      // cell -> group
   const craters = {};     // cell -> group
+  const ruins = {};       // cell -> wreck left by a destroyed structure (cosmetic)
   let markers = [];       // order/incoming marker objects
   let time = 0;
 
@@ -1162,6 +1163,7 @@ window.Renderer = (function () {
 
   function addBuilding(b, rise) {
     removeBuilding(b.id, true);
+    removeRuin(b.cell);
     // decoys wear their disguise; only the owner's badge gives them away
     const modelType = b.type === 'decoy' ? b.disguise : b.type;
     const g = Models.building(modelType, b.side);
@@ -1400,7 +1402,20 @@ window.Renderer = (function () {
 
   const rubbleMat = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 0.95, flatShading: true });
   const rubbleGeo = new THREE.DodecahedronGeometry(1, 0);
+  let ruinSeed = 1;
+  function addRuin(cell, side, w) {
+    removeRuin(cell);
+    const g = Models.ruin(side, w, ruinSeed++);
+    g.position.copy(cellCenter(cell));
+    g.rotation.y = (ruinSeed % 4) * Math.PI / 2;
+    scene.add(g);
+    ruins[cell] = g;
+  }
+  function removeRuin(cell) {
+    if (ruins[cell]) { scene.remove(ruins[cell]); delete ruins[cell]; }
+  }
   function setCrater(cell, on) {
+    if (on) removeRuin(cell);
     if (on && !craters[cell]) {
       const g = new THREE.Group();
       const p = cellCenter(cell);
@@ -1470,7 +1485,7 @@ window.Renderer = (function () {
   }
   function getRobot(id) { return robots[id]; }
   function getBuilding(id) { return buildings[id]; }
-  function allBuildingIds() { return Object.keys(buildings).map(Number); }
+  function allBuildingIds() { return Object.keys(buildings).filter(id => buildings[id].collapse < 0).map(Number); }
   function allRobotIds() { return Object.keys(robots).map(Number); }
 
   // ── Generic object helpers for projectiles ────────────────
@@ -1816,7 +1831,7 @@ window.Renderer = (function () {
         g.scale.y = 1 - 0.8 * t * t;
         g.position.y = -2 * t;
         g.rotation.z = 0.25 * t;
-        if (rec.collapse >= 1) { disposeBuilding(rec); delete buildings[id]; }
+        if (rec.collapse >= 1) { addRuin(rec.b.cell, rec.b.side, g.userData.padW); disposeBuilding(rec); delete buildings[id]; }
         continue;
       }
       if (rec.aimTimer > 0) { rec.aimTimer -= dt; if (rec.aimTimer <= 0) delete g.userData.aimYaw; }
@@ -1863,6 +1878,7 @@ window.Renderer = (function () {
     for (const id in robots) removeRobot(id);
     for (const c in ghosts) { scene.remove(ghosts[c]); Models.dispose(ghosts[c]); delete ghosts[c]; }
     for (const c in craters) { scene.remove(craters[c]); delete craters[c]; }
+    for (const c in ruins) removeRuin(c);
     setMines([]);
     clearMarkers();
     hideRange();
@@ -1873,6 +1889,7 @@ window.Renderer = (function () {
   }
 
   return {
+    ruinCells: () => Object.keys(ruins).map(Number),
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
     init, render, reset, cycleQuality, setQuality, getQuality, setShake, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
