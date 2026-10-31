@@ -2720,7 +2720,7 @@
       if (!v) {
         v = liveVis[f.id] = flightPath(f);
         v.obj = f.kind === 'ship' ? Models.pod(f.side) : Models.missile(f.side);
-        v.obj.scale.setScalar(f.kind === 'ship' ? missileScale() * 1.15 : missileScale());   // both grow with camera distance
+        v.obj.scale.setScalar(f.kind === 'ship' ? missileScale() * 0.85 : missileScale());   // both grow with camera distance
         v.prev = v.a.clone();
         Renderer.add(v.obj);
       }

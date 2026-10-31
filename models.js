@@ -174,6 +174,40 @@
     return _panelTex;
   }
 
+  // Bunker concrete: board-formwork bands, form-tie holes, water stains and chipped arrises
+  var _conTex = null;
+  function concreteTexture() {
+    if (_conTex) return _conTex;
+    var S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d'), rnd = lcg(4711);
+    g.fillStyle = '#d0d0cc'; g.fillRect(0, 0, S, S);
+    for (var i = 0; i < 3500; i++) { var v = 170 + (rnd() * 70 | 0); g.fillStyle = 'rgba(' + v + ',' + v + ',' + (v - 4) + ',0.6)'; g.fillRect(rnd() * S, rnd() * S, 1 + rnd() * 2, 1 + rnd() * 2); }
+    // formwork boards: horizontal bands of slightly different tone with thin joints
+    for (var y = 0; y < S; y += 32) {
+      g.fillStyle = 'rgba(' + (rnd() < 0.5 ? '255,255,250' : '60,60,56') + ',' + (0.04 + rnd() * 0.05) + ')'; g.fillRect(0, y, S, 32);
+      g.fillStyle = 'rgba(50,50,46,0.35)'; g.fillRect(0, y, S, 1);
+    }
+    // form-tie holes on a grid
+    for (var ty = 16; ty < S; ty += 64) for (var tx = 32; tx < S; tx += 64) {
+      g.fillStyle = 'rgba(30,30,28,0.65)'; g.beginPath(); g.arc(tx, ty, 2.2, 0, PI * 2); g.fill();
+      g.fillStyle = 'rgba(90,60,40,0.18)'; g.fillRect(tx - 1, ty + 2, 2, 8 + rnd() * 14);   // rust weep
+    }
+    // water stains running down
+    for (var k = 0; k < 16; k++) {
+      var x = rnd() * S, w = 3 + rnd() * 10, top = rnd() * S * 0.6, len = 40 + rnd() * 140;
+      var sg = g.createLinearGradient(0, top, 0, top + len);
+      sg.addColorStop(0, 'rgba(35,35,32,0.25)'); sg.addColorStop(1, 'rgba(35,35,32,0)');
+      g.fillStyle = sg; g.fillRect(x, top, w, len);
+    }
+    // blotches, pits and chips
+    for (var m = 0; m < 8; m++) { var bx = rnd() * S, by = rnd() * S, br = 15 + rnd() * 35; var rg = g.createRadialGradient(bx, by, 0, bx, by, br); rg.addColorStop(0, 'rgba(40,40,36,0.16)'); rg.addColorStop(1, 'rgba(40,40,36,0)'); g.fillStyle = rg; g.fillRect(bx - br, by - br, br * 2, br * 2); }
+    for (var q = 0; q < 140; q++) { g.fillStyle = 'rgba(28,28,26,' + (0.25 + rnd() * 0.4) + ')'; g.beginPath(); g.arc(rnd() * S, rnd() * S, 0.6 + rnd() * 1.4, 0, PI * 2); g.fill(); }
+    g.strokeStyle = 'rgba(40,40,38,0.5)'; g.lineWidth = 3; g.strokeRect(1, 1, S - 2, S - 2);
+    _conTex = new THREE.CanvasTexture(c); _conTex.encoding = THREE.sRGBEncoding; _conTex.anisotropy = 4;
+    _conTex.wrapS = _conTex.wrapT = THREE.RepeatWrapping;
+    return _conTex;
+  }
+
   // ── Material cache ─────────────────────────────────────────
   var MC = {};
   function std(key, opts) {
@@ -185,9 +219,9 @@
   function applyGlow(m) { if (m.emissive && (m.emissive.r || m.emissive.g || m.emissive.b)) m.emissiveIntensity = m.userData.glow0 * glowMul; }
   function setGlow(k) { glowMul = k; for (var key in MC) applyGlow(MC[key]); }
   var MAT = {
-    concrete: function () { return std('concrete', { color: 0x6c6f71, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
+    concrete: function () { return std('concrete', { color: 0x75787a, roughness: 0.88, metalness: 0.0, map: concreteTexture() }); },
     concreteDS: function () { return std('concreteDS', { color: 0x6c6f71, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
-    concreteDark: function () { return std('concreteDark', { color: 0x4c4f51, roughness: 0.92, metalness: 0.0, map: panelTexture() }); },
+    concreteDark: function () { return std('concreteDark', { color: 0x535658, roughness: 0.92, metalness: 0.0, map: concreteTexture() }); },
     gunmetal: function () { return std('gunmetal', { color: 0x464b52, roughness: 0.5, metalness: 0.6, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
     gunmetalDS: function () { return std('gunmetalDS', { color: 0x535a62, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
     steel: function () { return std('steel', { color: 0x2c3036, roughness: 0.55, metalness: 0.65, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.5, 0.5) }); },
@@ -525,12 +559,50 @@
       var r = addFlat(g, geo('insPlane' + best.size, function () { var q = new THREE.PlaneGeometry(best.size, best.size); q.rotateX(-PI / 2); return q; }), rm, best.x, best.p.y + 0.01, best.z);
       r.receiveShadow = true;
     }
+    // war clutter on clear corners of the pad: sandbag walls, fuel drums, ammo crates
+    function props() {
+      if (type === 'decoy' || type === 'hq') return;
+      var rp = lcg(side.length * 131 + (PAD_CODE[type] || 'BX').charCodeAt(0) * 17 + n * 7);
+      var q = w / 2 - 1.35, kinds = ['bags', 'drums', 'crates'], used = 0;
+      [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function (c) {
+        if (used >= 2 || rp() < 0.25) return;
+        if (c[1] > 0 && placedX !== null && placedX * c[0] >= 0 && placedX !== 0) return;   // keep clear of the ID placard
+        var x = c[0] * q, z = c[1] * q;
+        var p = flat(x, 0, z, 'down', 0.95, 0.95);
+        if (!p || Math.abs(p.y - PLINTH_H) > 0.05) return;
+        var kind = kinds[(rp() * 3) | 0];
+        var grp = group(g, x, PLINTH_H, z); grp.rotation.y = rp() * PI * 2;
+        if (kind === 'bags') {
+          var BAG = std('sandbag', { color: 0x5a5140, roughness: 1, metalness: 0 });
+          for (var L = 0; L < 2; L++) for (var i = 0; i < 4 - L; i++) {
+            var bag = add(grp, sph(0.5, 8, 5), BAG, -0.75 + i * 0.5 + L * 0.25, 0.2 + L * 0.34, 0);
+            bag.scale.set(0.55, 0.42, 0.85); bag.rotation.y = (rp() - 0.5) * 0.3;
+          }
+        } else if (kind === 'drums') {
+          var DR = std(rp() < 0.5 ? 'drumOlive' : 'drumRust', { color: rp() < 0.5 ? 0x48502f : 0x6a3a22, roughness: 0.7, metalness: 0.4 });
+          [[0, 0], [0.62, 0.15], [0.25, 0.6]].forEach(function (d, j) {
+            if (j === 2 && rp() < 0.4) { var t = add(grp, cyl(0.3, 0.3, 0.85, 10), DR, d[0], 0.3, d[1]); t.rotation.z = PI / 2; return; }   // one lying on its side
+            add(grp, cyl(0.3, 0.3, 0.85, 10), DR, d[0], 0.43, d[1]);
+            add(grp, cyl(0.31, 0.31, 0.05, 10), MAT.steel(), d[0], 0.3, d[1]);
+            add(grp, cyl(0.31, 0.31, 0.05, 10), MAT.steel(), d[0], 0.62, d[1]);
+          });
+        } else {
+          var CR = std('crate', { color: 0x3a4229, roughness: 0.85, metalness: 0.05 }), STP = std('crateStrap', { color: 0x262a1c, roughness: 0.9, metalness: 0.1 });
+          [[0, 0.35, 0, 0], [0.95, 0.35, 0.1, 0.2], [0.45, 1.05, 0.05, 0.4]].forEach(function (b) {
+            var cr = add(grp, box(0.9, 0.7, 0.7), CR, b[0], b[1], b[2]); cr.rotation.y = b[3];
+            var st = add(grp, box(0.94, 0.08, 0.74), STP, b[0], b[1] + 0.18, b[2]); st.rotation.y = b[3];
+            var sb = add(grp, box(0.94, 0.08, 0.74), STP, b[0], b[1] - 0.18, b[2]); sb.rotation.y = b[3];
+          });
+        }
+        used++;
+      });
+    }
     // stencilled ID: on the front apron of the pad if it is clear, otherwise on the front wall
     var type = g.userData.type, w = g.userData.padW || 10;
     var n = _padN[side + type] = ((_padN[side + type] || 0) % 9) + 1;
     var id = (PAD_CODE[type] || 'BX') + '-' + (side === 'ai' ? 7 : 2) + n;
     var sm = decalMat('st_' + side + '_' + id, function () { return stencilTexture(side, id); });
-    var placed = false;
+    var placed = false, placedX = null;
     [[3.2, 1.0], [2.6, 0.81]].some(function (sz) {
       var az = w / 2 - 0.4 - sz[1] / 2 - 0.05;
       return [0, -2, 2, -2.6, 2.6].some(function (x) {
@@ -538,9 +610,11 @@
         if (!p || Math.abs(p.y - PLINTH_H) > 0.05) return false;
         var a = addFlat(g, geo('stApron' + sz[0], function () { var q = new THREE.PlaneGeometry(sz[0], sz[1]); q.rotateX(-PI / 2); return q; }), sm, x, PLINTH_H + 0.012, az);
         a.receiveShadow = true;
+        placedX = x;
         return (placed = true);
       });
     });
+    props();
     if (placed) return;
     [[3.0, 0.94], [2.2, 0.69]].some(function (sz) {
       return [[0, 1.6], [0, 2.0], [0, 2.3], [-1.5, 1.6], [1.5, 1.6], [0, 1.2], [-1.5, 2.3], [1.5, 2.3], [0, 3.0], [0, 4.0]].some(function (c) {
@@ -1221,6 +1295,72 @@
     return g;
   }
 
+  // Battle damage: scorched blast holes with rust-edged rims on walls and roofs, found by
+  // raycasting the (baked) model; level 0 clears, 1 = damaged, 2 = badly damaged
+  function holeTexture(v) {
+    var S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d'), rnd = lcg(91 + v * 37);
+    var sg = g.createRadialGradient(64, 64, 6, 64, 64, 62);
+    sg.addColorStop(0, 'rgba(12,10,9,0.95)'); sg.addColorStop(0.35, 'rgba(22,18,15,0.75)'); sg.addColorStop(1, 'rgba(22,18,15,0)');
+    g.fillStyle = sg; g.fillRect(0, 0, S, S);
+    // the hole: a jagged dark core
+    g.fillStyle = 'rgba(4,4,4,0.98)'; g.beginPath();
+    for (var i = 0; i < 14; i++) { var a = i / 14 * PI * 2, r = 12 + rnd() * 12; g[i ? 'lineTo' : 'moveTo'](64 + Math.cos(a) * r, 64 + Math.sin(a) * r); }
+    g.closePath(); g.fill();
+    // hot, rusted rim and torn metal flecks
+    g.strokeStyle = 'rgba(120,60,30,0.55)'; g.lineWidth = 2; g.stroke();
+    for (var k = 0; k < 40; k++) { var b = rnd() * PI * 2, d = 20 + rnd() * 30; g.fillStyle = rnd() < 0.5 ? 'rgba(150,140,130,0.5)' : 'rgba(30,26,22,0.7)'; g.fillRect(64 + Math.cos(b) * d, 64 + Math.sin(b) * d, 1 + rnd() * 3, 1 + rnd() * 2); }
+    // soot streaks upward
+    for (var q = 0; q < 6; q++) { var x = 44 + rnd() * 40; var lg = g.createLinearGradient(0, 64, 0, 0); lg.addColorStop(0, 'rgba(15,13,12,0.5)'); lg.addColorStop(1, 'rgba(15,13,12,0)'); g.fillStyle = lg; g.fillRect(x, 0, 3 + rnd() * 6, 64); }
+    return c;
+  }
+  var _dmgRc = null;
+  function setDamage(g, level, seed) {
+    var old = g.userData._dmg;
+    if (old) { g.remove(old); g.userData._dmg = null; }
+    if (!level) return;
+    var dg = new THREE.Group(); dg.name = 'damage';
+    g.add(dg); g.userData._dmg = dg;
+    g.updateMatrixWorld(true);
+    var meshes = [];
+    g.traverse(function (o) { if (o.isMesh && o.parent !== dg && !(o.material && o.material.transparent)) meshes.push(o); });
+    var rc = _dmgRc || (_dmgRc = new THREE.Raycaster()), rnd = lcg((seed || 1) * 7 + level * 13);
+    var inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), nm = new THREE.Matrix3().getNormalMatrix(inv);
+    var want = level === 2 ? 7 : 3, tries = 0, n = 0, h = g.userData.height || 6;
+    var dirs = [[0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, -1, 0], [0, 0, 1]];
+    while (n < want && tries++ < 40) {
+      var d = dirs[(rnd() * dirs.length) | 0];
+      var lo = d[1] < 0 ? new THREE.Vector3((rnd() - 0.5) * 7, 40, (rnd() - 0.5) * 7) : new THREE.Vector3(-d[0] * 30 + (d[0] ? 0 : (rnd() - 0.5) * 7), 1.2 + rnd() * Math.max(1, h * 0.6), -d[2] * 30 + (d[2] ? 0 : (rnd() - 0.5) * 7));
+      var o = lo.clone().applyMatrix4(g.matrixWorld), dw = new THREE.Vector3(d[0], d[1], d[2]).transformDirection(g.matrixWorld);
+      rc.set(o, dw);
+      var hit = rc.intersectObjects(meshes, false)[0];
+      if (!hit || !hit.face) continue;
+      var p = hit.point.clone().applyMatrix4(inv);
+      if (p.y < PLINTH_H + 0.4) continue;
+      var nW = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      var nL = nW.clone().applyMatrix3(nm).normalize();
+      var v = (rnd() * 3) | 0;
+      var mat = decalMat('hole' + v, function () { return holeTexture(v); });
+      var size = 1.9 + rnd() * 1.6;
+      var pl = new THREE.Mesh(geo('dmgPlane', function () { return new THREE.PlaneGeometry(1, 1); }), mat);
+      pl.scale.set(size, size, 1);
+      pl.position.copy(p).addScaledVector(nL, 0.03);
+      dg.add(pl); dg.updateMatrixWorld(true);
+      pl.lookAt(p.clone().add(nL).applyMatrix4(g.matrixWorld));   // lookAt takes a world-space target
+      pl.rotateZ(rnd() * PI * 2);
+      pl.renderOrder = 3;
+      n++;
+    }
+    if (level === 2) {
+      var DEB = std('charred', { color: 0x1b1a19, roughness: 0.96, metalness: 0.05, map: panelTexture() });
+      for (var j = 0; j < 5; j++) {
+        var sz = 0.3 + rnd() * 0.6, a = rnd() * PI * 2, r = 3.2 + rnd() * 1.2;
+        var m = add(dg, box(r3(sz), r3(sz * 0.5), r3(sz * 1.4)), DEB, Math.cos(a) * r, PLINTH_H + sz * 0.25, Math.sin(a) * r, true);
+        m.rotation.set(rnd(), rnd() * 3, rnd());
+      }
+    }
+  }
+
   function wrapPi(a) {
     a = (a + PI) % (2 * PI);
     if (a < 0) a += 2 * PI;
@@ -1534,6 +1674,11 @@
     [[-2.2, -2.0], [2.3, -1.4], [-1.2, 2.4], [2.6, 2.6]].forEach(function (p) {
       add(g, cyl(1.3, 1.5, 0.4, 10), GM, p[0], 0.18, p[1]);
       addFlat(g, cyl(0.6, 0.6, 0.14, 10), T, p[0], 0.44, p[1]);
+      add(g, cyl(0.28, 0.32, 0.25, 8), MAT.steel(), p[0], 0.55, p[1]);          // fuse cap
+      for (var k = 0; k < 3; k++) {                                              // tilt-rod detonator prongs
+        var a = k * PI * 2 / 3 + p[0];
+        add(g, cyl(0.04, 0.04, 0.7, 4), MAT.steelLight(), p[0] + Math.cos(a) * 0.15, 0.95, p[1] + Math.sin(a) * 0.15).rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+      }
     });
     // a faint team-coloured outline marks the cell for its owner
     [[0, -4.6, 9.2, 0.25], [0, 4.6, 9.2, 0.25], [-4.6, 0, 0.25, 9.2], [4.6, 0, 0.25, 9.2]].forEach(function (e) {
@@ -1546,8 +1691,8 @@
   function interceptor() {
     var g = new THREE.Group();
     g.name = 'interceptor';
-    add(g, cyl(0.12, 0.12, 1.4, 10), MAT.white(), 0, 0, 0);
-    add(g, cone(0.12, 0.5, 10), MAT.yellow(), 0, 0.95, 0);
+    add(g, cyl(0.12, 0.12, 1.4, 10), std('missileBody', { color: 0x6c7073, roughness: 0.55, metalness: 0.35, map: missileTexture() }), 0, 0, 0);
+    add(g, cone(0.12, 0.5, 10), std('missileNose', { color: 0x3b3f3c, roughness: 0.5, metalness: 0.4, map: metalTexture() }), 0, 0.95, 0);
     addFlat(g, cyl(0.125, 0.125, 0.12, 10), MAT.yellow(), 0, 0.35, 0);
     for (var i = 0; i < 4; i++) {
       var a = i * PI / 2;
@@ -1679,6 +1824,7 @@
   window.Models = {
     building: building,
     ruin: ruin,
+    setDamage: setDamage,
     setCharge: setCharge,
     animate: animate,
     robot: robot,

@@ -1369,6 +1369,9 @@ window.Renderer = (function () {
       rec.smoke = kind;
       Fx.setEmitter('b' + id, pos, kind);
     }
+    // scorched blast holes on the structure itself
+    const lvl = frac <= 0 ? rec.dmg || 0 : frac < 0.34 ? 2 : frac < 0.67 ? 1 : 0;
+    if (lvl !== (rec.dmg || 0) && rec.collapse < 0) { rec.dmg = lvl; Models.setDamage(rec.group, lvl, id); }
   }
 
   function setShieldPool(id, pool) {
