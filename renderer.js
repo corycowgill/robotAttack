@@ -84,6 +84,7 @@ window.Renderer = (function () {
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.debug.checkShaderErrors = false;   // checking forces a synchronous shader compile (a hitch) per new material
     renderer.domElement.id = 'game-canvas';
     document.body.appendChild(renderer.domElement);
 
@@ -109,11 +110,26 @@ window.Renderer = (function () {
 
   // compile the shaders of things that first appear mid-battle (drop pods, both sides' missiles,
   // interceptors), so the first launch doesn't hitch while the GPU builds them
+  // ...and every structure type (baked exactly as addBuilding does), both sides' mechs, a ruin and
+  // battle damage, so nothing compiles a shader in the middle of a fight
   function prewarm() {
-    const objs = [Models.pod('player'), Models.pod('ai'), Models.missile('player'), Models.missile('ai'), Models.interceptor()];
+    const objs = [Models.pod('player'), Models.pod('ai'), Models.missile('player'), Models.missile('ai'), Models.interceptor(), Models.ruin('ai', 10, 1)];
+    for (const side of ['player', 'ai']) {
+      for (const type of Object.keys(BUILDINGS)) {
+        if (type === 'decoy' || type === 'mine') continue;
+        try {
+          const g = Models.building(type, side), parts = g.userData.parts || {};
+          bakePivots(g, Object.keys(parts).sort().map(k => parts[k]), type + '_' + side);
+          objs.push(g);
+        } catch (e) { /* not a model type */ }
+      }
+    }
     for (const o of objs) { o.position.set(MAP_W / 2, -40, MAP_H / 2); scene.add(o); }
+    if (objs.length > 6) { objs[6].updateMatrixWorld(true); Models.setDamage(objs[6], 2, 1); }
+    const mechs = ['player', 'ai'].map((side, i) => { try { return addRobot({ id: -100 - i, side, cell: 0, hp: 1, maxHp: 1 }); } catch (e) { return null; } });
     try { renderer.compile(scene, camera); } catch (e) { /* compiled on first use instead */ }
     for (const o of objs) { scene.remove(o); Models.dispose(o); }
+    for (let i = 0; i < 2; i++) if (mechs[i] !== null) removeRobot(-100 - i);
   }
 
   function createLights() {
@@ -1871,10 +1887,19 @@ window.Renderer = (function () {
         c += (texture2D(tex, vUv + dir * 3.231).rgb + texture2D(tex, vUv - dir * 3.231).rgb) * 0.070;
         gl_FragColor = vec4(c, 1.0); }`, { tex: { value: null }, dir: { value: new THREE.Vector2() } });
     b.copy = bloomShader('void main() { gl_FragColor = vec4(texture2D(tex, vUv).rgb, 1.0); }', { tex: { value: null } });
-    b.comp = bloomShader(`uniform sampler2D bh; uniform sampler2D bq; uniform float strength;
+    // composite: bloom, then the colour grade (saturate .84, contrast 1.08, brightness .98) and a
+    // light animated film grain, all in this one pass instead of CSS filters and a blended overlay
+    b.comp = bloomShader(`uniform sampler2D bh; uniform sampler2D bq; uniform float strength; uniform float seed; uniform vec2 res;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main() { vec3 c = texture2D(tex, vUv).rgb;
         vec3 g = texture2D(bh, vUv).rgb * 0.55 + texture2D(bq, vUv).rgb * 0.75;
-        gl_FragColor = vec4(c + g * strength * (1.0 - c * 0.5), 1.0); }`, { tex: { value: null }, bh: { value: null }, bq: { value: null }, strength: { value: 0.9 } });
+        c += g * strength * (1.0 - c * 0.5);
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(l), c, 0.84);
+        c = (c - 0.5) * 1.08 + 0.5;
+        c *= 0.98;
+        c += (hash(floor(vUv * res * 0.5) + seed) - 0.5) * 0.035;
+        gl_FragColor = vec4(c, 1.0); }`, { tex: { value: null }, bh: { value: null }, bq: { value: null }, strength: { value: 0.9 }, seed: { value: 0 }, res: { value: new THREE.Vector2(1, 1) } });
     b.scene = new THREE.Scene();
     b.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     b.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), b.copy);
@@ -1917,6 +1942,8 @@ window.Renderer = (function () {
     const C = bloom.comp;
     C.uniforms.tex.value = bloom.main.texture; C.uniforms.bh.value = bloom.h1.texture; C.uniforms.bq.value = bloom.q1.texture;
     C.uniforms.strength.value = atmos && atmos.bloom !== undefined ? atmos.bloom : 0.9;
+    C.uniforms.seed.value = (shadowFrame >> 3) % 64;   // grain shifts every 8 frames
+    C.uniforms.res.value.set(bloom.main.width, bloom.main.height);
     pass(C, null);
   }
 
@@ -1942,6 +1969,8 @@ window.Renderer = (function () {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.ratio));
     renderer.setSize(window.innerWidth, window.innerHeight);
     setBloom(!!q.bloom); sizeBloom();
+    // where the grade runs: the post shader (High), a CSS filter (Medium) or nowhere (Low)
+    document.body.dataset.fx = bloom ? 'post' : q.shadows ? 'css' : 'none';
     sun.castShadow = q.shadows;
     if (sun.shadow.mapSize.x !== q.shadowSize) {
       sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
