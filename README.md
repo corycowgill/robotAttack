@@ -28,7 +28,7 @@ Three.js r128 is bundled in `vendor/` (MIT licence), so only the web fonts come 
 The campaign is always played in real time, and skirmishes play in real time by default:
 - **Destroy every enemy base.** Each side has its Command Center (150 HP in real time) and 2 more Bases (120 HP), spread across its island. Bases are always marked on the map, like the Command Center, but decoys often pose as one (a Dummy Base). You win when all the enemy's bases are gone, and lose when all of yours are. Bases can't be built or repaired.
 - **Resources flow every second.** One turn's income arrives over 15 seconds. You can build, repair, upgrade and sell at any moment, and so can the enemy.
-- **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 3 seconds (decoy) to 24 seconds (uplink); a depot takes 8 and a silo 14. **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up:
+- **Construction takes time.** A new structure is a building site, shown at part height with a cyan progress bar. It produces, shoots and shields nothing until it's finished. Build times run from 5 seconds (decoy) to 38 seconds (uplink); a depot takes 13 and a silo 22. Each side has **two build crews**: only two sites go up at once, and any more wait their turn in the order they were placed (the tooltip says "Queued" and counts the wait). **Factories** (`B`, 150 credits, max 3, real-time only) speed everything up:
   - each factory makes construction 50% faster and silo reloads and mech production 15% faster;
   - an upgraded factory (Assembly Line) counts as two.
 

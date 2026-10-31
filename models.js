@@ -104,6 +104,32 @@
     _metalN.wrapS = _metalN.wrapT = THREE.RepeatWrapping;
     return _metalTex;
   }
+  // Mech armour: one panel per face with a bevelled seam, edge wear, scratches and grime
+  var _armTex = null, _armN = null;
+  function armorTexture() {
+    if (_armTex) return _armTex;
+    var S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d'), rnd = lcg(2024);
+    g.fillStyle = '#c4c4c4'; g.fillRect(0, 0, S, S);
+    for (var i = 0; i < 700; i++) { var v = 175 + (rnd() * 55 | 0); g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(rnd() * S, rnd() * S, 1, 1); }
+    g.strokeStyle = 'rgba(30,30,30,0.75)'; g.lineWidth = 3; g.strokeRect(2, 2, S - 4, S - 4);
+    g.strokeStyle = 'rgba(235,235,235,0.5)'; g.lineWidth = 1; g.strokeRect(5, 5, S - 10, S - 10);   // worn bevel
+    g.fillStyle = 'rgba(30,30,30,0.6)'; [[10, 10], [S - 12, 10], [10, S - 12], [S - 12, S - 12]].forEach(function (q) { g.fillRect(q[0], q[1], 3, 3); });
+    g.strokeStyle = 'rgba(245,245,245,0.4)';
+    for (var k = 0; k < 14; k++) { var x0 = rnd() * S, y0 = rnd() * S; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (rnd() - 0.5) * 26, y0 + (rnd() - 0.5) * 12); g.stroke(); }
+    var gr = g.createLinearGradient(0, 0, 0, S); gr.addColorStop(0.6, 'rgba(30,26,22,0)'); gr.addColorStop(1, 'rgba(30,26,22,0.35)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+    for (var q = 0; q < 18; q++) { g.fillStyle = 'rgba(25,24,22,' + (0.2 + rnd() * 0.3) + ')'; g.fillRect(rnd() * S, rnd() * S, 2 + rnd() * 5, 1 + rnd() * 2); }
+    _armTex = new THREE.CanvasTexture(c); _armTex.encoding = THREE.sRGBEncoding; _armTex.anisotropy = 4;
+    var n = document.createElement('canvas'); n.width = n.height = S;
+    var ng = n.getContext('2d');
+    ng.fillStyle = 'rgb(128,128,255)'; ng.fillRect(0, 0, S, S);
+    ng.fillStyle = 'rgb(160,128,240)'; ng.fillRect(0, 0, 4, S); ng.fillStyle = 'rgb(96,128,240)'; ng.fillRect(S - 4, 0, 4, S);
+    ng.fillStyle = 'rgb(128,96,240)'; ng.fillRect(0, 0, S, 4); ng.fillStyle = 'rgb(128,160,240)'; ng.fillRect(0, S - 4, S, 4);
+    _armN = new THREE.CanvasTexture(n);
+    return _armTex;
+  }
+  function armorNormal() { armorTexture(); return _armN; }
   function metalNormal() { metalTexture(); return _metalN; }
 
   function panelTexture() {
@@ -159,8 +185,8 @@
   function applyGlow(m) { if (m.emissive && (m.emissive.r || m.emissive.g || m.emissive.b)) m.emissiveIntensity = m.userData.glow0 * glowMul; }
   function setGlow(k) { glowMul = k; for (var key in MC) applyGlow(MC[key]); }
   var MAT = {
-    concrete: function () { return std('concrete', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
-    concreteDS: function () { return std('concreteDS', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
+    concrete: function () { return std('concrete', { color: 0x6c6f71, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
+    concreteDS: function () { return std('concreteDS', { color: 0x6c6f71, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
     concreteDark: function () { return std('concreteDark', { color: 0x4c4f51, roughness: 0.92, metalness: 0.0, map: panelTexture() }); },
     gunmetal: function () { return std('gunmetal', { color: 0x464b52, roughness: 0.5, metalness: 0.6, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
     gunmetalDS: function () { return std('gunmetalDS', { color: 0x535a62, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
@@ -170,10 +196,10 @@
     pit: function () { return std('pit', { color: 0x050607, roughness: 1.0, metalness: 0.0 }); },
     glass: function () { return std('glass', { color: 0x0d1419, roughness: 0.15, metalness: 0.8 }); },
     lamp: function () { return std('lamp', { color: 0xffe0a0, emissive: 0xffc060, emissiveIntensity: 1.6, roughness: 0.4 }); },
-    white: function () { return std('white', { color: 0xd9dcdf, roughness: 0.4, metalness: 0.3 }); },
+    white: function () { return std('white', { color: 0xa9adb0, roughness: 0.55, metalness: 0.2, map: panelTexture() }); },
     yellow: function () { return std('yellow', { color: 0xffc72c, roughness: 0.45, metalness: 0.2 }); },
     rubber: function () { return std('rubber', { color: 0x15171a, roughness: 0.95, metalness: 0.0 }); },
-    robotHull: function () { return std('robotHull', { color: 0x6e767e, roughness: 0.42, metalness: 0.65, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.4, 0.4) }); },
+    robotHull: function () { return std('robotHull', { color: 0x6e767e, roughness: 0.42, metalness: 0.65, map: armorTexture(), normalMap: armorNormal(), normalScale: new THREE.Vector2(0.5, 0.5) }); },
     podHull: function () { return std('podHull', { color: 0x848c94, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide, map: metalTexture() }); },
     orbCore: function () { return std('orbCore', { color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.3 }); }
   };
@@ -191,15 +217,35 @@
     return std('trimHot_' + k, { color: base, emissive: c, emissiveIntensity: 1.6, roughness: 0.3, metalness: 0.0 });
   }
   // team paint (non-emissive armour panels)
+  // Worn team paint: soft two-tone camouflage blotches, chipped to bare metal at the edges
+  var _paintTex = null;
+  function paintTexture() {
+    if (_paintTex) return _paintTex;
+    var S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d'), rnd = lcg(777);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
+    for (var i = 0; i < 9; i++) {
+      var x = rnd() * S, y = rnd() * S, r = 14 + rnd() * 26;
+      for (var ox = -S; ox <= S; ox += S) for (var oy = -S; oy <= S; oy += S) {
+        g.fillStyle = 'rgba(70,70,70,0.32)';
+        g.beginPath(); g.ellipse(x + ox, y + oy, r, r * (0.45 + rnd() * 0.4), rnd() * 3, 0, PI * 2); g.fill();
+      }
+    }
+    for (var k = 0; k < 160; k++) { var e = rnd() < 0.5, px = e ? (rnd() < 0.5 ? rnd() * 8 : S - rnd() * 8) : rnd() * S, py = e ? rnd() * S : (rnd() < 0.5 ? rnd() * 8 : S - rnd() * 8);
+      g.fillStyle = 'rgba(' + (rnd() < 0.5 ? '200,200,200' : '60,58,55') + ',0.7)'; g.fillRect(px, py, 1 + rnd() * 3, 1 + rnd() * 2); }
+    for (var q = 0; q < 50; q++) { g.fillStyle = 'rgba(40,38,35,' + (0.15 + rnd() * 0.3) + ')'; g.fillRect(rnd() * S, rnd() * S, 1 + rnd() * 3, 1); }
+    _paintTex = new THREE.CanvasTexture(c); _paintTex.encoding = THREE.sRGBEncoding;
+    return _paintTex;
+  }
   function paint(side) {
     var k = sideKey(side);
-    var col = new THREE.Color(TEAM[k]).multiplyScalar(0.55);
-    return std('paint_' + k, { color: col, roughness: 0.6, metalness: 0.15 });
+    var col = new THREE.Color(TEAM[k]).multiplyScalar(0.6);
+    return std('paint_' + k, { color: col, roughness: 0.6, metalness: 0.15, map: paintTexture() });
   }
   function paintDS(side) {
     var k = sideKey(side);
-    var col = new THREE.Color(TEAM[k]).multiplyScalar(0.55);
-    return std('paintDS_' + k, { color: col, roughness: 0.6, metalness: 0.15, side: THREE.DoubleSide });
+    var col = new THREE.Color(TEAM[k]).multiplyScalar(0.6);
+    return std('paintDS_' + k, { color: col, roughness: 0.6, metalness: 0.15, side: THREE.DoubleSide, map: paintTexture() });
   }
   // additive unlit materials
   function additive(key, color, opacity) {
@@ -1230,6 +1276,8 @@
   // ════════════════════════════════════════════════════════
   // ROBOT
   // ════════════════════════════════════════════════════════
+  function GL2() { return MAT.glass(); }
+  function sx2(i) { return i < 2 ? -1 : 1; }
   function robot(side) {
     side = sideKey(side);
     var g = new THREE.Group();
@@ -1237,14 +1285,18 @@
     var own = [];
     // hull and paint are shared: the renderer bakes them into a per-mech vertex-coloured material
     var hull = MAT.robotHull();
-    var pnt = paint(side);
+    var pnt = std('mechPaint_' + side, { color: new THREE.Color(TEAM[side]).multiplyScalar(0.55), roughness: 0.6, metalness: 0.15, map: armorTexture() });
     var visor = trimHot(side).clone();
     [visor].forEach(function (m) {
       m.userData.baseEmissive = m.emissive.getHex();
       m.userData.baseIntensity = m.emissiveIntensity;
       own.push(m);
     });
-    var ST = MAT.steel(), GM = MAT.gunmetal(), T = trim(side);
+    // mech-only copies of steel/gunmetal on the armour texture, so the renderer merges every
+    // plain part into one per-mech material (the whole mech flashes when hit)
+    var ST = std('mechST', { color: 0x30343a, roughness: 0.5, metalness: 0.7, map: armorTexture() });
+    var GM = std('mechGM', { color: 0x4c5158, roughness: 0.5, metalness: 0.6, map: armorTexture() });
+    var T = trim(side);
     var parts = {};
 
     // pelvis (static)
@@ -1271,6 +1323,14 @@
       return { hip: hip, knee: knee };
     }
     var L = leg(1), R = leg(-1);
+    // hydraulics and toe claws
+    [L, R].forEach(function (lg, li) {
+      var sx = li ? -1 : 1;
+      beam(lg.knee, V(sx * 0.42, 0.25, 0.2), V(sx * 0.4, -1.55, 0.45), 0.09, ST, 6);
+      add(lg.knee, cyl(0.13, 0.13, 0.5, 6), MAT.steelLight(), sx * 0.41, -0.6, 0.3);
+      [-0.4, 0, 0.4].forEach(function (cx) { add(lg.knee, box(0.22, 0.22, 0.45), ST, cx, -2.25, 1.5); });
+      add(lg.hip, box(1.05, 0.5, 1.25), GM, 0, -0.3, 0);
+    });
     parts.hipL = L.hip; parts.kneeL = L.knee; parts.hipR = R.hip; parts.kneeR = R.knee;
 
     // torso
@@ -1284,8 +1344,20 @@
     halo(torso, teamColor(side), 1.6, 0, 2.35, 1.7);
     addFlat(torso, box(0.12, 0.9, 0.08), T, 1.2, 2.5, 1.44);
     addFlat(torso, box(0.12, 0.9, 0.08), T, -1.2, 2.5, 1.44);
+    // chest vents and armour ribs
+    for (var vi = 0; vi < 4; vi++) add(torso, box(0.9, 0.09, 0.12), ST, sx2(vi) * 0.95, 1.95 + (vi % 2) * 0.22, 1.42);
+    add(torso, box(3.7, 0.18, 2.5), GM, 0, 3.28, 0);
+    add(torso, box(0.3, 1.3, 2.45), GM, 1.78, 2.5, 0); add(torso, box(0.3, 1.3, 2.45), GM, -1.78, 2.5, 0);
+    // missile rack on the right shoulder: six tubes
+    var rack = group(torso, -1.5, 3.85, -0.4);
+    add(rack, box(1.1, 0.9, 1.4), GM, 0, 0, 0);
+    add(rack, box(1.15, 0.12, 1.0), pnt, 0, 0.5, -0.1);
+    for (var ti = 0; ti < 6; ti++) addFlat(rack, cyl(0.13, 0.13, 0.08, 8), MAT.pit(), -0.3 + (ti % 3) * 0.3, -0.15 + (ti / 3 | 0) * 0.32, 0.71).rotation.x = PI / 2;
     // backpack + exhausts
     add(torso, box(2.4, 1.9, 1.0), GM, 0, 2.3, -1.6);
+    addFlat(torso, box(1.6, 0.35, 0.06), additive('mechHeat', 0xff7a30, 0.55), 0, 1.75, -2.12);
+    // ammo feed from the backpack to the gun-arm
+    pipeRun(torso, [V(1.1, 2.0, -1.4), V(1.9, 1.5, -1.0), V(2.4, 0.9, -0.2)], 0.12, MAT.rubber());
     add(torso, cyl(0.25, 0.3, 1.0, 8), ST, 0.7, 3.4, -1.75);
     add(torso, cyl(0.25, 0.3, 1.0, 8), ST, -0.7, 3.4, -1.75);
     add(torso, box(1.8, 0.2, 0.08), T, 0, 1.6, -2.12, true);
@@ -1299,12 +1371,20 @@
     addFlat(head, box(1.1, 0.26, 0.12), visor, 0, 0.75, 0.72);
     halo(head, teamColor(side), 1.8, 0, 0.75, 0.9);
     add(head, cyl(0.03, 0.03, 0.9, 4), ST, 0.45, 1.6, -0.4);
+    add(head, cyl(0.02, 0.02, 0.6, 4), ST, -0.4, 1.5, -0.45);
+    add(head, box(0.35, 0.3, 0.5), GM, 0.72, 0.85, 0.2);                 // sensor pod
+    addFlat(head, cyl(0.1, 0.1, 0.06, 8), GL2(), 0.72, 0.85, 0.47).rotation.x = PI / 2;
+    add(head, box(1.36, 0.12, 0.3), ST, 0, 0.32, 0.6);                  // chin guard
     parts.head = head;
 
     function arm(sx, isRight) {
       var sh = group(torso, sx * 2.3, 2.85, 0);
       add(sh, sph(0.55, 10, 8), ST, 0, 0, 0);
       add(sh, box(1.4, 1.0, 1.6), pnt, sx * 0.15, 0.25, 0);
+      add(sh, box(1.5, 0.2, 1.7), GM, sx * 0.15, 0.82, 0);               // pauldron lip
+      var sm = decalMat('st_' + side + '_MX-' + (side === 'ai' ? 7 : 2) + (isRight ? 1 : 4), function () { return stencilTexture(side, 'MX-' + (side === 'ai' ? 7 : 2) + (isRight ? 1 : 4)); });
+      var tag = addFlat(sh, geo('mechTag', function () { return new THREE.PlaneGeometry(1.0, 0.31); }), sm, sx * 0.9, 0.3, 0);
+      tag.rotation.y = sx * PI / 2;
       addFlat(sh, box(0.08, 0.22, 1.3), T, sx * 0.87, 0.35, 0);
       add(sh, box(0.75, 1.5, 0.75), hull, 0, -1.0, 0);
       var el = group(sh, 0, -1.9, 0);
@@ -1479,57 +1559,68 @@
     return g;
   }
 
+  // Dropship: a fast, low wedge-hulled assault lander, nose along +Z. Swept wings, twin rear
+  // engines, a mech clamped in the belly cradle and four retro thrusters for the landing burn.
   function pod(side) {
     side = sideKey(side);
     var g = new THREE.Group();
     g.name = 'pod';
-    var HULL = MAT.podHull(), GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side);
-    var R = 1.55, BASE = 0.9, H = 2.8, HN = 2.2;
-    // base / heat shield / landing struts
-    add(g, cyl(1.7, 1.4, 0.9, 16), GM, 0, 0.45 + 0.0, 0);
-    add(g, cyl(1.75, 1.75, 0.15, 16), ST, 0, 0.92, 0);
-    for (var l = 0; l < 4; l++) {
-      var la = l * PI / 2 + PI / 4;
-      beam(g, V(Math.cos(la) * 1.4, 0.8, Math.sin(la) * 1.4), V(Math.cos(la) * 2.3, 0.05, Math.sin(la) * 2.3), 0.09, ST, 6);
-      add(g, box(0.5, 0.1, 0.5), ST, Math.cos(la) * 2.3, 0.05, Math.sin(la) * 2.3);
-    }
-    for (var n = 0; n < 4; n++) {
-      var na = n * PI / 2;
-      add(g, cyl(0.25, 0.32, 0.4, 8), ST, Math.cos(na) * 0.9, 0.0, Math.sin(na) * 0.9);
-    }
-    // inner core (visible when opened)
-    add(g, cyl(0.9, 0.9, H + 0.6, 12), MAT.steel(), 0, BASE + (H + 0.6) / 2, 0);
-    addFlat(g, cyl(0.92, 0.92, 0.25, 12), T, 0, BASE + 1.8, 0);
-    // petals: each a quarter of cylinder + cone, hinged at the bottom edge
-    var petals = [];
-    var bodyG = geo('podBody', function () { return new THREE.CylinderGeometry(R, R, H, 10, 1, true, -PI / 4 + 0.02, PI / 2 - 0.04); });
-    var noseG = geo('podNose', function () { return new THREE.CylinderGeometry(0.15, R, HN, 10, 1, true, -PI / 4 + 0.02, PI / 2 - 0.04); });
-    var stripeG = geo('podStripe', function () { return new THREE.CylinderGeometry(R + 0.03, R + 0.03, 0.35, 10, 1, true, -PI / 4 + 0.08, PI / 2 - 0.16); });
-    var panelG = geo('podPanel', function () { return new THREE.CylinderGeometry(R + 0.02, R + 0.02, 1.0, 10, 1, true, -PI / 4 + 0.25, PI / 2 - 0.5); });
-    var pd = paintDS(side);
-    for (var i = 0; i < 4; i++) {
-      var a = i * PI / 2;
-      var pv = group(g, Math.sin(a) * R, BASE, Math.cos(a) * R);
-      pv.rotation.order = 'YXZ'; // yaw first, then local pitch: rotation.x > 0 opens outward
-      pv.rotation.y = a;
-      add(pv, bodyG, HULL, 0, H / 2, -R);
-      add(pv, noseG, HULL, 0, H + HN / 2, -R);
-      addFlat(pv, stripeG, T, 0, H - 0.4, -R);
-      add(pv, panelG, pd, 0, 1.0, -R);
-      add(pv, box(0.5, 0.2, 0.15), ST, 0, 0.1, 0.05); // hinge
-      petals.push(pv);
-    }
-    add(g, cyl(0.18, 0.18, 0.4, 8), ST, 0, BASE + H + HN + 0.1, 0);
-    var tipLight = addFlat(g, sph(0.16, 8, 6), trimHot(side), 0, BASE + H + HN + 0.35, 0);
-    halo(tipLight, teamColor(side), 1.8);
-    // thruster flame (points down)
-    var flame = group(g, 0, 0, 0);
-    var fo = addFlat(flame, cone(1.0, 3.2, 14), additive('podFlameO', 0xff6a20, 0.7));
-    fo.rotation.x = PI; fo.position.y = -1.6;
-    var fi = addFlat(flame, cone(0.55, 2.0, 12), additive('podFlameI', 0xfff2c0, 0.9));
-    fi.rotation.x = PI; fi.position.y = -1.0;
-    halo(flame, 0xff8a30, 5.5, 0, -0.6, 0);
-    g.userData = { type: 'pod', side: side, flame: flame, petals: petals, height: BASE + H + HN, _own: [] };
+    var HULL = std('shipHull', { color: 0x6a7178, roughness: 0.42, metalness: 0.7, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.5, 0.5) });
+    var GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side), GL = MAT.glass();
+    var ship = group(g, 0, 0, 0);
+    // fuselage: armoured box, flattened wedge nose, dorsal spine, intakes
+    add(ship, box(2.0, 1.1, 4.6), HULL, 0, 0, -0.2);
+    var nose = add(ship, cone(1.0, 2.8, 6), HULL, 0, -0.05, 3.5); nose.rotation.x = PI / 2; nose.scale.set(1, 1, 0.55);
+    add(ship, box(1.4, 0.25, 2.2), P, 0, 0.6, 0.9);                     // team paint on the back
+    add(ship, box(0.5, 0.45, 3.8), GM, 0, 0.75, -0.6);                   // spine
+    add(ship, box(0.12, 0.14, 2.6), T, 0, 1.0, -0.6, true);
+    var can = add(ship, sph(0.6, 12, 8), GL, 0, 0.45, 2.1); can.scale.set(0.95, 0.65, 1.9);
+    [-1, 1].forEach(function (sx) {
+      add(ship, box(0.5, 0.6, 1.2), GM, sx * 1.15, 0.05, 1.0);            // intakes
+      addFlat(ship, box(0.4, 0.4, 0.06), MAT.pit(), sx * 1.15, 0.05, 1.62);
+    });
+    // swept wings with team panels, wingtip lights and stencilled insignia
+    [-1, 1].forEach(function (sx) {
+      // swept main plane, a root fairing and a raked tip
+      var w = add(ship, box(3.9, 0.16, 1.7), HULL, sx * 2.55, -0.15, -1.1); w.rotation.y = sx * 0.5;
+      add(ship, box(1.2, 0.3, 3.0), HULL, sx * 1.05, -0.12, -0.6);
+      var wt = add(ship, box(0.9, 0.14, 1.2), GM, sx * 4.3, -0.12, -2.35); wt.rotation.y = sx * 0.5;
+      add(ship, box(1.4, 0.08, 0.7), P, sx * 2.6, 0.02, -1.6).rotation.y = sx * -0.6;
+      addFlat(ship, box(0.35, 0.1, 1.0), T, sx * 4.55, -0.05, -2.45);
+      var tip = addFlat(ship, sph(0.13, 6, 4), trimHot(side), sx * 4.6, -0.02, -2.95);
+      halo(tip, teamColor(side), 1.4);
+      var ins = decalMat('ins_' + side, function () { return insigniaTexture(side); });
+      addFlat(ship, geo('shipIns', function () { var q = new THREE.PlaneGeometry(1.1, 1.1); q.rotateX(-PI / 2); return q; }), ins, sx * 2.2, 0.08, -0.9);
+      // canted tail fins
+      var fin = add(ship, box(0.12, 1.3, 1.5), HULL, sx * 0.65, 1.0, -2.3);
+      fin.rotation.set(-0.35, 0, sx * -0.38);
+      addFlat(ship, box(0.14, 0.25, 0.9), T, sx * 0.86, 1.45, -2.5).rotation.set(-0.35, 0, sx * -0.38);
+    });
+    // twin engines and exhaust
+    var flame = group(ship, 0, 0, 0);
+    [-1, 1].forEach(function (sx) {
+      var e = add(ship, cyl(0.48, 0.58, 1.8, 12), GM, sx * 0.78, 0.0, -2.8); e.rotation.x = PI / 2;
+      var nz = add(ship, cyl(0.52, 0.4, 0.45, 12), ST, sx * 0.78, 0.0, -3.9); nz.rotation.x = PI / 2;
+      addFlat(ship, cyl(0.36, 0.36, 0.05, 12), additive('shipGlow', 0xffb070, 0.9), sx * 0.78, 0.0, -4.12).rotation.x = PI / 2;
+      var fo = addFlat(flame, cone(0.42, 3.0, 12), additive('podFlameO', 0xff6a20, 0.7), sx * 0.78, 0, -5.6); fo.rotation.x = -PI / 2;
+      var fi = addFlat(flame, cone(0.24, 1.8, 10), additive('podFlameI', 0xfff2c0, 0.9), sx * 0.78, 0, -5.0); fi.rotation.x = -PI / 2;
+    });
+    halo(flame, 0xff8a30, 4.5, 0, 0, -4.6);
+    // belly cradle with a folded mech clamped in it
+    add(ship, box(2.2, 0.2, 0.3), ST, 0, -0.7, 1.0);
+    add(ship, box(2.2, 0.2, 0.3), ST, 0, -0.7, -1.4);
+    add(ship, box(1.3, 1.1, 2.2), MAT.robotHull(), 0, -1.25, -0.2);
+    add(ship, box(1.35, 0.3, 0.6), P, 0, -0.95, 0.6);
+    addFlat(ship, box(0.7, 0.18, 0.06), trimHot(side), 0, -1.1, 0.92);
+    [-1, 1].forEach(function (sx) { add(ship, box(0.18, 1.0, 2.6), GM, sx * 0.78, -1.15, -0.2); });
+    // retro thrusters (shown for the landing burn)
+    var retro = group(ship, 0, 0, 0);
+    [[1.1, 1.3], [-1.1, 1.3], [1.1, -1.9], [-1.1, -1.9]].forEach(function (q) {
+      add(ship, cyl(0.2, 0.26, 0.3, 8), ST, q[0], -0.65, q[1]);
+      var rf = addFlat(retro, cone(0.28, 1.6, 10), additive('podFlameI', 0xfff2c0, 0.9), q[0], -1.6, q[1]); rf.rotation.x = PI;
+    });
+    retro.visible = false;
+    g.userData = { type: 'pod', side: side, flame: flame, retro: retro, ship: ship, height: 3, _own: [] };
     return g;
   }
 
@@ -1599,6 +1690,10 @@
     pod: pod,
     ghost: ghost,
     glowTexture: glowTexture,
+    metalTexture: metalTexture,
+    metalNormal: metalNormal,
+    armorTexture: armorTexture,
+    armorNormal: armorNormal,
     dispose: dispose,
     TEAM_COLORS: TEAM,
     materials: MC // shared material cache (read-only; do not dispose)

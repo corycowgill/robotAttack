@@ -505,8 +505,12 @@
 
     if (smart) planStrikeDefense(state);
     planRepairs(state, diff);
-    planBuilds(state, tm, smart);
-    planUpgrades(state, smart);
+    // don't pile up sites: at most one waiting for a build crew
+    const rtcB = typeof RT !== 'undefined' ? RT : require('./config.js').RT;
+    if (!RTE.sitesOf || RTE.sitesOf(state, ME).length <= (rtcB.BUILD_CREWS || 2)) {
+      planBuilds(state, tm, smart);
+      planUpgrades(state, smart);
+    }
     s.undo = [];
 
     // (mechs in our hangars scramble at raiders on their own: the engine handles it)

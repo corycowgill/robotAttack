@@ -86,8 +86,27 @@
   // Seconds until a structure under construction is finished at the current speed
   function buildLeft(state, b) {
     if (R.online(b)) return 0;
-    return (1 - b.progress) * (T.BUILD_TIME[b.type] || 8) / buildSpeed(state, b.side);
+    const sp = buildSpeed(state, b.side), rem = x => (1 - x.progress) * (T.BUILD_TIME[x.type] || 8) / sp;
+    // the crews work through the sites in the order they were placed
+    const sites = sitesOf(state, b.side), crews = T.BUILD_CREWS || 2;
+    const free = sites.slice(0, crews).map(rem);
+    if (sites.indexOf(b) < crews) return rem(b);
+    while (free.length < crews) free.push(0);
+    for (let i = crews; i < sites.length; i++) {
+      let k = 0;
+      for (let j = 1; j < free.length; j++) if (free[j] < free[k]) k = j;
+      free[k] += rem(sites[i]);
+      if (sites[i] === b) return free[k];
+    }
+    return rem(b);
   }
+  // Under-construction structures of a side, oldest first; the first BUILD_CREWS are being built
+  function sitesOf(state, side) {
+    const out = [];
+    for (let i = 0; i < R.N; i++) { const b = state.cells[i].building; if (b && !b.dead && b.side === side && !R.online(b)) out.push(b); }
+    return out.sort((a, b) => a.id - b.id);
+  }
+  function isQueued(state, b) { return !R.online(b) && sitesOf(state, b.side).indexOf(b) >= (T.BUILD_CREWS || 2); }
 
   // ── Launcher readiness ────────────────────────────────────
   function reloadOf(b) { return b.type === 'silo' ? T.SILO_RELOAD : T.HANGAR_RELOAD; }
@@ -277,10 +296,12 @@
     }
     // construction, then shields recharge and uplinks charge continuously
     const speed = { player: buildSpeed(state, P), ai: buildSpeed(state, A) };
+    const crews = new Set(sitesOf(state, P).slice(0, T.BUILD_CREWS || 2).concat(sitesOf(state, A).slice(0, T.BUILD_CREWS || 2)));
     for (let i = 0; i < R.N; i++) {
       const b = state.cells[i].building;
       if (!b || b.dead) continue;
       if (!R.online(b)) {
+        if (!crews.has(b)) continue;   // waiting for a build crew
         b.progress = Math.min(1, b.progress + dt * speed[b.side] / (T.BUILD_TIME[b.type] || 8));
         if (b.progress < 1 - 1e-9) continue;
         b.progress = 1;
@@ -653,7 +674,7 @@
 
   const api = {
     init, step, attackReason, attackCost, launchAttack, readyLaunchers, readyIn, isReady,
-    factories, buildSpeed, reloadSpeed, buildLeft,
+    factories, buildSpeed, reloadSpeed, buildLeft, isQueued, sitesOf,
     landingCells, inbound, progress, detects, mechsCommitted, bases, baseIntegrity
   };
   root.Realtime = api;

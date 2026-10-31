@@ -285,3 +285,18 @@ test('a mech dropped straight onto a mine sets it off as it lands', () => {
   assert.ok(boom && boom.landed, 'the landing sets the mine off');
   assert.equal(boom.robotSide, P);
 });
+
+test('two build crews: extra sites wait their turn, in the order placed', () => {
+  const s = game(8);
+  const a = buildAt(s, P, 'depot', true), b = buildAt(s, P, 'power', true), c = buildAt(s, P, 'radar', true);
+  assert.equal(RT.BUILD_CREWS, 2);
+  assert.ok(!RTE.isQueued(s, a) && !RTE.isQueued(s, b) && RTE.isQueued(s, c), 'the third site is queued');
+  const wait = RTE.buildLeft(s, c);
+  assert.ok(Math.abs(wait - (RT.BUILD_TIME.depot + RT.BUILD_TIME.radar)) < 0.5, 'queued time counts the wait: ' + wait);
+  run(s, RT.BUILD_TIME.depot / 2);
+  assert.equal(c.progress, 0, 'a queued site makes no progress');
+  run(s, RT.BUILD_TIME.depot / 2 + 0.3);
+  assert.ok(R.online(a) && !RTE.isQueued(s, c) && c.progress < 0.1, 'it starts once a crew is free');
+  run(s, RT.BUILD_TIME.radar + 0.3);
+  assert.ok(R.online(c));
+});

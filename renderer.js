@@ -1161,14 +1161,14 @@ window.Renderer = (function () {
     return m;
   }
   let sharedVertexMat = null;
-  const plainMaterial = (mat, own) => mat.isMeshStandardMaterial && !mat.map && !mat.transparent && !mat.vertexColors &&
+  const plainMaterial = (mat, own, metal) => mat.isMeshStandardMaterial && (!mat.map || (metal && mat.map === metal)) && !mat.transparent && !mat.vertexColors &&
     mat.side === THREE.FrontSide && !mat.flatShading && mat.emissive.getHex() === 0 && !own.has(mat);
 
   // Merge every opaque leaf mesh into its nearest animated pivot (or the root), so rigs keep
   // animating with far fewer draw calls: all plain untextured parts become one vertex-coloured
   // mesh per pivot, everything else one mesh per material. Merged geometry is cached per model key.
   // `vertexMat` overrides the shared vertex-coloured material (robots flash theirs per instance).
-  function bakePivots(root, pivots, key, vertexMat) {
+  function bakePivots(root, pivots, key, vertexMat, metal) {
     const cache = bakeCache[key] || (bakeCache[key] = {});
     const own = new Set(root.userData._own || []);
     const vmat = vertexMat || sharedVertexMat || (sharedVertexMat = vertexMaterial());
@@ -1189,7 +1189,7 @@ window.Renderer = (function () {
       walk(pivot);
       const groups = new Map(), plain = [];
       for (const m of meshes) {
-        if (plainMaterial(m.material, own)) { plain.push(m); continue; }
+        if (plainMaterial(m.material, own, metal)) { plain.push(m); continue; }
         if (!groups.has(m.material)) groups.set(m.material, []);
         groups.get(m.material).push(m);
       }
@@ -1522,10 +1522,12 @@ window.Renderer = (function () {
     const rp = g.userData.parts || {};
     // one vertex-coloured material per mech, so a hit flashes the whole armour
     const body = vertexMaterial();
+    // armour plate texture on the whole body (parts sharing it merge into this one material)
+    body.map = Models.armorTexture(); body.normalMap = Models.armorNormal(); body.normalScale = new THREE.Vector2(0.5, 0.5);
     body.userData.baseEmissive = 0; body.userData.baseIntensity = 1;
     g.userData._own.push(body);
     g.userData.flashMats = [body, g.userData.visorMat];
-    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side, body);
+    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side, body, Models.armorTexture());
     // cheap blob shadow instead of shadow-map casting (mechs are small and always moving)
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
     g.add(blobShadow());

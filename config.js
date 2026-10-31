@@ -107,7 +107,8 @@ const RT = {
   // Construction: a new structure does nothing until it is built.
   // Each factory (an Assembly Line counts twice) adds FACTORY_BUILD_BOOST to construction
   // speed and FACTORY_RELOAD_BOOST to silo reloading and mech production.
-  BUILD_TIME: { depot: 8, power: 8, radar: 8, silo: 14, aa: 9, shield: 12, hangar: 16, gunpod: 7, decoy: 3, uplink: 24, factory: 12 },
+  BUILD_TIME: { depot: 13, power: 13, radar: 13, silo: 22, aa: 15, shield: 19, hangar: 25, gunpod: 11, decoy: 5, uplink: 38, factory: 20 },
+  BUILD_CREWS: 2,         // sites a side builds at once; the rest wait their turn, in the order placed
   FACTORY_BUILD_BOOST: 0.5,
   FACTORY_RELOAD_BOOST: 0.15,
   REFUND_WINDOW: 5,       // a structure sold this soon after building refunds in full

@@ -793,7 +793,7 @@
       if (b.type === 'uplink') info.extra = b.charge >= CONST.STRIKE_CHARGE ? (own ? 'Strike READY — press R' : 'Fully charged — a strike can come any turn')
         : 'Charging ' + (state.realtime ? Math.floor(100 * b.charge / CONST.STRIKE_CHARGE) + '%' : b.charge + '/' + CONST.STRIKE_CHARGE);
       if (state.realtime && own && (b.type === 'silo' || b.type === 'hangar')) info.extra = launcherStatus(b, true);
-      if (state.realtime && !R.online(b)) info.extra = 'Under construction ' + Math.floor(100 * b.progress) + '%' + (own ? ' · ready in ' + Math.ceil(Realtime.buildLeft(state, b)) + 's' : '');
+      if (state.realtime && !R.online(b)) info.extra = (own && Realtime.isQueued(state, b) ? 'Queued for a build crew' : 'Under construction ' + Math.floor(100 * b.progress) + '%') + (own ? ' · ready in ' + Math.ceil(Realtime.buildLeft(state, b)) + 's' : '');
       // decoys disguised as AA show what a fresh AA would
       if (a.type === 'aa' || a.type === 'hq') info.extra = (info.extra ? info.extra + ' · ' : '') + 'Intercepts ready: ' + (b.type === 'decoy' ? 1 : b.shots);
       if (own) {
@@ -1126,7 +1126,7 @@
       floatAt(c, '-' + r.building.paid + 'c', 'info');
       if (state.realtime) {
         Renderer.setBuildingProgress(r.building.id, 0);
-        UI.log('Construction started: ' + BUILDINGS[buildType].name + ' at ' + cellName(c) + ' — ready in ' + Math.ceil(Realtime.buildLeft(state, r.building)) + 's', 'player');
+        UI.log((Realtime.isQueued(state, r.building) ? 'Queued (both build crews busy): ' : 'Construction started: ') + BUILDINGS[buildType].name + ' at ' + cellName(c) + ' — ready in ' + Math.ceil(Realtime.buildLeft(state, r.building)) + 's', 'player');
       } else UI.log('Built ' + BUILDINGS[buildType].name + ' at ' + cellName(c), 'player');
       if (buildType === 'radar') UI.toast(state.realtime ? 'Radar comes online in ' + RT.RADAR_BOOT + 's' : 'Radar comes online next turn', 'warn');
       if (!keepMode) { mode = 'select'; buildType = null; selectedCell = c; }
@@ -1552,6 +1552,19 @@
     return out;
   }
   const UP = new THREE.Vector3(0, 1, 0);
+  // dropships fly nose-first along their path; for the last stretch they flare nose-up and burn retros
+  function orientShip(obj, dir, k) {
+    const h = Math.hypot(dir.x, dir.z);
+    if (h > 1e-4) obj.userData.yaw = Math.atan2(dir.x, dir.z);
+    const flare = Math.max(0, Math.min(1, (k - 0.8) / 0.15));
+    const pitch = Math.atan2(dir.y, Math.max(h, 1e-4));
+    obj.rotation.order = 'YXZ';
+    obj.rotation.y = obj.userData.yaw || 0;
+    obj.rotation.x = -pitch * (1 - flare) - 0.45 * flare;
+    obj.rotation.z = Math.sin(performance.now() * 0.002 + obj.id) * 0.06 * (1 - flare);   // a little roll in the air
+    if (obj.userData.retro) obj.userData.retro.visible = flare > 0;
+    if (obj.userData.flame) obj.userData.flame.scale.set(1, 1, 1.3 - flare * 0.9);
+  }
   function orient(obj, dir) {
     if (dir.lengthSq() < 1e-6) return;
     obj.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
@@ -1967,10 +1980,11 @@
     const landVisible = own || playerSees(e.to);
     Timeline.tween(1.6, k => {
       const t = 1 - Math.pow(1 - k, 2.2);
+      const prev = pod.position.clone();
       arcPoint(a, b, h, t, p);
       pod.position.copy(p);
       pod.visible = own || p.y > 25 || playerSees(k < 0.5 ? e.from : e.to);
-      if (pod.userData.flame) pod.userData.flame.scale.setScalar(k > 0.75 ? 1.6 : 0.8);
+      if (k > 0) orientShip(pod, p.clone().sub(prev), t);
       if (pod.visible) Fx.trail(p, 'pod', own ? 0x66ccff : 0xff6a00);
     }, () => {
       Renderer.remove(pod); Models.dispose(pod);
@@ -2716,6 +2730,7 @@
       const p = arcPoint(v.a, v.b, v.h, Math.min(1, k), new THREE.Vector3());
       v.obj.position.copy(p);
       if (f.kind !== 'ship') orient(v.obj, p.clone().sub(v.prev));
+      else orientShip(v.obj, p.clone().sub(v.prev), k);
       // launches from the fog show up once they are out over the sea
       v.obj.visible = f.side === P || playerSees(f.from) || k > 0.3;
       if (v.obj.visible && p.distanceToSquared(v.prev) > 0.01) {

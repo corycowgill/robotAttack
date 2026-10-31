@@ -334,6 +334,7 @@ test('audio: generated clips load and each phase plays its music track', async t
   const loaded = () => page.evaluate(() => GameAudio.loadedSamples());
   await page.waitForFunction(() => GameAudio.loadedSamples().track === 'menu', null, { timeout: 20000 });
   await page.waitForFunction(() => ['explosion', 'missileLaunch', 'uiClick', 'victory'].every(n => GameAudio.loadedSamples().sfx.includes(n)), null, { timeout: 20000 });
+  await page.waitForFunction(() => GameAudio.loadedSamples().amb.includes('ocean'), null, { timeout: 20000 });
   assert.ok((await loaded()).amb.includes('ocean'));
   await startSkirmish(page);
   await page.keyboard.press('Space');   // paused, so the live battle doesn't steer the music while we do
