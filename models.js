@@ -1380,13 +1380,53 @@
     return ex;
   }
 
+  // Missile skin: dark grey body with panel seams, a hazard band, stencilled marks and wear.
+  // CylinderGeometry maps u around the body and v along it (v = 1 at the top).
+  var _msTex = null;
+  function missileTexture() {
+    if (_msTex) return _msTex;
+    var W = 128, H = 256, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var g = c.getContext('2d'), rnd = lcg(31337);
+    g.fillStyle = '#c9cbc8'; g.fillRect(0, 0, W, H);
+    for (var i = 0; i < 900; i++) { var v = 180 + (rnd() * 60 | 0); g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(rnd() * W, rnd() * H, 1, 1 + rnd() * 2); }
+    // panel seams and rivet rings
+    g.fillStyle = 'rgba(40,40,40,0.7)';
+    [40, 120, 200].forEach(function (y) { g.fillRect(0, y, W, 2); for (var x = 2; x < W; x += 8) g.fillRect(x, y + 5, 2, 2); });
+    g.fillRect(W / 2, 0, 2, H);
+    // hazard band near the warhead
+    g.save(); g.beginPath(); g.rect(0, 14, W, 18); g.clip();
+    g.fillStyle = '#d8a414'; g.fillRect(0, 14, W, 18);
+    g.fillStyle = '#1a1a1a';
+    for (var x = -32; x < W + 32; x += 16) { g.beginPath(); g.moveTo(x, 14); g.lineTo(x + 8, 14); g.lineTo(x + 26, 32); g.lineTo(x + 18, 32); g.closePath(); g.fill(); }
+    g.restore();
+    // stencilled marks on two sides
+    g.fillStyle = 'rgba(25,25,25,0.85)';
+    g.font = 'bold 15px Impact, "Arial Narrow", sans-serif'; g.textAlign = 'center';
+    [W * 0.25, W * 0.75].forEach(function (cx) {
+      g.save(); g.translate(cx, 150); g.scale(-1, 1); g.rotate(-PI / 2); g.fillText('HE-7', 0, 5); g.restore();
+      g.fillRect(cx - 9, 92, 18, 3); g.fillRect(cx - 9, 98, 18, 3);
+    });
+    // exhaust soot creeping up from the tail, scuffs
+    var sg = g.createLinearGradient(0, H, 0, H - 70);
+    sg.addColorStop(0, 'rgba(20,18,16,0.65)'); sg.addColorStop(1, 'rgba(20,18,16,0)');
+    g.fillStyle = sg; g.fillRect(0, H - 70, W, 70);
+    for (var k = 0; k < 40; k++) { g.fillStyle = 'rgba(30,28,26,' + (0.15 + rnd() * 0.3) + ')'; g.fillRect(rnd() * W, rnd() * H, 1 + rnd() * 4, 1 + rnd() * 2); }
+    _msTex = new THREE.CanvasTexture(c);
+    _msTex.encoding = THREE.sRGBEncoding;
+    _msTex.anisotropy = 4;
+    return _msTex;
+  }
+
   function missile(side) {
     side = sideKey(side);
     var g = new THREE.Group();
     g.name = 'missile';
-    var W = MAT.white(), GM = MAT.gunmetal(), ST = MAT.steel();
-    add(g, cyl(0.3, 0.3, 2.6, 14), W, 0, -0.15, 0); // body -1.45..1.15
-    add(g, cone(0.3, 1.0, 14), W, 0, 1.65, 0);
+    var GM = MAT.gunmetal(), ST = MAT.steel();
+    var BODY = std('missileBody', { color: 0x6c7073, roughness: 0.55, metalness: 0.35, map: missileTexture() });
+    var NOSE = std('missileNose', { color: 0x3b3f3c, roughness: 0.5, metalness: 0.4, map: metalTexture() });
+    add(g, cyl(0.3, 0.3, 2.6, 14), BODY, 0, -0.15, 0); // body -1.45..1.15
+    add(g, cone(0.3, 1.0, 14), NOSE, 0, 1.65, 0);
     add(g, cone(0.08, 0.15, 8), ST, 0, 2.2, 0);
     addFlat(g, cyl(0.31, 0.31, 0.3, 14), trim(side), 0, 0.85, 0);
     add(g, cyl(0.31, 0.31, 0.2, 14), paint(side), 0, 0.4, 0);
