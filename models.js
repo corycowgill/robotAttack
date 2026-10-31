@@ -66,6 +66,46 @@
   }
 
   var _panelTex = null;
+  // Armour plate: panel seams, rivet rows, scratches and worn edges (multiplies the metal colour);
+  // a matching normal map raises the seams and rivets
+  var _metalTex = null, _metalN = null;
+  function metalTexture() {
+    if (_metalTex) return _metalTex;
+    var S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    var g = c.getContext('2d');
+    var s = 777;
+    function rnd() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }
+    g.fillStyle = '#bcbcbc'; g.fillRect(0, 0, S, S);
+    for (var i = 0; i < 1400; i++) { var v = 160 + Math.floor(rnd() * 70); g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(rnd() * S, rnd() * S, 1, 1); }
+    // plates
+    g.strokeStyle = 'rgba(40,40,40,0.8)'; g.lineWidth = 2;
+    [[0, 0, 64, 48], [64, 0, 64, 48], [0, 48, 128, 40], [0, 88, 48, 40], [48, 88, 80, 40]].forEach(function (p) { g.strokeRect(p[0] + 1, p[1] + 1, p[2] - 2, p[3] - 2); });
+    // rivets
+    g.fillStyle = 'rgba(235,235,235,0.9)';
+    for (var x = 6; x < S; x += 12) { g.fillRect(x, 5, 2, 2); g.fillRect(x, 52, 2, 2); g.fillRect(x, 92, 2, 2); }
+    // scratches and wear
+    g.strokeStyle = 'rgba(245,245,245,0.35)'; g.lineWidth = 1;
+    for (var k = 0; k < 22; k++) { var x0 = rnd() * S, y0 = rnd() * S; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (rnd() - 0.5) * 30, y0 + (rnd() - 0.5) * 10); g.stroke(); }
+    g.fillStyle = 'rgba(30,28,26,0.25)';
+    for (var q = 0; q < 26; q++) g.fillRect(rnd() * S, rnd() * S, 2 + rnd() * 6, 1 + rnd() * 3);
+    _metalTex = new THREE.CanvasTexture(c);
+    _metalTex.encoding = THREE.sRGBEncoding;
+    _metalTex.wrapS = _metalTex.wrapT = THREE.RepeatWrapping;
+    // normal map: seams sunk, rivets raised
+    var n = document.createElement('canvas'); n.width = n.height = S;
+    var ng = n.getContext('2d');
+    ng.fillStyle = 'rgb(128,128,255)'; ng.fillRect(0, 0, S, S);
+    ng.strokeStyle = 'rgb(128,100,230)'; ng.lineWidth = 2;
+    [[0, 0, 64, 48], [64, 0, 64, 48], [0, 48, 128, 40], [0, 88, 48, 40], [48, 88, 80, 40]].forEach(function (p) { ng.strokeRect(p[0] + 1, p[1] + 1, p[2] - 2, p[3] - 2); });
+    ng.fillStyle = 'rgb(150,160,240)';
+    for (var xx = 6; xx < S; xx += 12) { ng.fillRect(xx, 5, 2, 2); ng.fillRect(xx, 52, 2, 2); ng.fillRect(xx, 92, 2, 2); }
+    _metalN = new THREE.CanvasTexture(n);
+    _metalN.wrapS = _metalN.wrapT = THREE.RepeatWrapping;
+    return _metalTex;
+  }
+  function metalNormal() { metalTexture(); return _metalN; }
+
   function panelTexture() {
     if (_panelTex) return _panelTex;
     var c = document.createElement('canvas');
@@ -122,10 +162,10 @@
     concrete: function () { return std('concrete', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
     concreteDS: function () { return std('concreteDS', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
     concreteDark: function () { return std('concreteDark', { color: 0x4c4f51, roughness: 0.92, metalness: 0.0, map: panelTexture() }); },
-    gunmetal: function () { return std('gunmetal', { color: 0x3a3f45, roughness: 0.45, metalness: 0.6 }); },
-    gunmetalDS: function () { return std('gunmetalDS', { color: 0x4a5058, roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide }); },
-    steel: function () { return std('steel', { color: 0x24282d, roughness: 0.5, metalness: 0.65 }); },
-    steelLight: function () { return std('steelLight', { color: 0x7a8189, roughness: 0.35, metalness: 0.75 }); },
+    gunmetal: function () { return std('gunmetal', { color: 0x464b52, roughness: 0.5, metalness: 0.6, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
+    gunmetalDS: function () { return std('gunmetalDS', { color: 0x535a62, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }); },
+    steel: function () { return std('steel', { color: 0x2c3036, roughness: 0.55, metalness: 0.65, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.5, 0.5) }); },
+    steelLight: function () { return std('steelLight', { color: 0x858c94, roughness: 0.4, metalness: 0.75, map: metalTexture() }); },
     hazard: function () { return std('hazard', { color: 0xffffff, roughness: 0.7, metalness: 0.1, map: hazardTexture() }); },
     pit: function () { return std('pit', { color: 0x050607, roughness: 1.0, metalness: 0.0 }); },
     glass: function () { return std('glass', { color: 0x0d1419, roughness: 0.15, metalness: 0.8 }); },
@@ -133,8 +173,8 @@
     white: function () { return std('white', { color: 0xd9dcdf, roughness: 0.4, metalness: 0.3 }); },
     yellow: function () { return std('yellow', { color: 0xffc72c, roughness: 0.45, metalness: 0.2 }); },
     rubber: function () { return std('rubber', { color: 0x15171a, roughness: 0.95, metalness: 0.0 }); },
-    robotHull: function () { return std('robotHull', { color: 0x5c636b, roughness: 0.42, metalness: 0.65 }); },
-    podHull: function () { return std('podHull', { color: 0x6f767e, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide }); },
+    robotHull: function () { return std('robotHull', { color: 0x6e767e, roughness: 0.42, metalness: 0.65, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.4, 0.4) }); },
+    podHull: function () { return std('podHull', { color: 0x848c94, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide, map: metalTexture() }); },
     orbCore: function () { return std('orbCore', { color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.0, roughness: 0.3 }); }
   };
   // team emissive trim (light strips, windows, markers)
@@ -273,6 +313,175 @@
   }
   function V(x, y, z) { return new THREE.Vector3(x, y, z); }
 
+  // ── Pad decals: worn hazard border, stencilled ID and team insignia painted on each plinth ──
+  var PAD_CODE = { depot: 'DP', power: 'PW', radar: 'RD', silo: 'SL', uplink: 'UL', aa: 'AA', shield: 'SH',
+    hangar: 'HG', gunpod: 'GP', hq: 'HQ', factory: 'FC', base: 'CB' };
+  var _padN = {};
+  function insignia(g, side, cx, cy, r) {
+    g.save(); g.translate(cx, cy);
+    g.lineWidth = r * 0.16; g.strokeStyle = g.fillStyle;
+    g.beginPath(); g.arc(0, 0, r, 0, PI * 2); g.stroke();
+    g.beginPath();
+    if (side === 'ai') { // stencilled triangle with a bar
+      g.moveTo(0, -r * 0.66); g.lineTo(r * 0.6, r * 0.42); g.lineTo(-r * 0.6, r * 0.42); g.closePath(); g.fill();
+      g.globalCompositeOperation = 'destination-out'; g.fillRect(-r * 0.5, r * 0.02, r, r * 0.13);
+    } else { // double chevron
+      for (var k = 0; k < 2; k++) {
+        var y = -r * 0.42 + k * r * 0.46;
+        g.moveTo(-r * 0.58, y + r * 0.28); g.lineTo(0, y - r * 0.06); g.lineTo(r * 0.58, y + r * 0.28);
+        g.lineTo(r * 0.58, y + r * 0.5); g.lineTo(0, y + r * 0.16); g.lineTo(-r * 0.58, y + r * 0.5); g.closePath();
+      }
+      g.fill();
+    }
+    g.restore();
+  }
+  function wear(g, S, rnd, n) { // scuffs and chips take the paint off
+    g.save(); g.globalCompositeOperation = 'destination-out';
+    for (var k = 0; k < n; k++) { g.fillStyle = 'rgba(0,0,0,' + (0.3 + rnd() * 0.7) + ')'; g.fillRect(rnd() * S, rnd() * S, 1 + rnd() * 4, 1 + rnd() * 2); }
+    for (var m = 0; m < 6; m++) {
+      var gx = rnd() * S, gy = rnd() * S, gr = S * (0.05 + rnd() * 0.12);
+      var grd = g.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      grd.addColorStop(0, 'rgba(0,0,0,0.5)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    }
+    g.restore();
+  }
+  function lcg(seed) { var s = seed; return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
+  function decalMat(key, make) {
+    if (!MC[key]) {
+      var t = new THREE.CanvasTexture(make());
+      t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+      MC[key] = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.85, metalness: 0,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      MC[key].userData.glow0 = 0;
+    }
+    return MC[key];
+  }
+  var PAINT = { player: 'rgba(222,228,232,0.85)', ai: 'rgba(232,214,196,0.85)' };
+  // plinth rim: worn hazard chevron border, dashed guide line and corner ticks
+  function padTexture(side) {
+    var S = 256, c = document.createElement('canvas');
+    c.width = c.height = S;
+    var g = c.getContext('2d'), rnd = lcg(side === 'ai' ? 4242 : 991), B = 7;
+    g.save();
+    g.beginPath(); g.rect(0, 0, S, S); g.rect(B, B, S - 2 * B, S - 2 * B); g.clip('evenodd');
+    g.fillStyle = 'rgba(20,20,18,0.85)'; g.fillRect(0, 0, S, S);
+    g.fillStyle = 'rgba(226,166,18,0.88)';
+    for (var i = -S; i < S * 2; i += 14) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 7, 0); g.lineTo(i + 7 - S, S); g.lineTo(i - S, S); g.closePath(); g.fill(); }
+    g.restore();
+    g.strokeStyle = 'rgba(210,210,200,0.45)'; g.lineWidth = 2; g.setLineDash([11, 6]);
+    g.strokeRect(B + 5, B + 5, S - 2 * B - 10, S - 2 * B - 10); g.setLineDash([]);
+    wear(g, S, rnd, 350);
+    return c;
+  }
+  // roof roundel: team insignia in worn paint
+  function insigniaTexture(side) {
+    var S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    var g = c.getContext('2d');
+    g.fillStyle = side === 'ai' ? 'rgba(200,60,40,0.8)' : 'rgba(40,150,210,0.8)';
+    g.beginPath(); g.arc(S / 2, S / 2, S * 0.47, 0, PI * 2); g.fill();
+    g.fillStyle = PAINT[side];
+    g.beginPath(); g.arc(S / 2, S / 2, S * 0.4, 0, PI * 2); g.fill();
+    g.globalCompositeOperation = 'destination-out';
+    insignia(g, side, S / 2, S / 2, S * 0.3);
+    g.globalCompositeOperation = 'source-over';
+    wear(g, S, lcg(side === 'ai' ? 77 : 55), 260);
+    return c;
+  }
+  // wall stencil: unit code and number, with a team stripe underneath
+  function stencilTexture(side, id) {
+    var W = 256, H = 80, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var g = c.getContext('2d');
+    g.fillStyle = 'rgba(214,164,30,0.92)'; g.fillRect(4, 4, W - 8, H - 8);
+    g.fillStyle = side === 'ai' ? 'rgba(200,60,36,0.95)' : 'rgba(36,150,214,0.95)';
+    g.fillRect(4, 4, 22, H - 8); g.fillRect(W - 26, 4, 22, H - 8);
+    g.fillStyle = 'rgba(18,18,16,0.92)';
+    g.font = 'bold 58px Impact, "Arial Narrow", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(id, W / 2, H / 2 + 2);
+    g.save(); g.globalCompositeOperation = 'destination-out'; g.fillRect(30, H / 2, W - 60, 3); g.restore();
+    wear(g, W, lcg(id.charCodeAt(0) * 31 + id.charCodeAt(4)), 380);
+    return c;
+  }
+  function padDecal(g, side, w) {
+    var m = decalMat('pad_' + side, function () { return padTexture(side); });
+    var p = addFlat(g, geo('padPlane' + w, function () { var q = new THREE.PlaneGeometry(w, w); q.rotateX(-PI / 2); return q; }), m, 0, PLINTH_H + 0.006, 0);
+    p.receiveShadow = true;
+  }
+  // Find a flat, clear patch of roof and of the camera-facing (+z) wall by raycasting the
+  // finished model, and paint an insignia / stencilled ID there.
+  var _rc = null;
+  function surfaceDecals(g, side) {
+    var meshes = [];
+    g.updateMatrixWorld(true);
+    var moving = [];
+    for (var pk in g.userData.parts) if (g.userData.parts[pk] && g.userData.parts[pk].isObject3D) moving.push(g.userData.parts[pk]);
+    function moves(o) { for (; o && o !== g; o = o.parent) if (moving.indexOf(o) >= 0) return true; return false; }
+    g.traverse(function (o) { if (o.isMesh && !o.material.transparent && !(o.material.emissiveIntensity > 0 && o.material.emissive && o.material.emissive.r + o.material.emissive.g + o.material.emissive.b > 0)) meshes.push(o); });
+    if (!meshes.length) return;
+    var rc = _rc || (_rc = new THREE.Raycaster()), o = new THREE.Vector3(), d = new THREE.Vector3();
+    function cast(x, y, z, dx, dy, dz) {
+      o.set(x, y, z); d.set(dx, dy, dz); rc.set(o, d);
+      var h = rc.intersectObjects(meshes, false)[0];
+      if (!h || !h.face || moves(h.object)) return null;
+      return { p: h.point, n: h.face.normal.clone().transformDirection(h.object.matrixWorld) };
+    }
+    function flat(x, y, z, dir, hw, hh, axis) { // centre + 4 corners hit one plane facing dir
+      var h0 = dir === 'down' ? cast(x, 40, z, 0, -1, 0) : cast(x, y, 30, 0, 0, -1);
+      function ok(h) { return h && (dir === 'down' ? h.n.y > 0.95 : h.n.z > 0.95); }
+      if (!ok(h0)) return null;
+      for (var k = 0; k < 4; k++) {
+        var sx = k & 1 ? hw : -hw, sy = k & 2 ? hh : -hh;
+        var hk = dir === 'down' ? cast(x + sx, 40, z + sy, 0, -1, 0) : cast(x + sx, y + sy, 30, 0, 0, -1);
+        if (!ok(hk) || (dir === 'down' ? Math.abs(hk.p.y - h0.p.y) : Math.abs(hk.p.z - h0.p.z)) > 0.03) return null;
+      }
+      return h0.p.clone();
+    }
+    // roof insignia: the broadest flat roof patch, highest first
+    var best = null;
+    [[1.3, 2.4], [0.8, 1.5]].some(function (sz) {
+      [[0, 0], [1.6, 1.6], [-1.6, 1.6], [1.6, -1.6], [-1.6, -1.6], [0, 2], [0, -2], [2, 0], [-2, 0], [2.6, 2.6], [-2.6, 2.6], [2.6, -2.6], [-2.6, -2.6]].forEach(function (c) {
+        var p = flat(c[0], 0, c[1], 'down', sz[0], sz[0]);
+        if (!p || p.y < PLINTH_H + 1.2) return;
+        if (!best || p.y > best.p.y + 0.3) best = { p: p, x: c[0], z: c[1], size: sz[1] };
+      });
+      return !!best;
+    });
+    if (best) {
+      var rm = decalMat('ins_' + side, function () { return insigniaTexture(side); });
+      var r = addFlat(g, geo('insPlane' + best.size, function () { var q = new THREE.PlaneGeometry(best.size, best.size); q.rotateX(-PI / 2); return q; }), rm, best.x, best.p.y + 0.01, best.z);
+      r.receiveShadow = true;
+    }
+    // stencilled ID: on the front apron of the pad if it is clear, otherwise on the front wall
+    var type = g.userData.type, w = g.userData.padW || 10;
+    var n = _padN[side + type] = ((_padN[side + type] || 0) % 9) + 1;
+    var id = (PAD_CODE[type] || 'BX') + '-' + (side === 'ai' ? 7 : 2) + n;
+    var sm = decalMat('st_' + side + '_' + id, function () { return stencilTexture(side, id); });
+    var placed = false;
+    [[3.2, 1.0], [2.6, 0.81]].some(function (sz) {
+      var az = w / 2 - 0.4 - sz[1] / 2 - 0.05;
+      return [0, -2, 2, -2.6, 2.6].some(function (x) {
+        var p = flat(x, 0, az, 'down', sz[0] / 2 + 0.05, sz[1] / 2 + 0.05);
+        if (!p || Math.abs(p.y - PLINTH_H) > 0.05) return false;
+        var a = addFlat(g, geo('stApron' + sz[0], function () { var q = new THREE.PlaneGeometry(sz[0], sz[1]); q.rotateX(-PI / 2); return q; }), sm, x, PLINTH_H + 0.012, az);
+        a.receiveShadow = true;
+        return (placed = true);
+      });
+    });
+    if (placed) return;
+    [[3.0, 0.94], [2.2, 0.69]].some(function (sz) {
+      return [[0, 1.6], [0, 2.0], [0, 2.3], [-1.5, 1.6], [1.5, 1.6], [0, 1.2], [-1.5, 2.3], [1.5, 2.3], [0, 3.0], [0, 4.0]].some(function (c) {
+        var p = flat(c[0], c[1], 0, 'wall', sz[0] / 2 + 0.05, sz[1] / 2 + 0.03);
+        if (!p || p.z < 1) return false;
+        var sp = addFlat(g, geo('stPlane' + sz[0], function () { return new THREE.PlaneGeometry(sz[0], sz[1]); }), sm, c[0], c[1], p.z + 0.012);
+        sp.receiveShadow = true;
+        return true;
+      });
+    });
+  }
+
   var PLINTH_H = 0.6;
   function plinth(g, side, w) {
     add(g, box(w, PLINTH_H, w), MAT.concreteDark(), 0, PLINTH_H / 2, 0);
@@ -288,6 +497,8 @@
       addFlat(g, gx, t, s[0] * (h - L / 2 + 0.15), PLINTH_H + 0.05, s[1] * h);
       addFlat(g, gz, t, s[0] * h, PLINTH_H + 0.05, s[1] * (h - L / 2 + 0.15));
     });
+    padDecal(g, side, w);
+    g.userData.padW = w;
     return PLINTH_H;
   }
 
@@ -886,6 +1097,7 @@
     var g = baseGroup(type, side);
     var fn = BUILDERS[type] || buildDepot;
     fn(g, sideKey(side));
+    surfaceDecals(g, sideKey(side));
     g.userData._yaw0 = g.userData.parts.turret ? g.userData.parts.turret.rotation.y : 0;
     return g;
   }

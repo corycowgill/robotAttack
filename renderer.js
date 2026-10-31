@@ -376,9 +376,33 @@ window.Renderer = (function () {
       _grit.wrapS = _grit.wrapT = THREE.RepeatWrapping;
       _grit.encoding = THREE.sRGBEncoding;
       _grit.anisotropy = 4;
+      // a normal map from the same picture (dark = low): pebbles and cracks catch the light
+      _gritN = normalFrom(g.getImageData(0, 0, S, S), S, 2.2);
     }
     _grit.repeat.set(w / 37.3, h / 37.3);   // off the cell size, so the tiling doesn't line up with the grid
+    _gritN.repeat.copy(_grit.repeat);
     return _grit;
+  }
+  let _gritN = null;
+  // Tangent-space normal map from a greyscale height picture (Sobel), wrapping at the edges
+  function normalFrom(img, S, strength) {
+    const out = document.createElement('canvas');
+    out.width = out.height = S;
+    const og = out.getContext('2d'), od = og.createImageData(S, S);
+    const H = (x, y) => img.data[(((y + S) % S) * S + ((x + S) % S)) * 4] / 255;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const dx = (H(x + 1, y - 1) + 2 * H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x - 1, y) + H(x - 1, y + 1));
+      const dy = (H(x - 1, y + 1) + 2 * H(x, y + 1) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x, y - 1) + H(x + 1, y - 1));
+      let nx = -dx * strength, ny = -dy * strength, nz = 1;
+      const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+      const i = (y * S + x) * 4;
+      od.data[i] = (nx * 0.5 + 0.5) * 255; od.data[i + 1] = (ny * 0.5 + 0.5) * 255; od.data[i + 2] = (nz * 0.5 + 0.5) * 255; od.data[i + 3] = 255;
+    }
+    og.putImageData(od, 0, 0);
+    const tx = new THREE.CanvasTexture(out);
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+    tx.anisotropy = 4;
+    return tx;
   }
   // Old battle damage on the islands: soot, oil stains and tread marks, drawn once per map
   let grimeGroup = null, _grimeTex = null;
@@ -470,7 +494,7 @@ window.Renderer = (function () {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    terrainMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, map: gritTexture(w, h) }));
+    terrainMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, map: gritTexture(w, h), normalMap: _gritN, normalScale: new THREE.Vector2(0.9, 0.9) }));
     terrainMesh.receiveShadow = true;
     scene.add(terrainMesh);
     placeGrime(land);
