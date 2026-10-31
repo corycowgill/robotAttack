@@ -222,7 +222,7 @@ window.Fx = (function () {
   const rubbles = [];
   function rubble(pos, n) {
     if (!rubbleMat) {
-      rubbleMat = new THREE.MeshStandardMaterial({ color: 0x2c2d2e, roughness: 0.9, metalness: 0.3, flatShading: true });
+      rubbleMat = new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.9, metalness: 0.3, flatShading: true });
       rubbleGeo = new THREE.BoxGeometry(1, 1, 1);
     }
     for (let i = 0; i < n; i++) {

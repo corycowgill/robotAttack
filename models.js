@@ -405,6 +405,31 @@
     wear(g, W, lcg(id.charCodeAt(0) * 31 + id.charCodeAt(4)), 380);
     return c;
   }
+  // soft square contact shadow (ambient occlusion) under a pad, grounds it in the terrain
+  var _aoTex = null;
+  function aoTexture() {
+    if (_aoTex) return _aoTex;
+    var S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    var g = c.getContext('2d'), img = g.createImageData(S, S);
+    for (var y = 0; y < S; y++) for (var x = 0; x < S; x++) {
+      var dx = Math.max(0, Math.abs(x - S / 2 + 0.5) - S * 0.3), dy = Math.max(0, Math.abs(y - S / 2 + 0.5) - S * 0.3);
+      var d = Math.sqrt(dx * dx + dy * dy) / (S * 0.2);
+      var a = Math.max(0, 1 - d); a = a * a * (3 - 2 * a);
+      var k = (y * S + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = 0; img.data[k + 3] = Math.round(a * 200);
+    }
+    g.putImageData(img, 0, 0);
+    _aoTex = new THREE.CanvasTexture(c);
+    return _aoTex;
+  }
+  function contactShadow(g, w) {
+    var m = MC.ao || (MC.ao = new THREE.MeshBasicMaterial({ map: aoTexture(), transparent: true, depthWrite: false, color: 0x000000,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    m.userData.glow0 = 0;
+    var p = addFlat(g, geo('aoPlane' + w, function () { var q = new THREE.PlaneGeometry(w * 1.6, w * 1.6); q.rotateX(-PI / 2); return q; }), m, 0, 0.05, 0);
+    p.renderOrder = 1;
+  }
   function padDecal(g, side, w) {
     var m = decalMat('pad_' + side, function () { return padTexture(side); });
     var p = addFlat(g, geo('padPlane' + w, function () { var q = new THREE.PlaneGeometry(w, w); q.rotateX(-PI / 2); return q; }), m, 0, PLINTH_H + 0.006, 0);
@@ -498,6 +523,7 @@
       addFlat(g, gz, t, s[0] * h, PLINTH_H + 0.05, s[1] * (h - L / 2 + 0.15));
     });
     padDecal(g, side, w);
+    contactShadow(g, w);
     g.userData.padW = w;
     return PLINTH_H;
   }

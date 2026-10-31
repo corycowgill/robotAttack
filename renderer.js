@@ -522,6 +522,7 @@ window.Renderer = (function () {
       const beach = Math.max(0, 1 - Math.abs(l - 0.52) / 0.14);
       c.lerp(cBeach, Math.min(1, beach * 1.2));
       if (y < SEA_Y) c.lerp(cBed, Math.min(1, (SEA_Y - y) / 3));
+      else if (y < SEA_Y + 0.9) c.multiplyScalar(1 - 0.4 * (1 - (y - SEA_Y) / 0.9));   // wet sand at the waterline
       c.multiplyScalar(0.9 + hash(Math.floor(x * 0.7), Math.floor(z * 0.7)) * 0.18);
       c.convertSRGBToLinear();
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
@@ -567,8 +568,7 @@ window.Renderer = (function () {
     // scenery: rocks on beaches and in the shallows, a few sea stacks offshore
     if (decorGroup) { scene.remove(decorGroup); }
     decorGroup = new THREE.Group();
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.95, flatShading: true });
-    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+    const rockMat = rockMaterial(), rockGeos = rockGeometries();
     const foamMat = new THREE.MeshBasicMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.32, depthWrite: false });
     let seed = 7;
     for (let k = 0; k < GW * GH; k++) seed = (seed * 31 + (land[k] ? 1 : 0)) % 2147483647;
@@ -580,10 +580,10 @@ window.Renderer = (function () {
       const inChannel = x > (CONST.PLAYER_MAX_X + 1) * CELL && x < CONST.AI_MIN_X * CELL && z > 0 && z < MAP_H;
       const offshore = l < 0.02 && !inChannel && r() < 0.012;
       if (!(l > 0.25 && l < 0.5) && !offshore) continue;
-      const m = new THREE.Mesh(rockGeo, rockMat);
+      const m = new THREE.Mesh(rockGeos[(r() * rockGeos.length) | 0], rockMat);
       const s = offshore ? 4 + r() * 6 : 1.2 + r() * 3;
       m.scale.set(s, s * (offshore ? 1.2 : 0.6 + r() * 0.5), s * (0.7 + r() * 0.6));
-      m.rotation.set(r() * 3, r() * 3, r() * 3);
+      m.rotation.set((r() - 0.5) * 0.5, r() * 6.3, (r() - 0.5) * 0.5);
       m.position.set(x, Math.max(terrainHeight(x, z), SEA_Y - 1.5) + s * (offshore ? -0.05 : 0.25), z);
       m.castShadow = true; m.receiveShadow = true;
       decorGroup.add(m);
@@ -596,7 +596,83 @@ window.Renderer = (function () {
       }
       placed++;
     }
+    // anti-tank hedgehogs in small clusters along the beaches
+    const hhGeo = hedgehogGeometry(), hhMat = _hhMat || (_hhMat = new THREE.MeshStandardMaterial({ color: 0x2e2620, roughness: 0.7, metalness: 0.6 }));
+    let hh = 0;
+    for (let tries = 0; tries < 3000 && hh < 36; tries++) {
+      const x = r() * MAP_W, z = r() * MAP_H, l = fieldAt(x, z);
+      if (l < 0.46 || l > 0.6 || terrainHeight(x, z) < SEA_Y + 0.2) continue;
+      const n = 2 + (r() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        const hx = x + (r() - 0.5) * 9, hz = z + (r() - 0.5) * 9;
+        const hy = terrainHeight(hx, hz);
+        if (hy < SEA_Y - 0.3 || fieldAt(hx, hz) > 0.64) continue;
+        const m = new THREE.Mesh(hhGeo, hhMat);
+        const k = 1.1 + r() * 0.5;
+        m.scale.setScalar(k);
+        m.rotation.set((r() - 0.5) * 0.3, r() * 6.3, (r() - 0.5) * 0.3);
+        m.position.set(hx, hy + 0.55 * k, hz);
+        m.castShadow = true; m.receiveShadow = true;
+        decorGroup.add(m);
+        hh++;
+      }
+    }
     scene.add(decorGroup);
+  }
+  // three crossed girders, merged into one geometry
+  let _hhGeo = null, _hhMat = null;
+  function hedgehogGeometry() {
+    if (_hhGeo) return _hhGeo;
+    const parts = [[0.6, 0, 0.3], [-0.3, 0.9, 0], [0, -0.6, 1.0]].map(a => {
+      const b = new THREE.BoxGeometry(3.2, 0.32, 0.32).toNonIndexed();
+      b.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(a[0], a[1], a[2])));
+      return b;
+    });
+    const merged = new THREE.BufferGeometry();
+    for (const name of ['position', 'normal', 'uv']) {
+      const arrs = parts.map(b => b.attributes[name].array), len = arrs.reduce((t, a) => t + a.length, 0);
+      const out = new Float32Array(len); let o = 0;
+      for (const a of arrs) { out.set(a, o); o += a.length; }
+      merged.setAttribute(name, new THREE.BufferAttribute(out, parts[0].attributes[name].itemSize));
+    }
+    parts.forEach(b => b.dispose());
+    return (_hhGeo = merged);
+  }
+
+  // Jagged rocks: a few displaced icosahedra, dusty on top and dark, wet and a little green low down
+  let _rockGeos = null, _rockMat = null;
+  function rockMaterial() {
+    return _rockMat || (_rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02, flatShading: true }));
+  }
+  function rockGeometries() {
+    if (_rockGeos) return _rockGeos;
+    const top = new THREE.Color(0x4a4945), mid = new THREE.Color(0x2b2b29), wet = new THREE.Color(0x111816), c = new THREE.Color();
+    _rockGeos = [0, 1, 2, 3].map(v => {
+      const g = new THREE.IcosahedronGeometry(1, 1);
+      const pos = g.attributes.position, disp = {};
+      let s = 101 + v * 977;
+      const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+      const cols = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const key = Math.round(x * 100) + ',' + Math.round(y * 100) + ',' + Math.round(z * 100);
+        const k = disp[key] || (disp[key] = 0.72 + r() * 0.45);
+        const fy = y < 0 ? 0.75 : 1;          // flatter bottoms so they sit on the ground
+        pos.setXYZ(i, x * k, y * k * fy, z * k);
+      }
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        if (y > 0.15) c.copy(mid).lerp(top, Math.min(1, (y - 0.15) / 0.7));
+        else c.copy(wet).lerp(mid, Math.max(0, (y + 0.5) / 0.65));
+        const n = 0.85 + ((i * 2654435761) % 1000) / 1000 * 0.3;
+        c.multiplyScalar(n); c.convertSRGBToLinear();
+        cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      g.computeVertexNormals();
+      return g;
+    });
+    return _rockGeos;
   }
 
   // Row letters / column numbers around the map, matching the log's cell names (e.g. "H5")
@@ -1400,8 +1476,6 @@ window.Renderer = (function () {
     }
   }
 
-  const rubbleMat = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 0.95, flatShading: true });
-  const rubbleGeo = new THREE.DodecahedronGeometry(1, 0);
   let ruinSeed = 1;
   function addRuin(cell, side, w) {
     removeRuin(cell);
@@ -1420,7 +1494,7 @@ window.Renderer = (function () {
       const g = new THREE.Group();
       const p = cellCenter(cell);
       for (let i = 0; i < 9; i++) {
-        const m = new THREE.Mesh(rubbleGeo, rubbleMat);
+        const m = new THREE.Mesh(rockGeometries()[i % 4], rockMaterial());
         const s = 0.8 + Math.random() * 1.8;
         m.scale.set(s, s * 0.6, s);
         m.position.set((Math.random() - 0.5) * 8, s * 0.2, (Math.random() - 0.5) * 8);
