@@ -333,15 +333,18 @@ window.Renderer = (function () {
           if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) l = texture2D(land, vec2(uv.x, 1.0 - uv.y)).a;
           float w1 = n(vW * 0.08 + vec2(time * 0.35, time * 0.2));
           float w2 = n(vW * 0.21 - vec2(time * 0.5, -time * 0.3));
-          float waves = w1 * 0.6 + w2 * 0.4;
+          float w3 = n(vW * 0.9 + vec2(time * 0.9, -time * 0.7));
+          float waves = w1 * 0.55 + w2 * 0.33 + w3 * 0.12;
           vec3 col = mix(deep, shallow, clamp(l * 1.6 + waves * 0.15, 0.0, 1.0));
           // shoreline foam bands
           float shore = smoothstep(0.18, 0.42, l) * (1.0 - smoothstep(0.42, 0.5, l));
           float foam = shore * smoothstep(0.45, 0.8, n(vW * 0.35 + vec2(time * 0.6, 0.0)) + 0.35 * sin(l * 40.0 - time * 2.5));
+          // break the surf into lacy streaks
+          foam *= smoothstep(0.35, 0.75, n(vW * 1.7 + vec2(-time * 0.8, time * 0.5)) * 0.65 + n(vW * 3.9 - vec2(time * 1.3, 0.0)) * 0.35 + foam * 0.25);
           // sun glint
           vec3 V = normalize(vView);
           float glint = pow(max(0.0, waves - 0.55) * 2.2, 3.0) * (1.0 - V.y * 0.6);
-          col += vec3(0.82, 0.88, 0.95) * glint * 0.32 + vec3(0.86, 0.9, 0.94) * foam * 0.7;
+          col += vec3(0.82, 0.88, 0.95) * glint * 0.32 + vec3(0.74, 0.78, 0.8) * foam * 0.55;
           gl_FragColor = vec4(col, 0.86 + foam * 0.14);
           #include <fog_fragment>
         }`
@@ -569,7 +572,7 @@ window.Renderer = (function () {
     if (decorGroup) { scene.remove(decorGroup); }
     decorGroup = new THREE.Group();
     const rockMat = rockMaterial(), rockGeos = rockGeometries();
-    const foamMat = new THREE.MeshBasicMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.32, depthWrite: false });
+    const foamMat = new THREE.MeshBasicMaterial({ color: 0xc4ccd0, transparent: true, opacity: 0.22, depthWrite: false });
     let seed = 7;
     for (let k = 0; k < GW * GH; k++) seed = (seed * 31 + (land[k] ? 1 : 0)) % 2147483647;
     const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
