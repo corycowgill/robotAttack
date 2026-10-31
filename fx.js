@@ -214,6 +214,28 @@ window.Fx = (function () {
     ring(pos, 0xffc070, 26 * s, 0.55);
     flashLight(pos, 0xff9944, 7 * s, 0.6);
     scorch(pos, 14 * s);
+    if (pos.y > -0.5 && pos.y < 8) rubble(pos, Math.round(4 + 4 * s));   // ground blasts only, not mid-air kills
+  }
+
+  // Chunks of wreckage that stay on the ground where something blew up (the oldest are cleared)
+  let rubbleMat = null, rubbleGeo = null;
+  const rubbles = [];
+  function rubble(pos, n) {
+    if (!rubbleMat) {
+      rubbleMat = new THREE.MeshStandardMaterial({ color: 0x2c2d2e, roughness: 0.9, metalness: 0.3, flatShading: true });
+      rubbleGeo = new THREE.BoxGeometry(1, 1, 1);
+    }
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(rubbleGeo, rubbleMat);
+      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 6, k = 0.5 + Math.random() * 1.3;
+      m.scale.set(k * (0.6 + Math.random()), k * 0.5, k * (0.6 + Math.random()));
+      m.rotation.set(Math.random() * 0.6, Math.random() * 3, Math.random() * 0.6);
+      m.position.set(pos.x + Math.cos(a) * r, 0.3 + k * 0.15, pos.z + Math.sin(a) * r);
+      m.castShadow = true;
+      scene.add(m);
+      rubbles.push(m);
+    }
+    while (rubbles.length > 160) scene.remove(rubbles.shift());
   }
 
   function smallBlast(pos, color) {
@@ -407,6 +429,8 @@ window.Fx = (function () {
     clearEmitters();
     for (const d of decals) { scene.remove(d); d.geometry.dispose(); }
     decals.length = 0;
+    for (const r of rubbles) scene.remove(r);
+    rubbles.length = 0;
     for (const r of rings) { scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); }
     rings.length = 0;
     for (const l of lights) { l.t = l.dur = 0; l.light.intensity = 0; }

@@ -71,7 +71,7 @@
     var c = document.createElement('canvas');
     c.width = c.height = 128;
     var g = c.getContext('2d');
-    g.fillStyle = '#e6e6e6';
+    g.fillStyle = '#d4d6d6';
     g.fillRect(0, 0, 128, 128);
     // speckle noise (deterministic LCG so all sessions look the same)
     var s = 12345;
@@ -80,6 +80,21 @@
       var v = 190 + Math.floor(rnd() * 60);
       g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
       g.fillRect(rnd() * 128, rnd() * 128, 1 + rnd() * 2, 1 + rnd() * 2);
+    }
+    // weathering: grime pooled low on the panel, rust/soot streaks running down, chips and scuffs
+    var grd = g.createLinearGradient(0, 0, 0, 128);
+    grd.addColorStop(0, 'rgba(40,38,34,0)'); grd.addColorStop(0.7, 'rgba(40,38,34,0.08)'); grd.addColorStop(1, 'rgba(30,28,24,0.32)');
+    g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+    for (var k = 0; k < 14; k++) {
+      var x = rnd() * 128, w = 1 + rnd() * 3, top = rnd() * 70, len = 30 + rnd() * 70;
+      var sg = g.createLinearGradient(0, top, 0, top + len);
+      var rust = rnd() < 0.35;
+      sg.addColorStop(0, rust ? 'rgba(110,62,30,0.35)' : 'rgba(28,26,24,0.3)'); sg.addColorStop(1, 'rgba(28,26,24,0)');
+      g.fillStyle = sg; g.fillRect(x, top, w, len);
+    }
+    for (var q = 0; q < 40; q++) {
+      g.fillStyle = 'rgba(25,24,22,' + (0.15 + rnd() * 0.35) + ')';
+      g.fillRect(rnd() * 128, rnd() * 128, 1 + rnd() * 4, 1 + rnd() * 2);
     }
     // panel seams
     g.strokeStyle = 'rgba(60,60,60,0.55)';
@@ -104,9 +119,9 @@
   function applyGlow(m) { if (m.emissive && (m.emissive.r || m.emissive.g || m.emissive.b)) m.emissiveIntensity = m.userData.glow0 * glowMul; }
   function setGlow(k) { glowMul = k; for (var key in MC) applyGlow(MC[key]); }
   var MAT = {
-    concrete: function () { return std('concrete', { color: 0x8a8478, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
-    concreteDS: function () { return std('concreteDS', { color: 0x8a8478, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
-    concreteDark: function () { return std('concreteDark', { color: 0x55524c, roughness: 0.92, metalness: 0.0, map: panelTexture() }); },
+    concrete: function () { return std('concrete', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, map: panelTexture() }); },
+    concreteDS: function () { return std('concreteDS', { color: 0x7d8082, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); },
+    concreteDark: function () { return std('concreteDark', { color: 0x4c4f51, roughness: 0.92, metalness: 0.0, map: panelTexture() }); },
     gunmetal: function () { return std('gunmetal', { color: 0x3a3f45, roughness: 0.45, metalness: 0.6 }); },
     gunmetalDS: function () { return std('gunmetalDS', { color: 0x4a5058, roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide }); },
     steel: function () { return std('steel', { color: 0x24282d, roughness: 0.5, metalness: 0.65 }); },

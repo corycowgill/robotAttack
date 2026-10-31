@@ -102,6 +102,7 @@ window.Renderer = (function () {
     cam.yaw = portraitYaw();
     frameAll(true);
     loadQuality();
+    setAtmosphere('day');
     prewarm();
   }
 
@@ -134,7 +135,7 @@ window.Renderer = (function () {
 
   // ── Atmospheres: the light a battle is fought in (campaign missions pick one) ──
   const ATMOS = {
-    day:   { sun: [0xffd9a0, 2.3], sunPos: [-170, 280, 140], sky: [0x8fa3c0, 0x3a2814, 0.65], rim: [0x5fa8ff, 0.45], bg: 0x111b24, fog: 1, exp: 1.1 },
+    day:   { sun: [0xe2e8f0, 2.25], sunPos: [-170, 280, 140], sky: [0x7d8a98, 0x23262a, 0.62], rim: [0x5fa8ff, 0.4], bg: 0x0e161d, fog: 1, exp: 1.05 },
     dusk:  { glow: 1.4, sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05 },
     night: { glow: 2.2, sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2 },
     storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true }
@@ -303,7 +304,7 @@ window.Renderer = (function () {
     const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       time: { value: 0 }, land: { value: t.tex },
       mapSize: { value: new THREE.Vector2(MAP_W, MAP_H) },
-      deep: { value: new THREE.Color(0x0a2f45) }, shallow: { value: new THREE.Color(0x2f8a96) }
+      deep: { value: new THREE.Color(0x0b1c26) }, shallow: { value: new THREE.Color(0x2c5a60) }
     }]);
     uniforms.land.value = t.tex;
     const mat = new THREE.ShaderMaterial({
@@ -339,7 +340,7 @@ window.Renderer = (function () {
           // sun glint
           vec3 V = normalize(vView);
           float glint = pow(max(0.0, waves - 0.55) * 2.2, 3.0) * (1.0 - V.y * 0.6);
-          col += vec3(1.0, 0.92, 0.75) * glint * 0.35 + vec3(0.9, 0.95, 1.0) * foam * 0.75;
+          col += vec3(0.82, 0.88, 0.95) * glint * 0.32 + vec3(0.86, 0.9, 0.94) * foam * 0.7;
           gl_FragColor = vec4(col, 0.86 + foam * 0.14);
           #include <fog_fragment>
         }`
@@ -349,6 +350,84 @@ window.Renderer = (function () {
     water.position.set(MAP_W / 2, SEA_Y, MAP_H / 2);
     water.renderOrder = 1;
     scene.add(water);
+  }
+
+  // Ground detail tiled over the whole terrain: grain, pebbles, hairline cracks (multiplies the colours)
+  let _grit = null;
+  function gritTexture(w, h) {
+    if (!_grit) {
+      const S = 256, cv = document.createElement('canvas');
+      cv.width = cv.height = S;
+      const g = cv.getContext('2d');
+      let s = 4242;
+      const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+      g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, S, S);
+      const img = g.getImageData(0, 0, S, S);
+      for (let i = 0; i < img.data.length; i += 4) { const v = 208 + r() * 47; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; }
+      g.putImageData(img, 0, 0);
+      for (let i = 0; i < 260; i++) { g.fillStyle = 'rgba(40,40,38,' + (0.15 + r() * 0.35) + ')'; g.beginPath(); g.arc(r() * S, r() * S, 0.6 + r() * 1.8, 0, 7); g.fill(); }
+      g.strokeStyle = 'rgba(35,35,33,0.22)'; g.lineWidth = 1;
+      for (let i = 0; i < 9; i++) {
+        let x = r() * S, y = r() * S; g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); }
+        g.stroke();
+      }
+      _grit = new THREE.CanvasTexture(cv);
+      _grit.wrapS = _grit.wrapT = THREE.RepeatWrapping;
+      _grit.encoding = THREE.sRGBEncoding;
+      _grit.anisotropy = 4;
+    }
+    _grit.repeat.set(w / 37.3, h / 37.3);   // off the cell size, so the tiling doesn't line up with the grid
+    return _grit;
+  }
+  // Old battle damage on the islands: soot, oil stains and tread marks, drawn once per map
+  let grimeGroup = null, _grimeTex = null;
+  function grimeTexture() {
+    if (_grimeTex) return _grimeTex;
+    const S = 128, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    const grd = g.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S / 2);
+    grd.addColorStop(0, 'rgba(15,14,12,0.85)'); grd.addColorStop(0.55, 'rgba(20,19,16,0.4)'); grd.addColorStop(1, 'rgba(20,19,16,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    _grimeTex = new THREE.CanvasTexture(cv);
+    return _grimeTex;
+  }
+  function placeGrime(land) {
+    if (grimeGroup) { scene.remove(grimeGroup); grimeGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+    grimeGroup = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ map: grimeTexture(), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
+    const trackMat = new THREE.MeshBasicMaterial({ color: 0x141412, transparent: true, opacity: 0.18, depthWrite: false });
+    let s = 77;
+    const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const landCells = [];
+    for (let c = 0; c < GW * GH; c++) if (land[c]) landCells.push(c);
+    for (let i = 0; i < Math.min(46, landCells.length / 4); i++) {
+      const c = landCells[Math.floor(r() * landCells.length)];
+      const p = cellCenter(c);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+      const sz = 6 + r() * 12;
+      m.scale.set(sz, sz * (0.5 + r() * 0.6), 1);
+      m.rotation.set(-Math.PI / 2, 0, r() * Math.PI);
+      m.position.set(p.x + (r() - 0.5) * CELL, 0.42, p.z + (r() - 0.5) * CELL);
+      m.renderOrder = 2;
+      grimeGroup.add(m);
+    }
+    // a few pairs of tread marks across each island
+    for (let i = 0; i < 10; i++) {
+      const c = landCells[Math.floor(r() * landCells.length)], p = cellCenter(c), a = r() * Math.PI, len = 20 + r() * 30;
+      // only where both ends are on land (never across the water)
+      const ex = Math.sin(a) * len / 2, ez = Math.cos(a) * len / 2;
+      if (fieldAt(p.x + ex, p.z + ez) < 0.6 || fieldAt(p.x - ex, p.z - ez) < 0.6) continue;
+      for (const off of [-1.6, 1.6]) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, len), trackMat);
+        m.rotation.set(-Math.PI / 2, 0, a);
+        m.position.set(p.x + Math.cos(a) * off, 0.43, p.z - Math.sin(a) * off);
+        m.renderOrder = 2;
+        grimeGroup.add(m);
+      }
+    }
+    scene.add(grimeGroup);
   }
 
   function setMap(land) {
@@ -369,9 +448,10 @@ window.Renderer = (function () {
     geo.translate(MAP_W / 2, 0, MAP_H / 2);
     const pos = geo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const cGround = new THREE.Color(0x7a6a50), cGround2 = new THREE.Color(0x5e5240);
-    const cPlayer = new THREE.Color(0x56606a), cAI = new THREE.Color(0x6e5246);
-    const cBeach = new THREE.Color(0xc9b483), cBed = new THREE.Color(0x1f3b3c);
+    // a war-torn palette: grey dirt and rock, dirty grey sand, a cold tint per side
+    const cGround = new THREE.Color(0x67675f), cGround2 = new THREE.Color(0x46463f);
+    const cPlayer = new THREE.Color(0x4c5862), cAI = new THREE.Color(0x5e4a44);
+    const cBeach = new THREE.Color(0x8e8878), cBed = new THREE.Color(0x172629);
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
@@ -390,9 +470,10 @@ window.Renderer = (function () {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    terrainMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+    terrainMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, map: gritTexture(w, h) }));
     terrainMesh.receiveShadow = true;
     scene.add(terrainMesh);
+    placeGrime(land);
 
     // grid: cell lines on land only, island coastlines in team colours
     if (gridMesh) { scene.remove(gridMesh); gridMesh.material.map.dispose(); gridMesh.material.dispose(); gridMesh.geometry.dispose(); }

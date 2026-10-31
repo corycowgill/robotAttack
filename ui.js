@@ -424,6 +424,14 @@ window.UI = (function () {
   /* ── Compact layout (phones: short landscape or narrow screens) ── */
   .abtn.nudge, .card.nudge { animation: firenudge 1.1s ease-in-out infinite alternate; }
   @keyframes firenudge { from { box-shadow: 0 0 0 rgba(255,176,0,0); } to { box-shadow: 0 0 16px rgba(255,176,0,.75); border-color: var(--c-warn); } }
+  /* colour grade for a colder, grittier war: a touch less colour, a touch more contrast */
+  #game-canvas { filter: saturate(.84) contrast(1.08) brightness(.98); }
+  #grain { position: absolute; inset: -50%; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+    animation: grainShift .5s steps(4) infinite; }
+  @keyframes grainShift { 0% { transform: translate(0,0); } 25% { transform: translate(-3%,2%); } 50% { transform: translate(2%,-3%); } 75% { transform: translate(-2%,-1%); } }
+  @media (prefers-reduced-motion: reduce) { #grain { animation: none; } }
+  body.splash-on #grain { display: none; }
   #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 48%, transparent 55%, rgba(2,5,9,.42) 100%); }
   body.splash-on #vignette { display: none; }
   #danger { position: absolute; inset: 0; pointer-events: none; --dg: 0; opacity: var(--dg); transition: opacity .35s;
@@ -587,6 +595,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'banner' }, '<div class="t"></div><div class="s"></div>'));
     root.insertBefore(el('div', { id: 'danger' }), root.firstChild);   // under the HUD and panels, over the map
     root.insertBefore(el('div', { id: 'vignette' }), root.firstChild);   // a soft dark frame around the battlefield
+    root.insertBefore(el('div', { id: 'grain' }), root.firstChild);      // faint film grain over the battlefield
     root.appendChild(el('div', { id: 'flash' }));
     root.appendChild(el('div', { id: 'comms', class: 'panel' }));
     root.appendChild(el('div', { id: 'floats', style: 'position:absolute;inset:0;overflow:hidden' }));
