@@ -44,7 +44,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
-- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). An AA Battery hits 56% (68% upgraded) and HQ point defence 32%; an **online Radar guides the batteries in its range** (+10%), and no shot is ever better than 80%. Salvos are how you break through.
+- **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). An AA Battery hits 46% (55% upgraded) and HQ point defence 26%; an **online Radar guides the batteries in its range** (+8%), and no shot is ever better than 70%. Salvos are how you break through.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.
@@ -68,7 +68,7 @@ In the campaign, a mission's par medal is a clock time: its par in turns × 30 s
 **Fog of war:** enemy territory is hidden except around your Radar, your mechs and recent missile impacts (each impact reveals the 5×5 area around it for a while). Enemy structures you have seen stay on the map as "last known" outlines. The enemy HQ is always visible. An AA Battery that fires at a missile gives its position away: the attacker sees it for a while. This works both ways, so a salvo can follow up on a battery that revealed itself.
 
 **Reading the battle:**
-- The battle log names who shot each missile down, with its hit chance (for example "AA Battery at I27 (56%)" or "HQ point defence (32%)").
+- The battle log names who shot each missile down, with its hit chance (for example "AA Battery at I27 (46%)" or "HQ point defence (26%)").
 - Impact lines come before the losses they caused, and say how much damage shields absorbed.
 - While aiming, the tooltip lists the known defences covering the target and the chance that one missile gets through.
 - While placing a structure, the tooltip previews what it does from that cell: how many enemy cells a Radar reveals, or which of your structures an AA Battery or Shield covers.
@@ -86,7 +86,7 @@ Per-turn figures below arrive over a 15-second round ("per turn" = per 15 s).
 | 2 | Power Plant | 80 | 40 | +6 energy per turn, +10 energy capacity (base capacity 30) |
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 12; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 45 damage + 15 splash; maximum 5 |
-| 5 | AA Battery | 110 | 45 | 56% hit (68% upgraded, +10% under radar, never above 80%) at missiles and dropships aimed within radius 4, then reloads for 3.5 s; if it misses, other batteries in range get a shot |
+| 5 | AA Battery | 110 | 45 | 46% hit (55% upgraded, +8% under radar, never above 70%) at missiles and dropships aimed within radius 3, then reloads for 3.5 s; if it misses, other batteries in range get a shot |
 | 6 | Shield Generator | 120 | 50 | 50-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 20 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Sentry Turret | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
@@ -104,7 +104,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 | Structure | Upgrade | Effect |
 |---|---|---|
 | Missile Silo | Heavy Warheads | 60 damage + 20 splash |
-| AA Battery | Fire Control | 85% hit chance, radius 5 |
+| AA Battery | Fire Control | 85% base hit chance (55% after the real-time scaling), radius 4 |
 | Supply Depot | Logistics Hub | +50 credits/turn |
 | Power Plant | Fusion Core | +11 energy/turn, +20 capacity |
 | Sentry Turret | Rotary Cannons | 3 shots/turn |

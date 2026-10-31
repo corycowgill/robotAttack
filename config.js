@@ -116,9 +116,9 @@ const RT = {
   // Real-time rules
   BASES_PER_SIDE: 2,      // extra Bases besides the Command Center; all must fall to lose
   HQ_HP: 150,             // the Command Center is one base among several here (turn-based: 200)
-  RADAR_AA_BOOST: 0.1,   // AA batteries within an online radar's range hit more often
-  AA_MAX_CHANCE: 0.8,     // no battery is ever a sure thing
-  AA_HIT_MUL: 0.8,        // every AA and point-defence hit chance is scaled by this (AA 56%, upgraded 68%)
+  RADAR_AA_BOOST: 0.08,  // AA batteries within an online radar's range hit more often
+  AA_MAX_CHANCE: 0.7,     // no battery is ever a sure thing
+  AA_HIT_MUL: 0.65,       // every AA and point-defence hit chance is scaled by this (AA 46%, upgraded 55%)
   DEFENDERS: 3,           // ready mechs that scramble from their hangars when raiders land
   DEFENDER_STEP: 1.0,     // defenders hurry: seconds per move or blow
   DEFENDER_TIME: 60,
@@ -157,9 +157,9 @@ const BUILDINGS = {
     counter: 'Countered by AA Batteries and Shields'
   },
   aa: {
-    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 4, shots: 1, hitChance: 0.7, rtCostStep: 20,   // real time: each AA you own makes the next 20 dearer
+    name: 'AA Battery', short: 'AA', key: '5', cost: 110, hp: 45, range: 3, shots: 1, hitChance: 0.7, rtCostStep: 20,   // real time: each AA you own makes the next 20 dearer
     desc: 'Shoots at missiles and dropships aimed within its range, then reloads. Batteries back each other up on a miss.',
-    stats: () => [Math.round(0.7 * RT.AA_HIT_MUL * 100) + '% hit, then reloads', 'Covers radius 4']
+    stats: () => [Math.round(0.7 * RT.AA_HIT_MUL * 100) + '% hit, then reloads', 'Covers radius 3']
   },
   shield: {
     name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 50, range: 1, pool: 50, regen: 20,
@@ -216,7 +216,7 @@ const BUILD_ORDER = ['depot', 'power', 'radar', 'silo', 'aa', 'shield', 'hangar'
 // One upgrade level per structure. Values replace the base stats.
 const UPGRADES = {
   silo:   { name: 'Heavy Warheads',  desc: 'Missiles deal 60 damage + 20 splash', dmg: 60, splash: 20 },
-  aa:     { name: 'Fire Control',    desc: 'Higher hit chance, radius 5', hitChance: 0.85, range: 5 },
+  aa:     { name: 'Fire Control',    desc: 'Higher hit chance, radius 4', hitChance: 0.85, range: 4 },
   depot:  { name: 'Logistics Hub',   desc: 'More credits per second', credits: 50 },
   power:  { name: 'Fusion Core',     desc: 'More energy per second, +20 capacity', energy: 11, cap: 20 },
   gunpod: { name: 'Rotary Cannons',  desc: '3 shots per volley', shots: 3 },

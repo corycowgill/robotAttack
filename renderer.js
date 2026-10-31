@@ -454,6 +454,32 @@ window.Renderer = (function () {
     _grimeTex = new THREE.CanvasTexture(cv);
     return _grimeTex;
   }
+  // Static scenery: merge a group's direct child meshes into one mesh per material (one draw
+  // call, and one shadow-pass draw, instead of hundreds). Merged geometry is tagged for disposal.
+  function mergeStatic(group) {
+    const byMat = new Map();
+    for (const m of group.children.slice()) {
+      if (!m.isMesh || Array.isArray(m.material)) continue;
+      if (!byMat.has(m.material)) byMat.set(m.material, []);
+      byMat.get(m.material).push(m);
+    }
+    byMat.forEach((list, mat) => {
+      if (list.length < 2) return;
+      list.forEach(m => m.updateMatrix());
+      const geo = mergeGeometry(list, m => m.matrix, false);
+      const merged = new THREE.Mesh(geo, mat);
+      merged.castShadow = list.some(m => m.castShadow); merged.receiveShadow = list.some(m => m.receiveShadow);
+      merged.renderOrder = list[0].renderOrder;
+      merged.userData.merged = true;
+      for (const m of list) {
+        group.remove(m);
+        if (m.geometry.type === 'PlaneGeometry' || m.geometry.type === 'RingGeometry') m.geometry.dispose();   // per-instance; rock/hedgehog shapes are shared
+      }
+      group.add(merged);
+    });
+  }
+  function disposeMerged(group) { group.traverse(o => { if (o.userData && o.userData.merged) o.geometry.dispose(); }); }
+
   function placeGrime(land) {
     if (grimeGroup) { scene.remove(grimeGroup); grimeGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
     grimeGroup = new THREE.Group();
@@ -488,6 +514,7 @@ window.Renderer = (function () {
         grimeGroup.add(m);
       }
     }
+    mergeStatic(grimeGroup);
     scene.add(grimeGroup);
   }
 
@@ -569,7 +596,7 @@ window.Renderer = (function () {
     scene.add(gridMesh);
 
     // scenery: rocks on beaches and in the shallows, a few sea stacks offshore
-    if (decorGroup) { scene.remove(decorGroup); }
+    if (decorGroup) { scene.remove(decorGroup); disposeMerged(decorGroup); }
     decorGroup = new THREE.Group();
     const rockMat = rockMaterial(), rockGeos = rockGeometries();
     const foamMat = new THREE.MeshBasicMaterial({ color: 0xc4ccd0, transparent: true, opacity: 0.22, depthWrite: false });
@@ -620,6 +647,7 @@ window.Renderer = (function () {
         hh++;
       }
     }
+    mergeStatic(decorGroup);
     scene.add(decorGroup);
   }
   // three crossed girders, merged into one geometry
@@ -1120,6 +1148,7 @@ window.Renderer = (function () {
   // With `withMat`, each vertex also carries its material's colour and roughness/metalness.
   function mergeGeometry(meshes, matrixOf, withMat) {
     const pos = [], nor = [], uv = [], col = [], rm = [];
+    const keepColor = !withMat && meshes.every(m => m.geometry.attributes.color);
     for (const m of meshes) {
       const gg = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       gg.applyMatrix4(matrixOf(m));
@@ -1127,6 +1156,7 @@ window.Renderer = (function () {
       pos.push(gg.attributes.position.array);
       nor.push(gg.attributes.normal ? gg.attributes.normal.array : new Float32Array(n * 3));
       uv.push(gg.attributes.uv ? gg.attributes.uv.array : new Float32Array(n * 2));
+      if (!withMat && keepColor) col.push(gg.attributes.color.array);
       if (withMat) {
         const c = new Float32Array(n * 3), r = new Float32Array(n * 2), mc = m.material.color;
         for (let i = 0; i < n; i++) { c[i * 3] = mc.r; c[i * 3 + 1] = mc.g; c[i * 3 + 2] = mc.b; r[i * 2] = m.material.roughness; r[i * 2 + 1] = m.material.metalness; }
@@ -1139,6 +1169,7 @@ window.Renderer = (function () {
     geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(cat(nor), 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(cat(uv), 2));
+    if (keepColor) geo.setAttribute('color', new THREE.BufferAttribute(cat(col), 3));
     if (withMat) {
       geo.setAttribute('color', new THREE.BufferAttribute(cat(col), 3));
       geo.setAttribute('rm', new THREE.BufferAttribute(cat(rm), 2));
@@ -1233,6 +1264,8 @@ window.Renderer = (function () {
     for (const m of list) {
       if (mineMeshes[m.id]) continue;
       const g = Models.mine(m.side);
+      bakePivots(g, [], 'mine_' + m.side);          // a few merged meshes instead of ~30
+      g.traverse(o => { if (o.isMesh) o.castShadow = false; });   // flat charges: no shadow-pass cost
       const p = cellCenter(m.cell);
       g.position.set(p.x, 0, p.z);
       scene.add(g);
@@ -1867,7 +1900,12 @@ window.Renderer = (function () {
     B.uniforms.tex.value = src.texture; B.uniforms.dir.value.set(px.x, 0); pass(B, tmp);
     B.uniforms.tex.value = tmp.texture; B.uniforms.dir.value.set(0, px.y); pass(B, src);
   }
+  let shadowFrame = 0;
   function renderFrame() {
+    renderer.info.autoReset = false; renderer.info.reset();   // stats cover the whole frame, not just the last pass
+    // the sun never moves: redraw the shadow map every other frame (halves the shadow-pass cost)
+    renderer.shadowMap.autoUpdate = false;
+    if ((shadowFrame++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
     if (!bloom) { renderer.render(scene, camera); return; }
     renderer.setRenderTarget(bloom.main);
     renderer.render(scene, camera);
@@ -1885,8 +1923,8 @@ window.Renderer = (function () {
   // ── Graphics quality (auto-detected, overridable with G) ──
   const QUALITY = [
     { name: 'Low', ratio: 1, shadows: false, shadowSize: 512 },
-    { name: 'Medium', ratio: 1.5, shadows: true, shadowSize: 1024 },
-    { name: 'High', ratio: 2, shadows: true, shadowSize: 2048, bloom: true }
+    { name: 'Medium', ratio: 1.25, shadows: true, shadowSize: 1024 },
+    { name: 'High', ratio: 1.5, shadows: true, shadowSize: 2048, bloom: true }
   ];
   let quality = 2, qualityLocked = false;
   const perf = { t: 0, frames: 0, warm: 1.5 };
@@ -1935,7 +1973,7 @@ window.Renderer = (function () {
     applyQuality();
     return QUALITY[quality].name;
   }
-  // Step quality down while the average frame time stays above ~30 fps
+  // Step quality down while the average frame rate stays below ~40 fps
   function autoQuality(dt) {
     if (qualityLocked || quality === 0) return;
     if (perf.warm > 0) { perf.warm -= dt; return; }
@@ -1943,7 +1981,7 @@ window.Renderer = (function () {
     if (perf.t < 2) return;
     const avg = perf.t / perf.frames;
     perf.t = 0; perf.frames = 0;
-    if (avg > 1 / 30) { quality--; applyQuality(); perf.warm = 1; }
+    if (avg > 1 / 40) { quality--; applyQuality(); perf.warm = 1; }
   }
 
   function render(dt, keyboardEnabled) {
@@ -2044,6 +2082,7 @@ window.Renderer = (function () {
 
   return {
     ruinCells: () => Object.keys(ruins).map(Number),
+    _scene: () => scene,
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
     init, render, reset, cycleQuality, setQuality, getQuality, setShake, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
