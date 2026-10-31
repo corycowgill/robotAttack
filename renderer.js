@@ -356,30 +356,63 @@ window.Renderer = (function () {
   let _grit = null;
   function gritTexture(w, h) {
     if (!_grit) {
-      const S = 256, cv = document.createElement('canvas');
+      const S = 512, cv = document.createElement('canvas');
       cv.width = cv.height = S;
       const g = cv.getContext('2d');
       let s = 4242;
       const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-      g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, S, S);
-      const img = g.getImageData(0, 0, S, S);
-      for (let i = 0; i < img.data.length; i += 4) { const v = 208 + r() * 47; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; }
-      g.putImageData(img, 0, 0);
-      for (let i = 0; i < 260; i++) { g.fillStyle = 'rgba(40,40,38,' + (0.15 + r() * 0.35) + ')'; g.beginPath(); g.arc(r() * S, r() * S, 0.6 + r() * 1.8, 0, 7); g.fill(); }
-      g.strokeStyle = 'rgba(35,35,33,0.22)'; g.lineWidth = 1;
-      for (let i = 0; i < 9; i++) {
-        let x = r() * S, y = r() * S; g.beginPath(); g.moveTo(x, y);
-        for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); }
-        g.stroke();
+      // tiling value noise (periodic lattice), a few octaves: broad stains down to fine grain
+      const lattice = (n) => { const L = new Float32Array(n * n); for (let i = 0; i < L.length; i++) L[i] = r(); return L; };
+      const oct = [[4, 0.42], [8, 0.26], [32, 0.14], [128, 0.1], [512, 0.08]].map(o => ({ n: o[0], a: o[1], L: lattice(o[0]) }));
+      const sm = t => t * t * (3 - 2 * t);
+      const img = g.createImageData(S, S);
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        let v = 0;
+        for (const o of oct) {
+          const fx = x * o.n / S, fy = y * o.n / S, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy);
+          const x0 = ix % o.n, y0 = iy % o.n, x1 = (ix + 1) % o.n, y1 = (iy + 1) % o.n;
+          const a = o.L[y0 * o.n + x0], b = o.L[y0 * o.n + x1], c = o.L[y1 * o.n + x0], d = o.L[y1 * o.n + x1];
+          v += o.a * (a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty);
+        }
+        const k = (y * S + x) * 4, c = 150 + v * 100;
+        img.data[k] = img.data[k + 1] = img.data[k + 2] = c; img.data[k + 3] = 255;
       }
+      g.putImageData(img, 0, 0);
+      // wrap-aware drawing: repeat a shape at the opposite edges so the tile stays seamless
+      const wrap = (fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { g.save(); g.translate(ox, oy); fn(); g.restore(); } };
+      // slab joints every quarter tile, sunk and slightly darker
+      g.strokeStyle = 'rgba(40,40,38,0.36)'; g.lineWidth = 2;
+      for (let i = 0; i <= 4; i++) { const q = i * S / 4; g.beginPath(); g.moveTo(q, 0); g.lineTo(q, S); g.moveTo(0, q); g.lineTo(S, q); g.stroke(); }
+      // clustered aggregate: a few patches of exposed stone, a sprinkle of fine pits elsewhere
+      for (let c = 0; c < 7; c++) {
+        const cx = r() * S, cy = r() * S, cr = 40 + r() * 60;
+        const seed = s;
+        wrap(() => { s = seed; for (let i = 0; i < 60; i++) { const a = r() * 7, d = Math.sqrt(r()) * cr; g.fillStyle = 'rgba(' + (r() < 0.4 ? '55,55,52' : '200,200,195') + ',' + (0.12 + r() * 0.25) + ')'; g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 0.6 + r() * 2.2, 0, 7); g.fill(); } });
+      }
+      for (let i = 0; i < 180; i++) { g.fillStyle = 'rgba(40,40,38,' + (0.12 + r() * 0.25) + ')'; g.beginPath(); g.arc(r() * S, r() * S, 0.5 + r() * 1.1, 0, 7); g.fill(); }
+      // cracks: wandering lines that fork
+      const crack = (x, y, ang, len, w, depth) => {
+        g.lineWidth = w; g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < len; k++) {
+          ang += (r() - 0.5) * 0.9; x += Math.cos(ang) * 7; y += Math.sin(ang) * 7; g.lineTo(x, y);
+          if (depth < 2 && r() < 0.12) { g.stroke(); crack(x, y, ang + (r() < 0.5 ? 0.8 : -0.8), len * 0.5 | 0, w * 0.7, depth + 1); g.lineWidth = w; g.beginPath(); g.moveTo(x, y); }
+        }
+        g.stroke();
+      };
+      g.strokeStyle = 'rgba(30,30,28,0.26)';
+      for (let i = 0; i < 6; i++) { const x = r() * S, y = r() * S, ang = r() * 7, len = 8 + (r() * 14 | 0), w = 0.7 + r() * 0.6, seed = s; wrap(() => { s = seed; crack(x, y, ang, len, w, 0); }); }
       _grit = new THREE.CanvasTexture(cv);
       _grit.wrapS = _grit.wrapT = THREE.RepeatWrapping;
       _grit.encoding = THREE.sRGBEncoding;
       _grit.anisotropy = 4;
       // a normal map from the same picture (dark = low): pebbles and cracks catch the light
-      _gritN = normalFrom(g.getImageData(0, 0, S, S), S, 2.2);
+      _gritN = normalFrom(g.getImageData(0, 0, S, S), S, 3.0);
     }
-    _grit.repeat.set(w / 37.3, h / 37.3);   // off the cell size, so the tiling doesn't line up with the grid
+    // one tile spans 4x4 cells, offset so the slab joints run along the cell borders
+    const T = 4 * CELL;
+    _grit.repeat.set(w / T, h / T);
+    _grit.offset.set(-MARGIN / T, -(h - MARGIN) / T);
+    _gritN.offset.copy(_grit.offset);
     _gritN.repeat.copy(_grit.repeat);
     return _grit;
   }
