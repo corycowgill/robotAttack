@@ -57,7 +57,15 @@ async function cellXY(page, cell) {
   return prev;
 }
 async function clickCell(page, cell) {
-  const [x, y] = await cellXY(page, cell);
+  // wait for the camera to settle (an enemy launch or a focus can pan it), so the click lands on the cell
+  let [x, y] = await cellXY(page, cell);
+  for (let i = 0; i < 25; i++) {
+    await page.waitForTimeout(80);
+    const [x2, y2] = await cellXY(page, cell);
+    const still = Math.abs(x2 - x) < 1 && Math.abs(y2 - y) < 1;
+    x = x2; y = y2;
+    if (still) break;
+  }
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.up();
   await page.waitForTimeout(100);
 }

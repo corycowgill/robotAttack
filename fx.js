@@ -158,7 +158,7 @@ window.Fx = (function () {
   }
 
   function ring(pos, color, maxScale, dur) {
-    const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.2, 40), ringMat.clone());
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 48), ringMat.clone());
     m.material.color.set(color);
     m.rotation.x = -Math.PI / 2;
     m.position.set(pos.x, pos.y + 0.4, pos.z);
@@ -211,6 +211,12 @@ window.Fx = (function () {
       spawn('glow', { x: pos.x, y: pos.y + 3, z: pos.z, vx: v.x, vy: Math.abs(v.y) + 10, vz: v.z, grav: 60, drag: 1,
         size: rnd(1, 2), size1: 0.3, life: rnd(0.4, 0.9), color: 0xffdd88, color1: 0xff5500 });
     }
+    // burning debris: chunks arc out trailing fire and smoke
+    for (let i = 0; i < Math.round(5 * s); i++) {
+      const a = Math.random() * Math.PI * 2, sp = rnd(14, 30) * s;
+      comets.push({ x: pos.x, y: pos.y + 3, z: pos.z, vx: Math.cos(a) * sp, vy: rnd(22, 40) * Math.sqrt(s), vz: Math.sin(a) * sp, acc: 0, t: 0, life: rnd(1.1, 1.8) });
+    }
+    if (comets.length > 60) comets.splice(0, comets.length - 60);
     ring(pos, 0xffc070, 26 * s, 0.55);
     flashLight(pos, 0xff9944, 7 * s, 0.6);
     scorch(pos, 14 * s);
@@ -397,9 +403,29 @@ window.Fx = (function () {
     p.a0[to] = p.a0[from]; p.grav[to] = p.grav[from]; p.drag[to] = p.drag[from]; p.bounce[to] = p.bounce[from];
   }
 
+  const comets = [];
+  function updateComets(dt) {
+    for (let i = comets.length - 1; i >= 0; i--) {
+      const c = comets[i];
+      c.t += dt; c.vy -= 48 * dt;
+      c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt;
+      c.acc += dt;
+      const k = Math.max(0, 1 - c.t / c.life);
+      while (c.acc > 0.03) {
+        c.acc -= 0.03;
+        spawn('glow', { x: c.x, y: c.y, z: c.z, size: 2.6 * k + 0.6, size1: 0.4, life: 0.28, color: 0xffd080, color1: 0xff4400, alpha: 0.9 });
+        spawn('smoke', { x: c.x, y: c.y, z: c.z, vy: 2, drag: 1.5, size: 1.6, size1: 4.5 * k + 1.5, life: rnd(0.7, 1.2), color: 0x2e2a26, color1: 0x141312, alpha: 0.55 * k + 0.1 });
+      }
+      if (c.y < 0.5 || c.t > c.life) {
+        if (c.y < 1) for (let j = 0; j < 5; j++) { const v = sphere(rnd(4, 10)); spawn('glow', { x: c.x, y: 0.8, z: c.z, vx: v.x, vy: Math.abs(v.y) + 3, vz: v.z, grav: 30, size: 1.2, size1: 0.2, life: rnd(0.3, 0.6), color: 0xffcc66, color1: 0xff3300 }); }
+        comets.splice(i, 1);
+      }
+    }
+  }
   function update(dt) {
     if (!pools) return;
     runEmitters(dt);
+    updateComets(dt);
     updatePool(pools.glow, dt);
     updatePool(pools.smoke, dt);
     for (const l of lights) {
@@ -419,13 +445,14 @@ window.Fx = (function () {
       }
       const e = 1 - Math.pow(1 - k, 3);
       r.m.scale.setScalar(1 + e * r.maxScale);
-      r.m.material.opacity = (1 - k) * 0.9;
+      r.m.material.opacity = (1 - k) * (1 - k) * 0.75;
     }
   }
 
   function reset() {
     if (!pools) return;
     pools.glow.count = 0; pools.smoke.count = 0;
+    comets.length = 0;
     clearEmitters();
     for (const d of decals) { scene.remove(d); d.geometry.dispose(); }
     decals.length = 0;

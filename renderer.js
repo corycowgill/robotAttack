@@ -136,7 +136,7 @@ window.Renderer = (function () {
 
   // ── Atmospheres: the light a battle is fought in (campaign missions pick one) ──
   const ATMOS = {
-    day:   { sun: [0xe2e8f0, 2.25], sunPos: [-170, 280, 140], sky: [0x7d8a98, 0x23262a, 0.62], rim: [0x5fa8ff, 0.4], bg: 0x0e161d, fog: 1, exp: 1.05, bloom: 0.7 },
+    day:   { sun: [0xe2e8f0, 2.25], sunPos: [-170, 280, 140], sky: [0x7d8a98, 0x23262a, 0.62], rim: [0x5fa8ff, 0.4], bg: 0x0e161d, fog: 1, exp: 1.05, bloom: 0.6 },
     dusk:  { glow: 1.4, sun: [0xff9450, 2.0], sunPos: [-300, 110, 60], sky: [0x9a7a96, 0x2e1c14, 0.55], rim: [0xff6f9a, 0.5], bg: 0x23161f, fog: 1.1, exp: 1.05, bloom: 0.95 },
     night: { glow: 2.2, sun: [0x8fa8ff, 0.7], sunPos: [140, 240, -120], sky: [0x2c3c60, 0x0b0e12, 0.36], rim: [0x4f7dff, 0.55], bg: 0x060a11, fog: 1.15, exp: 1.2, bloom: 1.05 },
     storm: { sun: [0xb4c0d0, 0.95], sunPos: [-120, 300, 80], sky: [0x5c6a78, 0x1c1a18, 0.58], rim: [0x8aaccc, 0.3], bg: 0x10151a, fog: 1.6, exp: 0.95, lightning: true, bloom: 0.9 }
@@ -1828,7 +1828,7 @@ window.Renderer = (function () {
     const b = { main, h1: mk(), h2: mk(), q1: mk(), q2: mk() };
     b.bright = bloomShader(`uniform float threshold;
       void main() { vec3 c = texture2D(tex, vUv).rgb; float l = max(c.r, max(c.g, c.b));
-        gl_FragColor = vec4(c * smoothstep(threshold, threshold + 0.25, l), 1.0); }`, { tex: { value: null }, threshold: { value: 0.78 } });
+        gl_FragColor = vec4(c * smoothstep(threshold, threshold + 0.25, l), 1.0); }`, { tex: { value: null }, threshold: { value: 0.84 } });
     b.blur = bloomShader(`uniform vec2 dir;
       void main() { vec3 c = texture2D(tex, vUv).rgb * 0.227;
         c += (texture2D(tex, vUv + dir * 1.385).rgb + texture2D(tex, vUv - dir * 1.385).rgb) * 0.316;
