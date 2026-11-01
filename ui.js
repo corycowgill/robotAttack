@@ -330,7 +330,7 @@ window.UI = (function () {
   .mission .num { font-size: 11px; letter-spacing: .2em; color: var(--c-warn); }
   .mission h4 { margin: 2px 0 4px; font-size: 16px; line-height: 1.1; }
   .mission .vs { font-size: 12px; color: var(--c-dim); display: flex; align-items: center; gap: 6px; }
-  .mission .vs svg { width: 28px; height: 28px; flex: none; }
+  .mission .vs svg { width: 34px; height: 34px; flex: none; }
   .mission.locked { opacity: .38; cursor: not-allowed; }
   .mission.locked:hover { transform: none; border-color: var(--c-line); }
   .mission .badge { position: absolute; top: 8px; right: 10px; font-size: 13px; }
@@ -350,7 +350,7 @@ window.UI = (function () {
   #briefing .sub { color: var(--c-dim); letter-spacing: .2em; font-size: 12px; text-transform: uppercase; margin-bottom: 18px; }
   .speakers { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
   .speaker { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid var(--c-line); }
-  .speaker svg { width: 96px; height: 96px; flex: none; }
+  .speaker svg { width: 116px; height: 116px; flex: none; }
   .speaker .who { font-weight: 700; font-size: 18px; } .speaker .role { font-size: 12px; color: var(--c-dim); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
   .speaker .say { font-size: 15px; line-height: 1.4; color: #d3dee9; }
   .speaker.enemy .say { color: #ffb4a6; font-style: italic; }
@@ -447,7 +447,7 @@ window.UI = (function () {
   #comms { position: absolute; left: 12px; top: 96px; display: flex; gap: 10px; align-items: center; max-width: min(380px, 60vw); padding: 8px 14px 8px 8px; pointer-events: none; z-index: 3;
     opacity: 0; transform: translateX(-30px); transition: opacity .3s, transform .3s; border-left: 3px solid var(--cc, var(--c-ai)); }
   #comms.show { opacity: 1; transform: none; }
-  #comms svg { width: 52px; height: 52px; flex: none; }
+  #comms svg { width: 64px; height: 64px; flex: none; }
   #comms .who { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--cc, var(--c-ai)); }
   #comms .line { font-size: 15px; line-height: 1.3; color: #e8eef4; }
   body.compact #comms { top: 46px; max-width: 70vw; } body.compact #comms svg { width: 38px; height: 38px; } body.compact #comms .line { font-size: 13px; }
@@ -1265,6 +1265,8 @@ window.UI = (function () {
       ${gear}</svg>`;
   }
   // generated character art, clipped to the portrait's circle, over the drawn one
+  // fetch the portrait images once, early, so dialogs never pop them in late
+  if (typeof PORTRAITS !== 'undefined' && typeof window !== 'undefined') setTimeout(() => PORTRAITS.forEach(k => { const im = new Image(); im.src = 'assets/portraits/' + k + '.webp'; }), 1500);
   function photo(c, id) {
     if (typeof PORTRAITS === 'undefined' || typeof COMMANDERS === 'undefined') return '';
     const key = Object.keys(COMMANDERS).find(k => COMMANDERS[k] === c);

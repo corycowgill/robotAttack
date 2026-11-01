@@ -290,7 +290,7 @@ const COMMANDERS = {
 
 // Generated character art for the dialog portraits: list a commander's key here once
 // assets/portraits/<key>.webp exists (see docs/portrait-prompts.md). Others keep the drawn portrait.
-const PORTRAITS = [];
+const PORTRAITS = ['hale', 'rusk', 'vey', 'kord', 'nyx', 'sol'];
 
 const CAMPAIGN = [
   {
