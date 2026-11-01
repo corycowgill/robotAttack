@@ -1327,7 +1327,8 @@ window.Renderer = (function () {
   }
 
   // Real-time construction: a building site rises with its progress and shows a cyan progress bar
-  function setBuildingProgress(id, k) {
+  // `queued`: one of the player's sites waiting for a free build crew (amber, pulsing bar)
+  function setBuildingProgress(id, k, queued) {
     const rec = buildings[id];
     if (!rec) return;
     if (k === undefined || k >= 1) {
@@ -1345,8 +1346,10 @@ window.Renderer = (function () {
       rec.pbar.position.y += 1.8;
       scene.add(rec.pbar);
     }
-    rec.pbar.userData.fg.scale.x = Math.max(0.001, k);
-    rec.pbar.userData.fg.material.color.setHex(0x5fd4ff);
+    rec.queued = !!queued;
+    rec.pbar.userData.fg.scale.x = Math.max(queued ? 0.04 : 0.001, k);
+    rec.pbar.userData.fg.material.color.setHex(queued ? 0xffb347 : 0x5fd4ff);
+    if (!queued) rec.pbar.userData.fg.material.opacity = 1;
     rec.pbar.visible = rec.group.visible;
   }
 
@@ -2046,6 +2049,7 @@ window.Renderer = (function () {
       }
       // a building site stands at a fraction of its height until finished
       if (rec.build < 1 && rec.rise >= 1 && rec.collapse < 0) g.scale.y = (0.25 + 0.75 * rec.build) * (rec.baseScale || 1);
+      if (rec.queued && rec.pbar && rec.pbar.visible) { const fm = rec.pbar.userData.fg.material; fm.transparent = true; fm.opacity = 0.45 + 0.55 * Math.abs(Math.sin(time * 3)); }
       if (rec.collapse >= 0) {
         rec.collapse += dt / 0.8;
         const t = Math.min(1, rec.collapse);

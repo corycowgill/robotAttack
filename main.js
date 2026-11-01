@@ -520,7 +520,7 @@
         if (b.type === 'shield') Renderer.setShieldPool(b.id, b.pool);
         if (b.type === 'uplink') Renderer.setBuildingCharge(b.id, playerSees(c) ? b.charge : 0);
         if (b.type !== 'decoy') Renderer.setBuildingLevel(b.id, b.level || 1);
-        if (state.realtime) Renderer.setBuildingProgress(b.id, shownProgress(b));
+        if (state.realtime) Renderer.setBuildingProgress(b.id, shownProgress(b), b.side === P && !R.online(b) && Realtime.isQueued(state, b));
         Renderer.setBuildingVisible(b.id, playerSees(c));
       }
       Renderer.setCrater(c, state.cells[c].crater > 0 && !state.cells[c].building);
@@ -705,6 +705,8 @@
       return { type: t, key: def.key, name: def.name, cost, enabled: !reason, reason, selected: mode === 'build' && buildType === t, count, max: def.max, hint: starved && t === 'power' };
     });
     UI.setCards(cards);
+    if (state.realtime) { const n = Realtime.sitesOf(state, P).length, crews = RT.BUILD_CREWS || 2; UI.setCrews(Math.min(n, crews), crews, Math.max(0, n - crews)); }
+    else UI.setCrews(0, 0, 0);
     const silos = R.buildingsOf(state, P, 'silo').length, freeSilos = R.freeLaunchers(state, P, 'silo').length;
     const hangars = R.buildingsOf(state, P, 'hangar').length, freeH = R.freeLaunchers(state, P, 'hangar').length;
     if (state.realtime) return refreshLiveActions(silos, hangars);
@@ -2278,7 +2280,7 @@
   function refreshLive() {
     for (let c = 0; c < R.N; c++) {
       const b = state.cells[c].building;
-      if (b && b.progress < 1) Renderer.setBuildingProgress(b.id, shownProgress(b));
+      if (b && b.progress < 1) Renderer.setBuildingProgress(b.id, shownProgress(b), b.side === P && Realtime.isQueued(state, b));
     }
     refreshHUD();
     refreshDock();

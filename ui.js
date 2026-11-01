@@ -98,6 +98,9 @@ window.UI = (function () {
   #dock { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; transition: transform .35s, opacity .35s; max-width: calc(100vw - 16px); }
   #dock.hidden { transform: translate(-50%, 140%); opacity: 0; }
   #cards { display: flex; gap: 6px; padding: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  #crews { position: absolute; left: 6px; bottom: calc(100% + 6px); font: 600 11px/1 var(--mono, monospace); letter-spacing: .08em; color: #9fb3c4;
+    background: rgba(8,14,20,.72); border: 1px solid rgba(120,160,190,.25); border-radius: 4px; padding: 4px 7px; pointer-events: none; display: none; }
+  #crews.on { display: block; } #crews b { color: #5fd4ff; font-weight: 700; } #crews .q { color: #ffb347; }
   .card { flex: 0 1 clamp(64px, 5.7vw, 92px); min-width: 54px; height: clamp(76px, 5.9vw, 92px); border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-bg2); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: transform .12s, border-color .12s, background .12s; }
   .card .ico { width: 30px; height: 30px; color: var(--c-player); }
   .card .nm { font-size: 13px; font-weight: 700; letter-spacing: .02em; text-align: center; line-height: 1; }
@@ -582,6 +585,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'selected', class: 'panel pi' }));
 
     root.appendChild(el('div', { id: 'dock', class: 'hidden pi' }, `
+      <div id="crews" aria-live="polite"></div>
       <div id="cards" class="panel"></div>
       <div id="actions" class="panel">
         <button class="abtn fire" id="b-fire">${icon('missile')}<span>Fire Missile</span><small><kbd>Q</kbd> <span id="fire-sub"></span></small><span class="badge" id="fire-badge"></span></button>
@@ -867,6 +871,15 @@ window.UI = (function () {
 
   function setDock(visible) { $('dock').classList.toggle('hidden', !visible); }
 
+  // Build crews: how many are busy, and how many sites are waiting for one
+  function setCrews(busy, total, queued) {
+    const box = $('crews');
+    if (!box) return;
+    box.classList.toggle('on', busy > 0);
+    if (!busy) return;
+    const dots = Array.from({ length: total }, (_, i) => i < busy ? '●' : '○').join('');
+    box.innerHTML = 'BUILD CREWS <b>' + dots + '</b>' + (queued ? ' <span class="q">· ' + queued + ' queued</span>' : '');
+  }
   function setCards(list) {
     const box = $('cards');
     if (box.children.length !== list.length) {
@@ -1389,7 +1402,7 @@ window.UI = (function () {
   function fillRange(r) { r.style.setProperty('--p', (100 * (r.value - r.min) / ((r.max - r.min) || 1)) + '%'); }
 
   return {
-    init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setActions, setOrders, log, clearLog, showSelected, setObjectives,
+    init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setCrews, setActions, setOrders, log, clearLog, showSelected, setObjectives,
     showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, comms, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
