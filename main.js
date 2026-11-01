@@ -2183,6 +2183,7 @@
 
   function beginLive(first) {
     phase = 'live';
+    setTimeout(() => Renderer.warm(), 1000);   // compile anything the battle has added (markers, bars) before the first wave
     mode = 'select'; buildType = null;
     livePaused = false; attack = null; liveUi = 0; liveSync = 0; markerKey = ''; basesFallen = []; lastBaseFall = null; introHold = 0; lastWave = -99; lastSalvoLog = -99; lastAlert = -1; clockWarned = []; lastTick = 99; fireReadySince = null; starvedSince = null; starvedTold = -999;
     clearFlights();

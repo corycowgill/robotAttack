@@ -124,11 +124,18 @@ window.Renderer = (function () {
         } catch (e) { /* not a model type */ }
       }
     }
+    // target reticles (plain and additive) and fog-of-war ghost outlines appear mid-battle too
+    const extra = [false, true].map(add => new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: getReticleTex(), transparent: true, depthWrite: false, depthTest: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending })));
+    extra.push(Models.ghost('depot'));
+    const warmBar = makeHpBar(8); objs.push(warmBar);   // health / progress bars (no fog, no tone mapping)
+    for (const o of extra) objs.push(o);
     for (const o of objs) { o.position.set(MAP_W / 2, -40, MAP_H / 2); scene.add(o); }
     if (objs.length > 6) { objs[6].updateMatrixWorld(true); Models.setDamage(objs[6], 2, 1); }
     const mechs = ['player', 'ai'].map((side, i) => { try { return addRobot({ id: -100 - i, side, cell: 0, hp: 1, maxHp: 1 }); } catch (e) { return null; } });
     try { renderer.compile(scene, camera); } catch (e) { /* compiled on first use instead */ }
     for (const o of objs) { scene.remove(o); Models.dispose(o); }
+    for (const o of extra.slice(0, 2)) { o.geometry.dispose(); o.material.dispose(); }
+    disposeTree(warmBar);
     for (let i = 0; i < 2; i++) if (mechs[i] !== null) removeRobot(-100 - i);
   }
 
@@ -2116,6 +2123,8 @@ window.Renderer = (function () {
   return {
     ruinCells: () => Object.keys(ruins).map(Number),
     _scene: () => scene,
+    _renderer: () => renderer,
+    warm: () => { try { renderer.compile(scene, camera); } catch (e) { /* compiled on first use */ } },
     stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length }),
     framedDist: () => framedDist,
     init, render, reset, cycleQuality, setQuality, getQuality, setShake, setOcclusion, setMap, setBuildingLevel, setBuildingCharge, strikeBeam, setViewer, setCinematic, setDecorHidden, cellCenter, pickCell, project, missileArcHeight,
