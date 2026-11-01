@@ -1567,9 +1567,10 @@
     if (obj.userData.retro) obj.userData.retro.visible = flare > 0;
     if (obj.userData.flame) obj.userData.flame.scale.set(1, 1, 1.3 - flare * 0.9);
   }
+  const _od = new THREE.Vector3();
   function orient(obj, dir) {
     if (dir.lengthSq() < 1e-6) return;
-    obj.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+    obj.quaternion.setFromUnitVectors(UP, _od.copy(dir).normalize());
   }
 
   function missilePath(e) {
@@ -2714,8 +2715,10 @@
     const v = liveVis[id];
     return v ? v.obj.position.clone() : Renderer.cellCenter(cell).setY(25);
   }
+  // scratch vectors: flights update every frame, so avoid per-frame allocations
+  const _fp = new THREE.Vector3(), _fd = new THREE.Vector3(), _ft = new THREE.Vector3(), _alive = new Set();
   function syncFlights() {
-    const alive = new Set();
+    const alive = _alive; alive.clear();
     for (const f of state.rt.flights) {
       if (!f.launched || f.done || f.kind === 'strike') continue;
       alive.add(f.id);
@@ -2730,16 +2733,17 @@
       // the clock advances in 0.1 s ticks: add the time banked toward the next tick so flights
       // move every frame instead of jumping six frames at a time
       const k = Math.max(0, (state.rt.t + (state.rt.acc || 0) - f.launchAt) / f.flight);
-      const p = arcPoint(v.a, v.b, v.h, Math.min(1, k), new THREE.Vector3());
+      const p = arcPoint(v.a, v.b, v.h, Math.min(1, k), _fp);
       v.obj.position.copy(p);
-      if (f.kind !== 'ship') orient(v.obj, p.clone().sub(v.prev));
-      else orientShip(v.obj, p.clone().sub(v.prev), k);
+      _fd.subVectors(p, v.prev);
+      if (f.kind !== 'ship') orient(v.obj, _fd);
+      else orientShip(v.obj, _fd, k);
       // launches from the fog show up once they are out over the sea
       v.obj.visible = f.side === P || playerSees(f.from) || k > 0.3;
       if (v.obj.visible && p.distanceToSquared(v.prev) > 0.01) {
         Fx.trail(p, f.kind === 'ship' ? 'pod' : 'missile', f.side === P ? 0x66ccff : 0xff6a00);
         // dropships fire their retro thrusters on the way down
-        if (f.kind === 'ship' && k > 0.82) Fx.trail(p.clone().setY(p.y - 2.5), 'pod', 0xffd080);
+        if (f.kind === 'ship' && k > 0.82) Fx.trail(_ft.copy(p).setY(p.y - 2.5), 'pod', 0xffd080);
       }
       v.prev.copy(p);
     }
