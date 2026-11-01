@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Orchestrator
+// Iron Strait — Orchestrator
 // ============================================================
 // State machine (menu → planning → resolving → planning … → game over),
 // input handling, world/view synchronisation and the combat playback
@@ -92,12 +92,13 @@
     // (the first user gesture is also what lets the browser play audio)
     let seen = false;
     try { seen = !!sessionStorage.getItem('ra_intro'); sessionStorage.setItem('ra_intro', '1'); } catch (e) { /* private mode */ }
+    Renderer.setAtmosphere('dusk');
     setupBackdrop(true);
     UI.showSplash(seen, () => {
       SND.unlock();
       SND.play('titleSting');
       SND.setMode('menu');
-      UI.showMenu(true, true);
+      UI.showMenu(true, true, 'home');
     });
 
     const canvas = document.getElementById('game-canvas');
@@ -441,7 +442,7 @@
     UI.setCombatHint(false);
     state = null;
     UI.setDanger(0);
-    Renderer.setAtmosphere('day');
+    Renderer.setAtmosphere('dusk');   // the menu is fought at dusk, like the key art
     setupBackdrop(false);
     refreshContinue();
     UI.showMenu(true, true);
@@ -1326,6 +1327,7 @@
       e.preventDefault();
       return;
     }
+    if (phase === 'menu' && !UI.isSplashOpen() && UI.menuKey(e)) return;
     if (e.key === '?' || e.code === 'Slash') { UI.showHelp(true); return; }
     if (e.code === 'KeyM') { action('mute'); return; }
     if (e.code === 'KeyG') { UI.toast('Graphics quality: ' + Renderer.cycleQuality(), 'good'); return; }

@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — AI opponent
+// Iron Strait — AI opponent
 // ============================================================
 // Plans the AI side's turn using exactly the same rule functions
 // (and therefore the same restrictions) as the player.

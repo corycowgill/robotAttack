@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Renderer
+// Iron Strait — Renderer
 // ============================================================
 // Three.js scene: lighting, terrain, overlays (grid, build zone,
 // fog of war), camera rig with damping + trauma shake, picking and

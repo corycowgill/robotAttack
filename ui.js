@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — DOM user interface
+// Iron Strait — DOM user interface
 // ============================================================
 // HUD, build bar, order queue, selection panel, toasts, tooltips,
 // banners, turn report, objectives, menus and help. The UI holds no
@@ -44,17 +44,25 @@ window.UI = (function () {
     strike: '<path d="M12 2v7"/><path d="M9 4l3 5 3-5"/><circle cx="12" cy="16" r="5"/><circle cx="12" cy="16" r="1.5"/><path d="M12 9v2M5 16h2M17 16h2"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     credits: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18"/>',
-    energy: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>'
+    energy: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+    play: '<path d="M7 4l13 8-13 8z"/>',
+    swords: '<path d="M4 4l10 10M14 14l2 4 2-2-4-2M20 4L10 14M10 14l-2 4-2-2 4-2"/>',
+    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'
   };
   function icon(name, cls) {
     return '<svg class="ico ' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (ICON[name] || '') + '</svg>';
   }
 
   const CSS = `
-  :root { --c-bg: rgba(10,14,20,.86); --c-bg2: rgba(18,24,33,.92); --c-line: rgba(120,160,200,.18); --c-text: #d8e3ee; --c-dim: #7d8fa3;
+  /* Iron Strait palette: Command Navy #07111C, Steel Blue #172B3B, Friendly Cyan #2EC4FF, Hostile Orange #FF7A3D, Alert Red #FF4422, Armor Silver #D4DEE6 */
+  :root { --c-navy: #07111c; --c-steel: #172b3b; --c-silver: #d4dee6; --c-hostile: #ff7a3d;
+    --c-bg: rgba(7,17,28,.86); --c-bg2: rgba(20,36,50,.92); --c-line: rgba(120,165,205,.2); --c-text: #d4dee6; --c-dim: #7f93a6;
     --c-player: #2ec4ff; --c-ai: #ff4422; --c-credit: #66ff99; --c-energy: #ffd23f; --c-shield: #9d7cff; --c-warn: #ffb000; --c-bad: #ff4a3d; }
   #ui { position: fixed; inset: 0; pointer-events: none; font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif; color: var(--c-text); z-index: 10; user-select: none; }
   #ui * { box-sizing: border-box; }
+  /* Inter for running text; Rajdhani / Oxanium stay on headings, buttons and the HUD */
+  #log, .speaker .say, #help p, #help li, .diff p, #selected .desc, #go-reason, #go-tip, .warnline, #objectives .obj span, #comms .line, .navbtn small { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; letter-spacing: 0; }
+  #log { font-size: 12.5px; } .speaker .say { font-size: 14px; }
   #ui .pi { pointer-events: auto; }
   .ico { width: 20px; height: 20px; flex: none; }
   .panel { background: var(--c-bg); border: 1px solid var(--c-line); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
@@ -252,11 +260,31 @@ window.UI = (function () {
   .menu-box { width: min(880px, 94vw); text-align: center; }
   /* ── Logo (title screen + menu header) ── */
   .logo { position: relative; display: inline-block; text-align: center; user-select: none; }
-  .logo-main { position: relative; font-family: 'Russo One', 'Rajdhani', system-ui, sans-serif; font-weight: 400; font-size: clamp(38px, min(8.4vw, 15vh), 132px); letter-spacing: .06em; line-height: 1; white-space: nowrap;
-    filter: drop-shadow(0 2px 0 #06263a) drop-shadow(0 6px 14px rgba(0,0,0,.65)) drop-shadow(0 0 28px rgba(46,196,255,.38)); }
-  .logo-main .ch { display: inline-block; background: linear-gradient(180deg, #ffffff 0%, #d9f3ff 34%, #7fd3f7 49%, #0f5b84 51%, #2a9fd8 72%, #b8ecff 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 1px rgba(210,245,255,.35); }
-  .logo-main .sp { display: inline-block; width: .32em; }
+  /* IRON STRAIT: heavy, tightly kerned, brushed-steel letters with restrained weathering */
+  .logo-main { position: relative; font-family: 'Oxanium', 'Russo One', 'Rajdhani', system-ui, sans-serif; font-weight: 800; font-size: clamp(40px, min(8.6vw, 15vh), 136px); letter-spacing: .015em; line-height: .95; white-space: nowrap; font-style: italic;
+    filter: drop-shadow(0 2px 0 #0b1a26) drop-shadow(0 3px 0 #04090f) drop-shadow(0 10px 18px rgba(0,0,0,.7)); }
+  .logo-main .ch { display: inline-block; padding: 0 .015em;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 .1  0 0 0 0 .12  0 0 0 0 .14  0 0 0 -2.6 1.1'/></filter><rect width='220' height='220' filter='url(%23w)'/></svg>"),
+      linear-gradient(176deg, #ffffff 0%, #eef3f6 22%, #c3ced7 44%, #7d8a96 50%, #a9b6c1 56%, #e4ebf0 80%, #b9c5cf 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 1px rgba(232,240,246,.45); }
+  .logo-main .sp { display: inline-block; width: .28em; }
+  /* the strait emblem: two coasts, the channel between them and a missile arcing across */
+  .emblem { display: block; width: clamp(150px, 19vw, 290px); margin: 0 auto -.2em; overflow: visible; filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
+  .emblem .land { fill: url(#emb-steel); stroke-width: 2.4; stroke-linejoin: round; } .emblem .land.us { stroke: #2ec4ff; } .emblem .land.them { stroke: #ff7a3d; }
+  .emblem .water { stroke: #2ec4ff; stroke-opacity: .35; stroke-width: 1.2; fill: none; }
+  .emblem .arc { fill: none; stroke: url(#emb-trail); stroke-width: 3.4; stroke-linecap: round; stroke-dasharray: 150; stroke-dashoffset: 0; }
+  .emblem .head { fill: #fff3d6; } .emblem .boom { fill: none; stroke: #ff7a3d; stroke-width: 1.6; opacity: .9; }
+  .emblem .bunker { fill: #0b1824; } .emblem .head { filter: drop-shadow(0 0 3px #ffb070); }
+  .logo.reveal .emblem .land.us { animation: embL .7s .35s cubic-bezier(.2,.8,.2,1) both; }
+  .logo.reveal .emblem .land.them { animation: embR .7s .35s cubic-bezier(.2,.8,.2,1) both; }
+  .logo.reveal .emblem .arc { animation: embArc .8s .95s ease-in both; }
+  .logo.reveal .emblem .head { animation: fadeIn .2s 1.65s both; opacity: 0; }
+  .logo.reveal .emblem .boom { transform-origin: 160px 37px; animation: embBoom .7s 1.7s ease-out both; }
+  @keyframes embL { from { transform: translateX(-26px); opacity: 0; } }
+  @keyframes embR { from { transform: translateX(26px); opacity: 0; } }
+  @keyframes embArc { from { stroke-dashoffset: 150; } }
+  @keyframes embBoom { 0% { transform: scale(.2); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+  .logo.reveal.skip .emblem * { animation-duration: .01s !important; animation-delay: 0s !important; }
   .logo-main::after { content: attr(data-text); position: absolute; inset: 0; letter-spacing: inherit; pointer-events: none;
     background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 50%, transparent 58%) no-repeat; background-size: 260% 100%; background-position: 160% 0;
     -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -264,13 +292,13 @@ window.UI = (function () {
   .logo.reveal.sweep .logo-main::after { animation-delay: 2.7s; }   /* never sweep over letters that haven't landed */
   .logo.reveal.sweep.skip .logo-main::after { animation-delay: .4s; }
   @keyframes logoSweep { 0% { background-position: 160% 0; } 45%, 100% { background-position: -60% 0; } }
-  .logo-sub { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: .55em; font-size: clamp(13px, 1.6vw, 22px); font-weight: 700; letter-spacing: .55em; color: #ff5a3a; text-shadow: 0 0 14px rgba(255,90,58,.55); }
-  .logo-sub i { display: block; height: 2px; width: clamp(40px, 9vw, 130px); background: linear-gradient(90deg, transparent, #ff5a3a); }
+  .logo-sub { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: .5em; font-size: clamp(12px, 1.45vw, 20px); font-weight: 700; letter-spacing: .5em; color: var(--c-silver); text-shadow: 0 2px 6px #000; }
+  .logo-sub i { display: block; height: 2px; width: clamp(40px, 9vw, 130px); background: linear-gradient(90deg, transparent, #2ec4ff); box-shadow: 0 0 8px rgba(46,196,255,.6); }
   .logo-sub i:last-child { transform: scaleX(-1); }
   /* reveal animation (title screen) */
   .logo.reveal .logo-main .ch { opacity: 0; transform: translateY(-.5em) scale(1.35); filter: blur(10px); animation: chIn .55s cubic-bezier(.2,.9,.25,1.15) forwards; animation-delay: calc(1.1s + var(--i) * 55ms); }
   @keyframes chIn { to { opacity: 1; transform: none; filter: none; } }
-  .logo.reveal .logo-main::before { content: ''; position: absolute; inset: -20% -6%; background: radial-gradient(ellipse at center, rgba(190,240,255,.9), transparent 62%); opacity: 0; animation: logoFlash .7s 1.95s ease-out; pointer-events: none; }
+  .logo.reveal .logo-main::before { content: ''; position: absolute; inset: -20% -6%; background: radial-gradient(ellipse at center, rgba(255,214,170,.85), transparent 62%); opacity: 0; animation: logoFlash .7s 1.95s ease-out; pointer-events: none; }
   @keyframes logoFlash { 0% { opacity: 0; } 15% { opacity: .85; } 100% { opacity: 0; } }
   .logo.reveal .logo-sub { opacity: 0; animation: fadeIn .6s 2.25s forwards; }
   .logo.reveal .logo-sub i { transform: scaleX(0); animation: lineOut .7s 2.3s cubic-bezier(.2,.8,.2,1) forwards; }
@@ -298,7 +326,7 @@ window.UI = (function () {
   #splash.out { opacity: 0; transition: opacity .7s .35s; pointer-events: none; }
   #splash.out .logo { transform: scale(1.06); transition: transform 1s ease-out; }
   /* menu header + entrance */
-  .title { margin-bottom: 4px; } .title .logo-main { font-size: clamp(40px, 6.4vw, 92px); }
+  .title { margin-bottom: 4px; } .title .logo-main { font-size: clamp(42px, min(7.4vw, 13vh), 116px); }
   #menu.enter .menu-box > * { opacity: 0; transform: translateY(18px); animation: menuIn .55s cubic-bezier(.2,.8,.2,1) forwards; }
   #menu.enter .menu-box > *:nth-child(1) { animation-delay: .05s; } #menu.enter .menu-box > *:nth-child(2) { animation-delay: .12s; }
   #menu.enter .menu-box > *:nth-child(3) { animation-delay: .18s; } #menu.enter .menu-box > *:nth-child(4) { animation-delay: .22s; }
@@ -308,6 +336,72 @@ window.UI = (function () {
   #menu { background: linear-gradient(180deg, rgba(5,8,12,.35) 0%, rgba(5,8,12,.55) 35%, rgba(5,8,12,.86) 100%); align-items: flex-start; overflow-y: auto; }
   #menu .menu-box { margin: auto; padding: 18px 0 22px; }  /* centred when it fits, scrollable (never clipped) when it doesn't */
   @media (max-width: 700px) { #menu .menu-box { padding-top: 58px; } }  /* clear of the corner buttons */
+  /* ── main menu: landing (home) and the campaign / skirmish pick views ── */
+  #menu { background: linear-gradient(180deg, rgba(7,17,28,.25) 0%, rgba(7,17,28,.45) 40%, rgba(7,17,28,.88) 100%); }
+  #menu { isolation: isolate; z-index: 0; }   /* keep the menu's own layers inside it, under later screens (settings, help) */
+  #menu .menu-box { position: relative; z-index: 1; }
+  #menu[data-view="home"] .pick, #menu:not([data-view="home"]) .home { display: none; }
+  #menu[data-view="campaign"] .v-sk, #menu[data-view="skirmish"] .v-camp { display: none !important; }
+  #menu .home { display: flex; flex-direction: column; align-items: center; }
+  @media (min-width: 1100px) { #menu .home { transform: translateX(min(8vw, 130px)); } }   /* the key art owns the left */
+  .tagline { margin: 14px 0 26px; font: 700 clamp(13px, 1.5vw, 19px) 'Rajdhani', sans-serif; letter-spacing: .55em; text-transform: uppercase; color: var(--c-silver); text-shadow: 0 2px 6px #000; padding-left: .55em; }
+  .tagline b { color: var(--c-player); font-weight: 700; }
+  .mainnav { display: flex; flex-direction: column; gap: 10px; width: min(420px, 90vw); }
+  .navbtn { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 14px; text-align: left; width: 100%;
+    padding: 12px 18px; border-radius: 4px; cursor: pointer; font: 700 20px 'Rajdhani', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--c-silver);
+    background: linear-gradient(180deg, rgba(23,43,59,.92), rgba(7,17,28,.92)); border: 1px solid rgba(212,222,230,.18);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); transition: border-color .15s, background .15s, transform .15s, color .15s; }
+  .navbtn .ico { width: 22px; height: 22px; color: var(--c-player); grid-row: span 2; }
+  .navbtn small { grid-column: 2; font-size: 12px; font-weight: 500; text-transform: none; color: var(--c-dim); margin-top: 2px; }
+  .navbtn .vs { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; letter-spacing: .08em; color: var(--c-dim); text-align: right; }
+  .navbtn .vs b { display: block; font-size: 18px; color: var(--c-warn); letter-spacing: .04em; }
+  .navbtn em { font-style: normal; font-size: 13px; letter-spacing: .1em; color: var(--c-warn); margin-left: 6px; }
+  .navbtn:hover, .navbtn:focus-visible { border-color: rgba(46,196,255,.75); color: #fff; background: linear-gradient(180deg, rgba(30,62,84,.95), rgba(10,24,38,.95)); transform: translateX(4px); outline: none; }
+  .navbtn::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; background: var(--c-player); opacity: 0; transition: opacity .15s; }
+  .navbtn:hover::before, .navbtn:focus-visible::before, .navbtn.primary::before { opacity: 1; }
+  .navbtn.primary { padding: 16px 20px; font-size: 24px; border-color: rgba(46,196,255,.65); box-shadow: inset 0 0 0 1px rgba(46,196,255,.15), 0 0 24px rgba(46,196,255,.18);
+    background: linear-gradient(180deg, rgba(22,70,100,.95), rgba(8,30,48,.95)); }
+  .navrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+  .navbtn.small { display: block; text-align: center; padding: 9px 6px; font-size: 13px; letter-spacing: .06em; white-space: nowrap; }
+  .navbtn.small:hover, .navbtn.small:focus-visible { transform: translateY(-2px); }
+  .mission:focus-visible, .diff:focus-visible { outline: 2px solid rgba(46,196,255,.85); outline-offset: 2px; }
+  #menu .home .menu-foot { margin-top: 18px; }
+  #menu[data-view="campaign"] .missions { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  #menu[data-view="campaign"] .mission { padding: 14px 14px 16px; } #menu[data-view="campaign"] .mission h4 { font-size: 20px; margin: 4px 0 10px; }
+  #menu[data-view="campaign"] .mission .vs { font-size: 13px; gap: 10px; } #menu[data-view="campaign"] .mission .vs svg { width: 56px; height: 56px; }
+  @media (max-width: 900px) { #menu[data-view="campaign"] .missions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .pickbar { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; margin: 4px 0 18px; }
+  .pickbar .back { width: auto; }
+  .pick-title { text-align: center; font: 700 22px 'Oxanium', 'Rajdhani', sans-serif; letter-spacing: .32em; text-transform: uppercase; color: var(--c-silver); }
+  /* key art (commanders) on the left, haze, missile trails and a radar scope over the live backdrop */
+  .menu-fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .keyart { position: absolute; left: 0; top: 0; bottom: 0; width: min(46.3vh, 34vw); background: url('assets/brand/commanders.webp') left center / cover no-repeat;
+    -webkit-mask-image: linear-gradient(90deg, #000 58%, transparent), linear-gradient(0deg, transparent, #000 18%); mask-image: linear-gradient(90deg, #000 58%, transparent);
+    opacity: 0; animation: fadeIn 1.2s .2s forwards; }
+  #menu:not([data-view="home"]) .keyart { opacity: .22 !important; transition: opacity .4s; }
+  .haze { position: absolute; inset: -10% -30%; background: radial-gradient(ellipse 40% 30% at 30% 70%, rgba(120,150,175,.12), transparent 70%), radial-gradient(ellipse 35% 25% at 75% 60%, rgba(255,122,61,.07), transparent 70%);
+    animation: hazeDrift 38s linear infinite alternate; }
+  @keyframes hazeDrift { to { transform: translateX(14%); } }
+  .trails { position: absolute; right: 0; top: 4%; width: 62%; height: 46%; opacity: .8; }
+  .trails path { fill: none; stroke: #ffd2a0; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 60 1400; stroke-dashoffset: 60; filter: drop-shadow(0 0 6px #ff7a3d);
+    animation: trail 7s linear infinite; }
+  .trails path:nth-child(2) { animation-delay: 2.6s; animation-duration: 8.5s; } .trails path:nth-child(3) { animation-delay: 5s; animation-duration: 6.5s; }
+  @keyframes trail { 0% { stroke-dashoffset: 60; opacity: 0; } 6% { opacity: 1; } 70% { opacity: 1; } 100% { stroke-dashoffset: -1300; opacity: 0; } }
+  .radar { position: absolute; right: 22px; bottom: 22px; width: 132px; height: 132px; border-radius: 50%; border: 1px solid rgba(46,196,255,.45);
+    background: radial-gradient(circle, transparent 32%, rgba(46,196,255,.18) 33%, transparent 34%, transparent 65%, rgba(46,196,255,.18) 66%, transparent 67%), rgba(7,17,28,.55);
+    box-shadow: 0 0 18px rgba(46,196,255,.15), inset 0 0 20px rgba(46,196,255,.08); }
+  .radar::before, .radar::after { content: ''; position: absolute; background: rgba(46,196,255,.2); } .radar::before { left: 50%; top: 4%; bottom: 4%; width: 1px; } .radar::after { top: 50%; left: 4%; right: 4%; height: 1px; }
+  .radar .sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(46,196,255,.45), rgba(46,196,255,0) 22%); animation: sweep 4s linear infinite; }
+  @keyframes sweep { to { transform: rotate(360deg); } }
+  .radar i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #2ec4ff; box-shadow: 0 0 6px #2ec4ff; animation: blip 4s ease-out infinite; }
+  .radar i.foe { background: #ff7a3d; box-shadow: 0 0 6px #ff7a3d; animation-delay: 1.6s; }
+  @keyframes blip { 0%, 100% { opacity: .25; } 10% { opacity: 1; } }
+  .radar span { position: absolute; top: calc(100% + 6px); right: 0; white-space: nowrap; font: 600 10px 'Share Tech Mono', monospace; letter-spacing: .18em; color: rgba(46,196,255,.7); }
+  @media (max-width: 900px), (max-height: 520px) { .keyart, .radar { display: none; } .trails { width: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .trails path, .radar .sweep, .radar i, .haze { animation: none; } .trails { display: none; } }
+  body.compact .navbtn { padding: 9px 14px; font-size: 16px; } body.compact .navbtn.primary { padding: 11px 14px; font-size: 18px; } body.compact .navbtn small { display: none; }
+  body.compact .navbtn.small { font-size: 12px; letter-spacing: .03em; white-space: normal; padding: 8px 4px; }
+  body.compact .mainnav { gap: 6px; } body.compact .tagline { margin: 8px 0 12px; font-size: 11px; letter-spacing: .35em; }
   body.splash-on #sysbtns, body.splash-on #hud { visibility: hidden; }
   .tag { color: var(--c-dim); letter-spacing: .3em; text-transform: uppercase; font-size: 13px; margin: 18px 0 28px; }
   .diffs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -626,25 +720,43 @@ window.UI = (function () {
 
     // Menu
     const diffs = Object.keys(CONST.DIFFICULTY).map((k, i) => `
-      <div class="panel diff d${i + 1}" data-diff="${k}"><div class="lvl">${'◆'.repeat(i + 1)}${'◇'.repeat(2 - i)}</div><h3>${CONST.DIFFICULTY[k].name}</h3><p>${esc(CONST.DIFFICULTY[k].desc)}</p></div>`).join('');
-    root.appendChild(el('div', { id: 'menu', class: 'screen' }, `
+      <div class="panel diff d${i + 1}" data-diff="${k}" tabindex="0" role="button"><div class="lvl">${'◆'.repeat(i + 1)}${'◇'.repeat(2 - i)}</div><h3>${CONST.DIFFICULTY[k].name}</h3><p>${esc(CONST.DIFFICULTY[k].desc)}</p></div>`).join('');
+    root.appendChild(el('div', { id: 'menu', class: 'screen', 'data-view': 'home' }, `
+      <div class="menu-fx" aria-hidden="true">
+        <div class="keyart"></div><div class="haze"></div>
+        <svg class="trails" viewBox="0 0 1000 400" preserveAspectRatio="none">
+          <path d="M80 380 Q420 -40 980 170"/><path d="M200 400 Q560 40 1000 260"/><path d="M40 330 Q380 60 760 120"/>
+        </svg>
+        <div class="radar"><div class="sweep"></div><i style="left:62%;top:30%"></i><i style="left:30%;top:58%"></i><i class="foe" style="left:70%;top:66%"></i><span>STRAIT SURVEILLANCE &middot; LIVE</span></div>
+      </div>
       <div class="menu-box">
-        <div class="title">${logoHTML()}</div>
-        <div class="tag">Build &middot; Strike &middot; Defend &mdash; an island war fought in real time</div>
-        <div id="m-cont-wrap" style="display:none;margin:-8px 0 20px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
-        <div id="m-warn" class="warnline"></div>
-        <div class="sect">Campaign</div>
-        <div class="missions" id="m-missions"></div>
-        <div class="sect">Skirmish &mdash; random islands</div>
-        <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span data-l="${k}">${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
-        <div class="diffs">${diffs}</div>
-        <div class="panel hotseat daily" id="m-daily"><div><h3>DAILY OPERATION <span id="dl-date"></span></h3><p id="dl-desc"></p></div><div class="vs" id="dl-best"></div></div>
-        <div class="menu-foot">
-          <span class="lnk" id="m-help">How to play</span>
-          <span class="lnk" id="m-settings">Settings</span>
-          <span class="lnk" id="m-ach">Achievements <span id="ach-count"></span></span>
-          <label class="chk"><input type="checkbox" id="m-tut" checked> Show tutorial objectives</label>
-          <label class="chk"><input type="checkbox" id="m-music" checked> Music</label>
+        <div class="home">
+          <div class="title">${logoHTML()}</div>
+          <div class="tagline">Build <b>&middot;</b> Strike <b>&middot;</b> Dominate</div>
+          <div id="m-cont-wrap" style="display:none;margin:0 0 14px"><button class="bigbtn" id="m-continue">Continue <span id="m-cont-sub" style="font-size:14px;opacity:.75;letter-spacing:.04em"></span></button></div>
+          <div id="m-warn" class="warnline"></div>
+          <nav class="mainnav">
+            <button class="navbtn primary" id="m-go-campaign">${icon('play')}<span>Campaign</span><small>Seven missions against six commanders</small></button>
+            <button class="navbtn" id="m-go-skirmish">${icon('swords')}<span>Skirmish</span><small>Random islands, your rules</small></button>
+            <button class="navbtn daily" id="m-daily">${icon('target')}<span>Daily Operation <em id="dl-date"></em></span><small id="dl-desc"></small><b class="vs" id="dl-best"></b></button>
+            <div class="navrow">
+              <button class="navbtn small" id="m-help">How to Play</button>
+              <button class="navbtn small" id="m-settings">Settings</button>
+              <button class="navbtn small" id="m-ach">Achievements <span id="ach-count"></span></button>
+            </div>
+          </nav>
+          <div class="menu-foot">
+            <label class="chk"><input type="checkbox" id="m-tut" checked> Show tutorial objectives</label>
+            <label class="chk"><input type="checkbox" id="m-music" checked> Music</label>
+          </div>
+        </div>
+        <div class="pick">
+          <div class="pickbar"><button class="navbtn small back" id="m-back">&#9664; Back</button><div class="pick-title"><span class="v-camp">Campaign</span><span class="v-sk">Skirmish &mdash; random islands</span></div><span class="pick-sp"></span></div>
+          <div class="v-camp"><div class="missions" id="m-missions"></div></div>
+          <div class="v-sk">
+            <div class="opts" id="m-opts">${Object.keys(SKIRMISH_OPTIONS).map(k => `<div class="opt"><span data-l="${k}">${esc(SKIRMISH_OPTIONS[k].label)}</span><div class="seg">${SKIRMISH_OPTIONS[k].choices.map(c => `<button data-k="${k}" data-v="${c[0]}"${k === 'style' ? ` title="${esc(AI_STYLE_INFO[c[0]].desc)}"` : ''}>${esc(c[1])}</button>`).join('')}</div></div>`).join('')}</div>
+            <div class="diffs">${diffs}</div>
+          </div>
         </div>
       </div>`));
 
@@ -707,6 +819,10 @@ window.UI = (function () {
       d.addEventListener('mouseenter', () => H.onHover && H.onHover());
     });
     $('m-help').addEventListener('click', () => showHelp(true));
+    $('menu').addEventListener('keydown', e => { if ((e.code === 'Enter' || e.code === 'Space') && e.target.matches('.mission, .diff')) { e.preventDefault(); e.stopPropagation(); e.target.click(); } });
+    $('m-go-campaign').addEventListener('click', () => menuView('campaign'));
+    $('m-go-skirmish').addEventListener('click', () => menuView('skirmish'));
+    $('m-back').addEventListener('click', () => menuView('home'));
     root.querySelectorAll('#m-opts button').forEach(b => b.addEventListener('click', () => {
       skirmishOpts[b.dataset.k] = +b.dataset.v;
       try { localStorage.setItem('ra_skirmish', JSON.stringify(skirmishOpts)); } catch (e) { /* storage blocked */ }
@@ -748,7 +864,7 @@ window.UI = (function () {
     $('ch-skip').addEventListener('click', () => H.onAction('end'));
     $('ch-speed').addEventListener('click', () => H.onSpeed());
     $('b-log').addEventListener('click', () => { $('orders').classList.toggle('open'); $('log').scrollTop = $('log').scrollHeight; });
-    root.appendChild(el('div', { id: 'rotate' }, `<div class="phone"></div><div><b>Rotate your phone</b><br><span style="color:var(--c-dim);font-size:15px">Robot Attack plays best in landscape.</span></div><button class="bigbtn alt" id="rot-ok">Play anyway</button>`));
+    root.appendChild(el('div', { id: 'rotate' }, `<div class="phone"></div><div><b>Rotate your phone</b><br><span style="color:var(--c-dim);font-size:15px">Iron Strait plays best in landscape.</span></div><button class="bigbtn alt" id="rot-ok">Play anyway</button>`));
     $('rot-ok').addEventListener('click', () => { rotateDismissed = true; layout(); });
     window.addEventListener('resize', layout);
     window.addEventListener('orientationchange', () => setTimeout(layout, 250));
@@ -814,9 +930,9 @@ window.UI = (function () {
         <div><kbd>Esc</kbd> cancel &nbsp; Touch: tap, drag to pan, pinch to zoom</div><div><kbd>M</kbd> mute &nbsp; <kbd>G</kbd> graphics quality &nbsp; <kbd>?</kbd> help</div>
       </div>
       <h4>Credits</h4>
-      <p class="credits">Robot Attack 2026 is an original game. Code &copy; 2026 Cory Cowgill, MIT License.
+      <p class="credits">Iron Strait is an original game. Code &copy; 2026 Cory Cowgill, MIT License.
         3D engine: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> r128 (MIT).
-        Fonts: Rajdhani, Russo One and Share Tech Mono (SIL Open Font License 1.1).
+        Fonts: Oxanium, Rajdhani, Inter, Russo One and Share Tech Mono (SIL Open Font License 1.1).
         Music and sound effects generated with Stable Audio &mdash; Powered by Stability AI.
         Not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.</p>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
@@ -1194,25 +1310,65 @@ window.UI = (function () {
     $('b-undo').style.display = on ? 'none' : '';
   }
 
-  function showMenu(on, enter) {
+  // view: 'home' (landing) | 'campaign' | 'skirmish'; omitted keeps the current one
+  function showMenu(on, enter, view) {
     $('menu').classList.toggle('show', on);
     $('menu').classList.toggle('enter', !!(on && enter));
-    if (on) $('gameover').classList.remove('show');
+    if (on) { $('gameover').classList.remove('show'); if (view) menuView(view, true); }
+  }
+  function menuView(view, quiet) {
+    const m = $('menu');
+    m.dataset.view = view;
+    m.scrollTop = 0;
+    if (!quiet && H.onHover) H.onHover();
+    // keyboard users land on the first control of the view
+    if (!matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => {
+      const first = m.querySelector(view === 'home' ? '#m-go-campaign' : view === 'campaign' ? '.mission:not(.locked)' : '.diff');
+      if (first && m.classList.contains('show')) first.focus({ preventScroll: true });
+    });
+  }
+  function isMenuOpen() { return $('menu').classList.contains('show'); }
+  // arrow keys walk the visible menu controls; Esc goes back to the landing screen
+  function menuKey(e) {
+    if (!isMenuOpen()) return false;
+    const m = $('menu');
+    if (e.code === 'Escape' && m.dataset.view !== 'home') { menuView('home'); return true; }
+    if (!/^Arrow(Up|Down|Left|Right)$/.test(e.code)) return false;
+    const items = [...m.querySelectorAll('.navbtn, .mission:not(.locked), .diff, .opt button')].filter(x => x.offsetParent !== null);
+    if (!items.length) return false;
+    const i = items.indexOf(document.activeElement), back = e.code === 'ArrowUp' || e.code === 'ArrowLeft';
+    const next = items[i < 0 ? 0 : (i + (back ? -1 : 1) + items.length) % items.length];
+    next.focus({ preventScroll: false });
+    e.preventDefault();
+    return true;
   }
 
   // Title screen: cinematic logo reveal over the backdrop battle, then "press start"
   function logoHTML(cls) {
     let i = 0;
     const word = w => [...w].map(c => `<span class="ch" style="--i:${i++}">${c}</span>`).join('');
-    return `<div class="logo ${cls || ''}"><div class="logo-main" data-text="ROBOT ATTACK">${word('ROBOT')}<span class="sp"></span>${word('ATTACK')}</div>
-      <div class="logo-sub"><i></i><span>STRATEGY 2026</span><i></i></div></div>`;
+    return `<div class="logo ${cls || ''}">${emblemSVG()}<div class="logo-main" data-text="IRON STRAIT">${word('IRON')}<span class="sp"></span>${word('STRAIT')}</div>
+      <div class="logo-sub"><i></i><span>REAL-TIME STRATEGY</span><i></i></div></div>`;
+  }
+  // Two coasts (ours cyan-edged, theirs orange-edged), the channel between them and a missile
+  // arcing across: reads at icon size as well as on the title screen
+  function emblemSVG() {
+    return `<svg class="emblem" viewBox="0 0 200 76" aria-hidden="true"><defs>
+      <linearGradient id="emb-steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fb0be"/><stop offset=".18" stop-color="#5b7286"/><stop offset="1" stop-color="#172b3b"/></linearGradient>
+      <linearGradient id="emb-trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff7a3d" stop-opacity="0"/><stop offset=".55" stop-color="#ff7a3d"/><stop offset="1" stop-color="#ffe2b0"/></linearGradient></defs>
+      <path class="land us" d="M2 74 L2 46 L14 42 L22 44 L34 38 L48 41 L60 39 L70 44 L78 52 L84 61 L81 74 Z"/>
+      <path class="land them" d="M198 74 L198 44 L186 40 L176 43 L164 37 L150 40 L138 38 L128 44 L121 52 L116 61 L119 74 Z"/>
+      <path class="bunker" d="M18 43 h12 v-6 h-12z M50 40 h8 v-5 h-8z"/><path class="bunker" d="M144 39 h12 v-6 h-12z M170 41 h8 v-5 h-8z"/>
+      <path class="water" d="M86 60 Q100 56 114 60 M84 67 Q100 63 116 67 M88 73 Q100 70 112 73"/>
+      <path class="arc" d="M40 38 Q100 -18 160 37"/>
+      <circle class="head" cx="160" cy="37" r="2.6"/><circle class="boom" cx="160" cy="37" r="7"/></svg>`;
   }
   function showSplash(fast, onStart) {
     const sp = $('splash');
     const touch = matchMedia('(pointer: coarse)').matches;
     sp.innerHTML = `<div class="black"></div><div class="bars"></div>${logoHTML('reveal sweep' + (fast ? ' skip' : ''))}
       <div class="press"><span>${touch ? 'TAP TO START' : 'PRESS START'}</span></div>
-      <div class="foot">An island war fought in real time</div>`;
+      <div class="foot">Build &middot; Strike &middot; Dominate</div>`;
     sp.className = 'screen show' + (fast ? ' skip' : '');
     document.body.classList.add('splash-on');
     const t0 = performance.now();
@@ -1284,7 +1440,7 @@ window.UI = (function () {
       const c = COMMANDERS[m.enemy];
       const medals = m.medals && m.medals[0] ? m.medals : [true, false, false]; // cleared before medals existed
       const badge = m.state === 'done' ? `<span title="${medals.filter(Boolean).length} of 3 medals">${medals.map(on => `<span class="star${on ? ' on' : ''}">★</span>`).join('')}</span>` : m.state === 'locked' ? '🔒' : '';
-      const d = el('div', { class: 'panel mission ' + m.state }, `<span class="badge">${badge}</span>
+      const d = el('div', Object.assign({ class: 'panel mission ' + m.state }, m.state !== 'locked' ? { tabindex: '0', role: 'button' } : {}), `<span class="badge">${badge}</span>
         <div class="num">MISSION ${m.id}</div><h4>${esc(m.name)}</h4><div class="vs">${portrait(c)}<span>vs ${esc(c.name)}</span></div>`);
       if (m.state !== 'locked') d.addEventListener('click', () => H.onMission(m.id));
       box.appendChild(d);
@@ -1422,8 +1578,8 @@ window.UI = (function () {
   function isSettingsOpen() { return $('settings').classList.contains('show'); }
   function setDaily(d) {
     $('dl-date').textContent = d.date;
-    $('dl-desc').textContent = 'Today: ' + d.twist + ' vs ' + d.opponent + ' — same battle for everyone today. Win fast, keep your bases intact.';
-    $('dl-best').innerHTML = d.best ? 'Best<b>' + d.best + '</b>' : 'Not played<b>—</b>';
+    $('dl-desc').textContent = d.twist + ' vs ' + d.opponent + ' · same battle for everyone today';
+    $('dl-best').innerHTML = d.best ? 'Best <b>' + d.best + '</b>' : 'Not played';
   }
   function setAchCount(n, total) { $('ach-count').textContent = '(' + n + '/' + total + ')'; }
   function showAchievements(list) {
@@ -1438,7 +1594,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setCrews, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, showHandoff, hideHandoff, isHandoffOpen,
+    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, isMenuOpen, menuView, menuKey, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, comms, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };

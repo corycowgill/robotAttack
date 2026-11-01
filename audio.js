@@ -1,4 +1,4 @@
-/* Robot Attack - procedural WebAudio sound engine.
+/* Iron Strait - procedural WebAudio sound engine.
  * Exposes window.GameAudio. No dependencies. All calls are safe no-ops
  * before unlock() or when WebAudio is unavailable. */
 (function () {

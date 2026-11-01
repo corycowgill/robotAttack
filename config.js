@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Configuration & data tables
+// Iron Strait — Configuration & data tables
 // ============================================================
 // Pure data. No DOM / Three.js. Loaded first.
 
@@ -308,7 +308,7 @@ const CAMPAIGN = [
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
   },
   {
-    id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
+    id: 3, name: 'The Narrows', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
     atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
     rtBonus: 150,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',

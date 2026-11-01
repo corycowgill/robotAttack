@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack — procedural 3D models (Three.js r128, global THREE)
+// Iron Strait — procedural 3D models (Three.js r128, global THREE)
 // ============================================================
 // Defines window.Models. No loaders / addons; everything is built from
 // primitive geometries + a few canvas textures.

@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Rules engine
+// Iron Strait — Rules engine
 // ============================================================
 // Pure game logic: state factory, validation, planning actions and
 // deterministic turn resolution. No DOM, no Three.js, no timers.

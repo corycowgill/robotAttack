@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Visual effects
+// Iron Strait — Visual effects
 // ============================================================
 // Pooled GPU particles (two THREE.Points systems: additive glow and
 // alpha-blended smoke/debris), a fixed pool of flash lights,

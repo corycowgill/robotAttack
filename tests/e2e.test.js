@@ -75,6 +75,7 @@ const freeCell = (page, type) => page.evaluate(t => {
 }, type);
 // Every battle is real time
 async function startSkirmish(page, diff = 'patrol') {
+  if (await page.isVisible('#m-go-skirmish')) await page.click('#m-go-skirmish');   // landing screen → skirmish view
   await page.click(`.diff[data-diff="${diff}"]`);
   await page.waitForFunction(() => __game.phase === 'live');
 }
@@ -211,6 +212,7 @@ test('Drop button works once a hangar stands (regression)', async t => {
 
 test('campaign: briefing, victory, next briefing and back to the menu', async t => {
   const { page, errors } = await open(t);
+  await page.click('#m-go-campaign');
   await page.click('.mission:not(.locked)');
   await page.waitForSelector('#briefing.show');
   await page.click('#br-go');
@@ -258,6 +260,7 @@ test('autosave: Continue after a reload restores the game', async t => {
 test('phone: compact layout and tap-to-confirm building', async t => {
   const { page, errors } = await open(t, { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
   assert.ok(await page.evaluate(() => document.body.classList.contains('compact')));
+  await page.tap('#m-go-skirmish');
   await page.tap('.diff[data-diff="patrol"]');
   await page.waitForFunction(() => __game.phase === 'live');
   const cell = await freeCell(page, 'depot');
@@ -295,6 +298,7 @@ test('orbital strike: build an uplink, charge, target with R, strike lands', asy
 
 test('battle options apply to the skirmish and are remembered', async t => {
   const { page, errors } = await open(t);
+  await page.click('#m-go-skirmish');
   for (const [k, v] of [['land', 150], ['credits', 600], ['turns', 20], ['uplink', 0]]) await page.click(`#m-opts button[data-k="${k}"][data-v="${v}"]`);
   await startSkirmish(page);
   const s = await page.evaluate(() => {

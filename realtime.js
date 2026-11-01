@@ -1,5 +1,5 @@
 // ============================================================
-// Robot Attack 2026 — Real-time engine
+// Iron Strait — Real-time engine
 // ============================================================
 // The turn-based rules (rules.js) settle a whole turn at once. This engine runs the same
 // board continuously: credits and energy flow every second, silos and hangars reload on

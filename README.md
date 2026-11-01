@@ -1,10 +1,10 @@
-# Robot Attack 2026
+# Iron Strait
 
-*Inspired by classic 1990s island-war strategy games. Robot Attack 2026 is an original work and is not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.*
+*Inspired by classic 1990s island-war strategy games. Iron Strait is an original work and is not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.*
 
 A base-building artillery strategy game in the browser, played in real time, rendered with Three.js (r128), with a generated orchestral/synth score and sound effects (and a procedural Web Audio fallback).
 
-Build an economy, raise missile silos and mech hangars, and destroy the enemy Command Center before it destroys yours.
+**Build. Strike. Dominate.** A gritty near-future real-time strategy game: rival commanders fortify island bases, deploy autonomous war machines and trade missile strikes across a contested strait. Build an economy, raise missile silos and mech hangars, and destroy every enemy base before yours fall.
 
 ## Running
 
@@ -122,7 +122,7 @@ Missions are fought in their own light: missions 3 and 6 at dusk, mission 4 in a
 |---|---|---|---|
 | 1 | Operation Sandbar | Cmdr. Rusk (Patrol) | Tutorial checklist; a big, open island |
 | 2 | Coral Gate | Capt. Vey (Patrol) | Enemy starts behind two AA Batteries and a Sentry Turret |
-| 3 | Iron Strait | Marshal Kord (Commander) | Adaptive AI with an early Radar |
+| 3 | The Narrows | Marshal Kord (Commander) | Adaptive AI with an early Radar |
 | 4 | Fortress Isle | Capt. Vey (Commander) | Shielded fortress HQ; you get extra starting credits |
 | 5 | Black Tide | Overseer NYX (Warlord) | Full-vision AI with decoys |
 | 6 | Skyfall | Marshal Kord (Commander) | Kord's Strike Uplink is already half charged; you get one of your own |
