@@ -163,10 +163,17 @@ test('real time: enemy launches are announced with a countdown, and mechs land, 
   // landing spots near an enemy silo; the AI's buildings decide which ones the planner accepts
   const spots = await page.evaluate(() => {
     const s = __game.state, silo = Rules.buildingsOf(s, 'ai', 'silo')[0];
-    return Rules.neighbors(silo.cell, 2).filter(c => Realtime.landingCells(s, 'player', c).length);
+    // well inside the screen (the mouse near an edge scrolls the camera), nearest the centre first
+    const W = window.innerWidth, H = window.innerHeight;
+    return Rules.neighbors(silo.cell, 2).filter(c => Realtime.landingCells(s, 'player', c).length)
+      .map(c => { const p = Renderer.project(Renderer.cellCenter(c)); return { c, d: Math.hypot(p.x - W / 2, p.y - H / 2), ok: p.x > 90 && p.x < W - 90 && p.y > 90 && p.y < H - 90 }; })
+      .filter(o => o.ok).sort((a, b) => a.d - b.d).map(o => o.c);
   });
   let to = -1;
-  for (const c of spots.slice(0, 6)) {
+  for (const c of spots.slice(0, 8)) {
+    // the game's own picking must agree with where we are about to click
+    const [x, y] = await cellXY(page, c);
+    if (await page.evaluate(([x, y, c]) => Renderer.pickCell(x, y) !== c, [x, y, c])) continue;
     await clickCell(page, c);
     if (await page.evaluate(() => !document.getElementById('at-go').disabled)) { to = c; break; }
   }
