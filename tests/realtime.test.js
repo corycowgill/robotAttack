@@ -300,3 +300,51 @@ test('two build crews: extra sites wait their turn, in the order placed', () => 
   run(s, RT.BUILD_TIME.radar + 0.3);
   assert.ok(R.online(c));
 });
+
+test('warheads: HE, cluster and penetrator trade direct damage, splash, shield piercing and energy', () => {
+  const W = RT.WARHEADS;
+  assert.equal(RTE.attackCost({ to: 0, silos: [1, 2], warhead: 'cluster' }), 2 * W.cluster.energy);
+  assert.equal(RTE.attackCost({ to: 0, silos: [1], hangars: [2], warhead: 'penetrator', loadout: 'breacher' }), W.penetrator.energy + RT.LOADOUTS.breacher.energy);
+  assert.equal(RTE.attackCost({ to: 0, silos: [1] }), CONST.MISSILE_ENERGY, 'HE is the default');
+  const fire = (warhead) => {
+    const s = game(8);
+    const silo = R.buildingsOf(s, P, 'silo')[0];
+    silo.readyAt = 0; s.sides[P].energy = 30;
+    const tgt = R.buildingsOf(s, A).find(b => b.type === 'hq');
+    const r = RTE.launchAttack(s, P, { to: tgt.cell, silos: [silo.cell], warhead });
+    assert.ok(r.ok, r.reason);
+    return s.rt.flights.find(f => f.kind === 'missile');
+  };
+  const he = fire('he'), cl = fire('cluster'), pen = fire('penetrator');
+  assert.equal(he.dmg, CONST.MISSILE_DAMAGE); assert.equal(he.splash, CONST.MISSILE_SPLASH);
+  assert.ok(cl.dmg < he.dmg && cl.splash > he.splash, 'cluster: weaker hit, wider splash');
+  assert.ok(pen.dmg > he.dmg && pen.splash === 0 && pen.pierce > 0, 'penetrator: bigger hit, no splash, pierces');
+  // half of a penetrator's hit goes through a full shield
+  const s = game(8);
+  const sh = buildAt(s, A, 'shield');
+  const near = R.neighbors(sh.cell, 1).map(c => R.buildingAt(s, c)).find(b => b && b.side === A);
+  const b = near || sh;
+  const hp0 = b.hp, pool0 = R.buildingsOf(s, A, 'shield').reduce((t, x) => t + x.pool, 0);
+  const hit = R.damageBuilding(s, b, 60, P, [], false, 0.5);
+  assert.ok(hit.dmg >= 30 && hp0 - b.hp === hit.dmg, 'at least half lands: ' + JSON.stringify(hit));
+  assert.ok(pool0 > 0 && hit.absorbed <= 30);
+});
+
+test('mech loadouts: raiders are fast and light, breachers slow and tough; ships carry the kit', () => {
+  const s = game(8);
+  s.sides[P].credits = 9999;
+  const h = buildAt(s, P, 'hangar');
+  const base = RTE.mechKit(h, 'assault'), fast = RTE.mechKit(h, 'raider'), tank = RTE.mechKit(h, 'breacher');
+  assert.ok(fast.hp < base.hp && fast.step < base.step, 'raider: fewer HP, acts more often');
+  assert.ok(tank.hp > base.hp && tank.dmg > base.dmg && tank.step > base.step, 'breacher: more HP and harder blows, slower');
+  run(s, RT.HANGAR_RELOAD);
+  s.sides[P].energy = 40;
+  const hq = R.hqCell(A);
+  const to = R.neighbors(hq, 4).find(c => RTE.landingCells(s, P, c).length >= 1);
+  const r = RTE.launchAttack(s, P, { to, hangars: [h.cell], loadout: 'breacher' });
+  assert.ok(r.ok, r.reason);
+  const ship = s.rt.flights.find(f => f.kind === 'ship');
+  assert.equal(ship.hull, RT.SHIP_HULL + RT.LOADOUTS.breacher.hull, 'an armoured ship takes an extra hit');
+  assert.equal(ship.mechs[0].kind, 'breacher');
+  assert.equal(s.sides[P].energy, 40 - RT.LOADOUTS.breacher.energy);
+});

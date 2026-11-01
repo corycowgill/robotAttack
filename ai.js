@@ -496,6 +496,31 @@
   // use the turn-based planners as they are. Attacks come in waves: the turn-based target
   // pickers choose targets for whichever launchers are loaded (busy ones are masked with
   // placeholder orders), and the orders are regrouped into real-time attacks.
+  // Warhead for a missile wave: penetrators into shielded bases, clusters into packed
+  // clusters of structures, HE otherwise (judged from what we have seen of the target area)
+  function pickWarhead(state, a) {
+    if (!a.silos || !a.silos.length || a.strike) return undefined;
+    const seen = state.sides[ME].intel.seen || {};
+    const at = c => seen[c] && seen[c].type;
+    const near = R.neighbors(a.to, 1).filter(c => at(c) && at(c) !== 'mine').length;
+    const shielded = Object.keys(seen).some(c => seen[c].type === 'shield' && R.cheb(+c, a.to) <= 1);
+    const tgt = at(a.to);
+    if ((tgt === 'hq' || tgt === 'base') && shielded) return 'penetrator';
+    if (near >= 2) return 'cluster';
+    if (tgt === 'hq' || tgt === 'base') return R.rand(state) < 0.4 ? 'penetrator' : undefined;
+    return undefined;
+  }
+  // Loadout for a drop: breachers into turret cover, raiders at soft economy targets
+  function pickLoadout(state, a) {
+    if (!a.hangars || !a.hangars.length) return undefined;
+    const seen = state.sides[ME].intel.seen || {};
+    const guns = Object.keys(seen).filter(c => seen[c].type === 'gunpod' && R.cheb(+c, a.to) <= 3).length;
+    if (guns >= 1) return 'breacher';
+    const soft = Object.keys(seen).filter(c => ['depot', 'power', 'radar'].includes(seen[c].type) && R.cheb(+c, a.to) <= 2).length;
+    if (!guns && soft >= 2) return 'raider';
+    return undefined;
+  }
+
   function thinkRealtime(state, side, RTE) {
     ME = side || C.SIDE_AI;
     FOE = R.enemyOf(ME);
@@ -565,7 +590,9 @@
     }
     let launched = false;
     for (const a of attacks) {
+      if (smart && !(state.rt.noKit && state.rt.noKit[ME])) { a.warhead = pickWarhead(state, a); a.loadout = pickLoadout(state, a); }   // noKit: simulations only
       let r = RTE.launchAttack(state, ME, a);
+      if (!r.ok && (a.warhead || a.loadout)) { delete a.warhead; delete a.loadout; r = RTE.launchAttack(state, ME, a); }   // can't afford the special kit
       if (!r.ok && a.hangars.length && a.silos.length) r = RTE.launchAttack(state, ME, Object.assign({}, a, { hangars: [] }));
       launched = launched || r.ok;
     }

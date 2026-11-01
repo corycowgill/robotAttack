@@ -150,12 +150,21 @@
   // land together:  a = { missiles: [{ from: siloCell, to }], hangars: [cells], landing, strikeTo }
   // The short form { to, silos, hangars, strike } sends everything at one cell.
   function norm(a) {
-    if (a.missiles || a.landing !== undefined || a.strikeTo !== undefined) return { missiles: a.missiles || [], hangars: a.hangars || [], landing: a.landing, strikeTo: a.strikeTo };
-    return { missiles: (a.silos || []).map(c => ({ from: c, to: a.to })), hangars: a.hangars || [], landing: a.to, strikeTo: a.strike ? a.to : undefined };
+    const kit = { warhead: T.WARHEADS[a.warhead] ? a.warhead : 'he', loadout: T.LOADOUTS[a.loadout] ? a.loadout : 'assault' };
+    if (a.missiles || a.landing !== undefined || a.strikeTo !== undefined) return Object.assign({ missiles: a.missiles || [], hangars: a.hangars || [], landing: a.landing, strikeTo: a.strikeTo }, kit);
+    return Object.assign({ missiles: (a.silos || []).map(c => ({ from: c, to: a.to })), hangars: a.hangars || [], landing: a.to, strikeTo: a.strike ? a.to : undefined }, kit);
   }
   function attackCost(a) {
     a = norm(a);
-    return a.missiles.length * C.MISSILE_ENERGY + a.hangars.length * C.DROP_ENERGY + (a.strikeTo !== undefined ? C.STRIKE_ENERGY : 0);
+    return a.missiles.length * missileEnergy(a.warhead) + a.hangars.length * dropEnergy(a.loadout) + (a.strikeTo !== undefined ? C.STRIKE_ENERGY : 0);
+  }
+  function missileEnergy(w) { const k = T.WARHEADS[w || 'he']; return k ? k.energy : C.MISSILE_ENERGY; }
+  function dropEnergy(l) { const k = T.LOADOUTS[l || 'assault']; return k ? k.energy : C.DROP_ENERGY; }
+  // a hangar's mech with a loadout applied
+  function mechKit(h, loadout) {
+    const L = T.LOADOUTS[loadout] || T.LOADOUTS.assault, heavy = h.level > 1;
+    const hp = Math.round((heavy ? UP.hangar.mechHp : C.ROBOT_HP) * L.hpMul);
+    return { hp, maxHp: hp, dmg: Math.round((heavy ? UP.hangar.mechDmg : C.ROBOT_DAMAGE) * L.dmgMul), heavy, kind: loadout || 'assault', step: T.MECH_STEP * L.stepMul };
   }
 
   function attackReason(state, side, raw) {
@@ -223,8 +232,10 @@
     for (const m of a.missiles) {
       const c = m.from, silo = R.buildingAt(state, c);
       silo.readyAt = at + T.SILO_RELOAD / reloadSpeed(state, side);
+      const W = T.WARHEADS[a.warhead];
       rt.flights.push(newFlight(state, 'missile', side, c, m.to, at, {
-        dmg: R.stat(silo, 'dmg') || C.MISSILE_DAMAGE, splash: R.stat(silo, 'splash') || C.MISSILE_SPLASH, cost: C.MISSILE_ENERGY
+        dmg: Math.round((R.stat(silo, 'dmg') || C.MISSILE_DAMAGE) * W.dmgMul), splash: Math.round((R.stat(silo, 'splash') || C.MISSILE_SPLASH) * W.splashMul),
+        pierce: W.pierce || 0, warhead: a.warhead, cost: W.energy
       }));
       ids.push(rt.flights[rt.flights.length - 1].id);
       at += T.SALVO_GAP;
@@ -233,15 +244,16 @@
       const mechs = a.hangars.map(c => {
         const h = R.buildingAt(state, c);
         h.out = true;
-        const heavy = h.level > 1;
-        const hp = heavy ? UP.hangar.mechHp : C.ROBOT_HP;
-        return { hangar: c, hp, maxHp: hp, dmg: heavy ? UP.hangar.mechDmg : C.ROBOT_DAMAGE, heavy };
+        return Object.assign({ hangar: c }, mechKit(h, a.loadout));
       });
+      const L = T.LOADOUTS[a.loadout];
       // the ship leaves from the hangar nearest the target
       const from = a.hangars.slice().sort((x, y) => R.dist(x, a.landing) - R.dist(y, a.landing))[0];
       rt.flights.push(newFlight(state, 'ship', side, from, a.landing, at + T.SHIP_DELAY - T.SALVO_GAP, {
-        mechs, hull: T.SHIP_HULL + mechs.length - 1, cost: C.DROP_ENERGY * mechs.length
+        mechs, hull: T.SHIP_HULL + mechs.length - 1 + (L.hull || 0), cost: L.energy * mechs.length, loadout: a.loadout
       }));
+      const ship = rt.flights[rt.flights.length - 1];
+      if (L.flightMul) ship.flight *= L.flightMul;
       ids.push(rt.flights[rt.flights.length - 1].id);
     }
     return { ok: true, ids };
@@ -470,8 +482,8 @@
     if (f.kind === 'missile') sd[atk].stats.missilesHit++;
     const hits = [];
     const direct = R.buildingAt(state, f.to);
-    if (direct) hits.push(R.damageBuilding(state, direct, f.dmg, atk, events));
-    for (const n of R.neighbors(f.to, 1)) {
+    if (direct) hits.push(R.damageBuilding(state, direct, f.dmg, atk, events, false, f.pierce || 0));
+    if (f.splash > 0) for (const n of R.neighbors(f.to, 1)) {
       const b = R.buildingAt(state, n);
       if (b && b.side !== atk) hits.push(R.damageBuilding(state, b, f.splash, atk, events));
     }
@@ -494,7 +506,7 @@
       const cell = cells[i];
       if (cell === undefined) { mechHome(state, m.hangar); return; }
       const r = {
-        id: state.nextId++, side: f.side, cell, hp: m.hp, maxHp: m.maxHp, dmg: m.dmg, heavy: m.heavy,
+        id: state.nextId++, side: f.side, cell, hp: m.hp, maxHp: m.maxHp, dmg: m.dmg, heavy: m.heavy, kind: m.kind, step: m.step,
         hangar: m.hangar, zone: f.to, garrison, leaveAt: state.rt.t + T.MECH_TIME, nextAct: state.rt.t + 1 + i * 0.35
       };
       state.robots.push(r);
@@ -668,12 +680,12 @@
     const t = state.rt.t;
     return state.rt.flights.filter(f => f.launched && !f.done && f.side !== side).map(f => ({
       id: f.id, kind: f.kind, to: f.to, eta: Math.max(0, f.launchAt + f.flight - t),
-      detected: detects(state, side, f), mechs: f.mechs ? f.mechs.length : 0, hull: f.hull
+      detected: detects(state, side, f), mechs: f.mechs ? f.mechs.length : 0, hull: f.hull, warhead: f.warhead, loadout: f.loadout
     })).sort((a, b) => a.eta - b.eta);
   }
 
   const api = {
-    init, step, attackReason, attackCost, launchAttack, readyLaunchers, readyIn, isReady,
+    init, step, attackReason, attackCost, missileEnergy, dropEnergy, mechKit, launchAttack, readyLaunchers, readyIn, isReady,
     factories, buildSpeed, reloadSpeed, buildLeft, isQueued, sitesOf,
     landingCells, inbound, progress, detects, mechsCommitted, bases, baseIntegrity
   };

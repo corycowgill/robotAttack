@@ -123,7 +123,19 @@ const RT = {
   DEFENDERS: 3,           // ready mechs that scramble from their hangars when raiders land
   DEFENDER_STEP: 1.0,     // defenders hurry: seconds per move or blow
   DEFENDER_TIME: 60,
-  MAX_MISSILES_PER_ATTACK: 4
+  MAX_MISSILES_PER_ATTACK: 4,
+  // Warheads (chosen per attack): multiply the silo's damage and splash; energy per missile
+  WARHEADS: {
+    he:         { name: 'HE',         desc: 'Balanced blast: full hit plus splash on the 3x3', dmgMul: 1, splashMul: 1, energy: 8 },
+    cluster:    { name: 'Cluster',    desc: 'Weaker direct hit, double splash across the 3x3: for packed bases and decoy fields', dmgMul: 0.55, splashMul: 2, energy: 10 },
+    penetrator: { name: 'Penetrator', desc: 'Massive direct hit, no splash, punches through half of any shield: for bases under domes', dmgMul: 1.65, splashMul: 0, pierce: 0.5, energy: 12 }
+  },
+  // Mech loadouts (chosen per drop): multiply the hangar's mech; energy per mech
+  LOADOUTS: {
+    assault:  { name: 'Assault',  desc: 'All-rounder', hpMul: 1, dmgMul: 1, stepMul: 1, energy: 12 },
+    raider:   { name: 'Raider',   desc: 'Fast and light: acts almost twice as often and lands sooner, but fragile', hpMul: 0.6, dmgMul: 0.8, stepMul: 0.55, flightMul: 0.75, energy: 10 },
+    breacher: { name: 'Breacher', desc: 'Slow armoured wrecker: 1.6x HP, 1.5x blows; its dropship takes an extra AA hit', hpMul: 1.6, dmgMul: 1.5, stepMul: 1.5, hull: 1, energy: 16 }
+  }
 };
 
 // Building table — single source of truth for costs, HP and descriptions.

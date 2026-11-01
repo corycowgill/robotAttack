@@ -1593,14 +1593,15 @@ window.Renderer = (function () {
     // cheap blob shadow instead of shadow-map casting (mechs are small and always moving)
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
     g.add(blobShadow());
-    g.scale.setScalar(1.3);
+    const kindScale = r.kind === 'raider' ? 0.83 : r.kind === 'breacher' ? 1.2 : 1;   // loadouts read by size
+    g.scale.setScalar(1.3 * kindScale);
     const p = cellCenter(r.cell);
     g.position.copy(p);
     g.rotation.y = r.side === CONST.SIDE_PLAYER ? Math.PI / 2 : -Math.PI / 2;
     scene.add(g);
     const bar = makeHpBar(6);
     scene.add(bar);
-    const rec = { id: r.id, side: r.side, group: g, bar, hp: r.hp, maxHp: r.maxHp, phase: Math.random() * 6, moving: false, punch: 0, flash: 0, cell: r.cell };
+    const rec = { id: r.id, side: r.side, group: g, bar, hp: r.hp, maxHp: r.maxHp, phase: Math.random() * 6, moving: false, punch: 0, flash: 0, cell: r.cell, kindScale };
     robots[r.id] = rec;
     setRobotHp(r.id, r.hp);
     return rec;
@@ -2035,7 +2036,7 @@ window.Renderer = (function () {
     if (gridMat) gridMat.opacity = gridBase * Math.max(gridBase > 0.1 ? 0.7 : 0.35, Math.min(1, cam.dist / 420));
     // mechs grow a little when the camera is far out, so a raid still reads at whole-map framing
     const ms = 1.3 * Math.max(1, Math.min(1.7, cam.dist / 360));
-    for (const id in robots) robots[id].group.scale.setScalar(ms);
+    for (const id in robots) robots[id].group.scale.setScalar(ms * (robots[id].kindScale || 1));
     if (water) water.material.uniforms.time.value = time;
     if (hover.visible) hoverMat.opacity = 0.75 + Math.sin(time * 6) * 0.25;
     for (const m of markers) {

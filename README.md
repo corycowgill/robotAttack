@@ -44,6 +44,21 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - it becomes visible in flight once it is over the sea.
 
   Radar, or being near your HQ, shows what it's aimed at; otherwise the target is unknown. You have that long to repair, raise a shield, build AA or hit back.
+- **Warheads and mech loadouts.** In the attack panel you pick one warhead for the salvo and one loadout for the dropship:
+
+  | Warhead | Energy per missile | Effect |
+  |---|---|---|
+  | HE | 8 | Full hit (45) plus splash (15) on the 3×3 |
+  | Cluster | 10 | Weaker hit (25), double splash (30) on the 3×3: packed bases and decoy fields |
+  | Penetrator | 12 | Massive hit (74), no splash; half of it ignores shields: bases under domes |
+
+  | Loadout | Energy per mech | Effect |
+  |---|---|---|
+  | Assault | 12 | The standard mech |
+  | Raider | 10 | 0.6× HP, 0.8× blows, acts almost twice as often, and its dropship arrives 25% sooner |
+  | Breacher | 16 | 1.6× HP, 1.5× blows, slower; its dropship takes one more AA hit to bring down |
+
+  Upgraded silos and Heavy Mechs (hangar upgrade) scale with the kit. The AI picks penetrators for shielded bases, clusters for packed targets and breachers into turret cover. In AI-vs-AI simulations, a Commander using the kit beats one that doesn't about two games in three.
 - **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). An AA Battery hits 46% (55% upgraded) and HQ point defence 26%; an **online Radar guides the batteries in its range** (+8%), and no shot is ever better than 70%. Salvos are how you break through.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.

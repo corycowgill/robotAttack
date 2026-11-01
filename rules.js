@@ -774,15 +774,18 @@
   // ── Damage ───────────────────────────────────────────────
   // Shields of the defending side absorb damage first. Returns hit record.
   // melee: a mech already inside the dome — shields stop projectiles, not mechs walking in
-  function damageBuilding(state, b, amount, attacker, events, melee) {
+  // pierce (0..1): the share of the hit that ignores shields (penetrator warheads)
+  function damageBuilding(state, b, amount, attacker, events, melee, pierce) {
     let absorbed = 0, shieldCell = -1, shieldPool = 0;
+    const shieldable = Math.round(amount * (1 - (pierce || 0)));
     for (const s of melee ? [] : buildingsOf(state, b.side, 'shield')) {
       if (s.pool <= 0 || cheb(s.cell, b.cell) > B.shield.range) continue;
-      const take = Math.min(s.pool, amount - absorbed);
+      const take = Math.min(s.pool, shieldable - absorbed);
+      if (take <= 0) break;
       s.pool -= take;
       absorbed += take;
       shieldCell = s.cell; shieldPool = s.pool;
-      if (absorbed >= amount) break;
+      if (absorbed >= shieldable) break;
     }
     const dmg = amount - absorbed;
     b.hp = Math.max(0, b.hp - dmg);

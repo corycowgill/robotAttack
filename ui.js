@@ -236,6 +236,12 @@ window.UI = (function () {
   #attack .ach svg { width: 16px; height: 16px; } #attack .ach small { color: var(--c-dim); font-size: 11px; }
   #attack .ach.on { border-color: var(--c-warn); background: rgba(255,176,0,.16); color: #fff; } #attack .ach.on span { color: #fff; } #attack .ach.on small { color: #ffd98a; }
   #attack .ach.wait { opacity: .45; cursor: default; }
+  #attack .arow.kit { margin: 2px 0 8px; } #attack .arow.kit .seg { display: inline-flex; border: 1px solid var(--c-line); border-radius: 6px; overflow: hidden; }
+  #attack .akit { padding: 4px 10px; border: 0; border-right: 1px solid var(--c-line); background: rgba(255,255,255,.03); color: #b9c8d6; font: 600 13px 'Rajdhani', sans-serif; letter-spacing: .06em; cursor: pointer; }
+  #attack .akit:last-child { border-right: 0; } #attack .akit small { color: var(--c-energy); opacity: .75; font-size: 11px; }
+  #attack .akit.on { background: rgba(46,196,255,.22); color: #fff; box-shadow: inset 0 -2px 0 var(--c-player); }
+  #attack .kdesc { flex: 1 1 100%; padding-left: 70px; font: 400 11.5px 'Inter', sans-serif; color: var(--c-dim); }
+  body.compact #attack .kdesc { display: none; } body.compact #attack .akit { padding: 4px 7px; font-size: 12px; }
   #attack .aodds { font-size: 12px; color: var(--c-dim); margin: 6px 0 8px; } #attack .aodds .good { color: var(--c-credit); }
   #attack .afoot { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   #attack .afoot .cost { margin-right: auto; } #attack .afoot .bad { color: var(--c-bad); }
@@ -712,6 +718,8 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'report', class: 'panel' }));
     root.appendChild(el('div', { id: 'attack', class: 'panel pi' }));
     $('attack').addEventListener('click', e => {
+      const kit = e.target.closest('.akit');
+      if (kit) { H.onAttack('kit', kit.dataset.kit, kit.dataset.v); return; }
       const chip = e.target.closest('.ach');
       if (chip && !chip.classList.contains('wait')) { H.onAttack('toggle', chip.dataset.kind, +chip.dataset.cell); return; }
       if (e.target.closest('#at-go')) H.onAttack('launch');
@@ -906,6 +914,7 @@ window.UI = (function () {
         <li><b>Attack whenever you're ready.</b> Silos reload in ${RT.SILO_RELOAD}s. Press <kbd>Q</kbd>, <kbd>E</kbd> or <kbd>R</kbd>: <b>time stops</b> while you click a target for each missile (up to ${RT.MAX_MISSILES_PER_ATTACK}), the 5×5 box the mechs land in, and the strike's target. <kbd>Enter</kbd> launches.</li>
         <li><b>Every launch is announced.</b> Enemy missiles show up with a countdown in the <i>In the air</i> list. Radar (or being near your HQ) shows what they're aimed at. You have about ${RT.MISSILE_FLIGHT}s to repair, raise a shield or build AA.</li>
         <li><b>You can only build</b> within ${CONST.BUILD_RADIUS} cells of your existing structures.</li>
+        <li><b>Pick your kit in the attack panel.</b> Warheads: ${Object.values(RT.WARHEADS).map(w => '<b>' + w.name + '</b> (' + w.energy + 'e) ' + esc(w.desc.toLowerCase())).join('; ')}. Mech loadouts: ${Object.values(RT.LOADOUTS).map(l => '<b>' + l.name + '</b> (' + l.energy + 'e) ' + esc(l.desc.toLowerCase())).join('; ')}.</li>
         <li><b>AA reloads between shots</b> (${RT.AA_RELOAD}s). A salvo with more missiles than the defence has shots gets through. A Radar guides the batteries in its range (+${Math.round(RT.RADAR_AA_BOOST * 100)}% to hit).</li>
         <li><b>Mechs ride a dropship</b> behind the missiles, up to ${RT.MECHS_PER_SHIP} per ship. AA can shoot it down: it takes ${RT.SHIP_HULL} hits, plus 1 per extra mech. Mechs that land fight inside their 5×5 box for ${RT.MECH_TIME}s (sentry turrets and mechs first, or a base close by), then fly home. A new mech is ready ${RT.HANGAR_RELOAD}s later. Mechs waiting in your hangars scramble to defend when raiders land.</li>
         <li><kbd>Space</kbd> pauses: you can look around, but orders wait until you resume. Settings has a <b>Real-time pace</b> option if you want more (or less) time to think.</li>
@@ -1263,12 +1272,15 @@ window.UI = (function () {
     const p = $('attack');
     const chip = (kind, it) => `<button class="ach" data-kind="${kind}" data-cell="${it.cell}">${icon(kind === 'silo' ? 'missile' : kind === 'hangar' ? 'drop' : 'strike')}<span>${esc(it.label)}</span><small></small></button>`;
     const row = (label, kind, list, none) => `<div class="arow"><span class="al">${label}</span>${list.length ? list.map(x => chip(kind, x)).join('') : '<span class="none">' + none + '</span>'}</div>`;
+    const kitRow = (label, kit, list) => `<div class="arow kit"><span class="al">${label}</span><div class="seg">${(list || []).map(k => `<button class="akit" data-kit="${kit}" data-v="${k.key}" title="${esc(k.desc)}">${esc(k.name)} <small>${k.energy}e</small></button>`).join('')}</div><span class="kdesc" data-kit="${kit}"></span></div>`;
     const shape = JSON.stringify([d.silos.map(x => x.cell + x.label), d.hangars.map(x => x.cell + x.label), !!d.strike]);
     if (shape !== attackShape) {
       attackShape = shape;
       p.innerHTML = `<div class="ah"><b>ATTACK</b> &rarr; <span class="tg"></span><span class="k">Esc cancels</span></div>`
         + row('Missiles', 'silo', d.silos, 'No silos built')
+        + (d.silos.length ? kitRow('Warhead', 'warhead', d.warheads) : '')
         + row('Mechs', 'hangar', d.hangars, 'No hangars built')
+        + (d.hangars.length ? kitRow('Loadout', 'loadout', d.loadouts) : '')
         + (d.strike ? row('Orbital', 'strike', [d.strike], '') : '')
         + `<div class="aodds"></div>`
         + `<div class="afoot"><span class="cost"></span><span class="bad"></span>`
@@ -1283,6 +1295,8 @@ window.UI = (function () {
       const st = b.querySelector('small');
       if (st.textContent !== it.status) st.textContent = it.status;
     });
+    p.querySelectorAll('.akit').forEach(b => { const list = b.dataset.kit === 'warhead' ? d.warheads : d.loadouts; const k = list && list.find(x => x.key === b.dataset.v); b.classList.toggle('on', !!(k && k.on)); });
+    p.querySelectorAll('.kdesc').forEach(el => { const list = el.dataset.kit === 'warhead' ? d.warheads : d.loadouts; const k = list && list.find(x => x.on); const t = k ? k.desc : ''; if (el.textContent !== t) el.textContent = t; });
     p.querySelector('.tg').textContent = d.target;
     const odds = p.querySelector('.aodds');
     if (odds.innerHTML !== (d.odds || '')) odds.innerHTML = d.odds || '';

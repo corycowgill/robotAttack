@@ -751,19 +751,21 @@
       const waves = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return [...m.values()]; };
       const span = etas => { const a = Math.ceil(Math.min(...etas)), b = Math.ceil(Math.max(...etas)); return (a === b ? a : a + '–' + b) + 's'; };
       const name = { missile: 'Missile', ship: 'Dropship', strike: 'Orbital strike' };
-      const mine = waves(state.rt.flights.filter(f => f.side === P), f => f.kind + f.to).map(g => {
+      // the warhead or loadout, when it isn't the standard one
+      const kitTag = f => f.warhead && f.warhead !== 'he' ? ' (' + RT.WARHEADS[f.warhead].name + ')' : f.loadout && f.loadout !== 'assault' ? ' (' + RT.LOADOUTS[f.loadout].name + ')' : '';
+      const mine = waves(state.rt.flights.filter(f => f.side === P), f => f.kind + f.to + (f.warhead || '')).map(g => {
         const f = g[0], n = f.kind === 'ship' ? f.mechs.length : g.length;
         return { id: f.id, kind: f.kind === 'ship' ? 'drop' : f.kind, noCancel: true,
-          text: name[f.kind] + (n > 1 || f.kind === 'ship' ? ' ×' + n : '') + ' → ' + describeCell(f.to) + ' · ' + span(g.map(x => x.launchAt + x.flight - t)) };
+          text: name[f.kind] + kitTag(f) + (n > 1 || f.kind === 'ship' ? ' ×' + n : '') + ' → ' + describeCell(f.to) + ' · ' + span(g.map(x => x.launchAt + x.flight - t)) };
       });
       for (const g of waves(state.robots.filter(r => r.side === P && r.zone !== undefined), r => r.zone)) {
         // garrisons go home once the raiders are gone, so their timer means nothing
         mine.push({ id: g[0].id, kind: 'drop', noCancel: true, text: g[0].garrison ? 'Garrison ×' + g.length + ' · ' + cellName(g[0].zone) + ' · until raiders are gone' : 'Mech raid ×' + g.length + ' · ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
       }
-      const inc = waves(Realtime.inbound(state, P), m => m.kind + (m.detected ? m.to : '?')).map(g => {
+      const inc = waves(Realtime.inbound(state, P), m => m.kind + (m.detected ? m.to : '?') + (m.detected ? m.warhead || '' : '')).map(g => {
         const m = g[0], n = m.kind === 'ship' ? m.mechs : g.length;
         return { strike: m.kind === 'strike',
-          text: name[m.kind].toUpperCase() + (n > 1 || m.kind === 'ship' ? ' ×' + n : '') + ' → ' + (m.detected ? describeCell(m.to) : 'target unknown') + ' · ' + span(g.map(x => x.eta)) };
+          text: name[m.kind].toUpperCase() + (m.detected ? kitTag(m).toUpperCase() : '') + (n > 1 || m.kind === 'ship' ? ' ×' + n : '') + ' → ' + (m.detected ? describeCell(m.to) : 'target unknown') + ' · ' + span(g.map(x => x.eta)) };
       });
       for (const g of waves(state.robots.filter(r => r.side === A && !r.garrison && r.zone !== undefined && playerSees(r.cell)), r => r.zone)) {
         inc.push({ text: 'MECH RAID ×' + g.length + ' at ' + cellName(g[0].zone) + ' · ' + Math.ceil(Math.max(...g.map(r => r.leaveAt - t))) + 's left' });
@@ -2381,27 +2383,29 @@
 
   // ── The attack panel: time stops while you plan; each missile gets its own
   // target, the mechs share one landing zone, and the strike has its own target ──
+  // the warhead and mech loadout you used last, offered again (this battle session)
+  const lastKit = { warhead: 'he', loadout: 'assault' };
   function openAttack(m) {
-    attack = { arm: [], targets: {}, hangars: new Set(), landing: undefined, strikeOn: false, strikeTo: undefined, cursor: m };
+    attack = { arm: [], targets: {}, hangars: new Set(), landing: undefined, strikeOn: false, strikeTo: undefined, cursor: m, warhead: lastKit.warhead, loadout: lastKit.loadout };
     setCursor(m);
     UI.banner('PLANNING', 'Time stopped: pick targets, then Launch', false);
   }
   // armed silos count against the budget even before they have a target, so the planner never
   // arms more than the energy pays for
   function energyLeft() {
-    return state.sides[P].energy - attack.arm.length * CONST.MISSILE_ENERGY - attack.hangars.size * CONST.DROP_ENERGY - (attack.strikeOn ? CONST.STRIKE_ENERGY : 0);
+    return state.sides[P].energy - attack.arm.length * Realtime.missileEnergy(attack.warhead) - attack.hangars.size * Realtime.dropEnergy(attack.loadout) - (attack.strikeOn ? CONST.STRIKE_ENERGY : 0);
   }
   // switching to missiles/mechs/strike also arms what's loaded, if nothing is yet
   function setCursor(m) {
     attack.cursor = m;
     if (m === 'fire' && !attack.arm.length) {
       for (const b of Realtime.readyLaunchers(state, P, 'silo')) {
-        if (attack.arm.length >= RT.MAX_MISSILES_PER_ATTACK || energyLeft() < CONST.MISSILE_ENERGY) break;
+        if (attack.arm.length >= RT.MAX_MISSILES_PER_ATTACK || energyLeft() < Realtime.missileEnergy(attack.warhead)) break;
         attack.arm.push(b.cell);
       }
     }
     if (m === 'drop' && !attack.hangars.size) {
-      for (const b of Realtime.readyLaunchers(state, P, 'hangar').slice(0, RT.MECHS_PER_SHIP)) if (energyLeft() >= CONST.DROP_ENERGY) attack.hangars.add(b.cell);
+      for (const b of Realtime.readyLaunchers(state, P, 'hangar').slice(0, RT.MECHS_PER_SHIP)) if (energyLeft() >= Realtime.dropEnergy(attack.loadout)) attack.hangars.add(b.cell);
     }
     if (m === 'strike') attack.strikeOn = true;
   }
@@ -2418,7 +2422,8 @@
       missiles: attack.arm.filter(c => attack.targets[c] !== undefined).map(c => ({ from: c, to: attack.targets[c] })),
       hangars: [...attack.hangars],
       landing: attack.hangars.size ? attack.landing : undefined,
-      strikeTo: attack.strikeOn ? attack.strikeTo : undefined
+      strikeTo: attack.strikeOn ? attack.strikeTo : undefined,
+      warhead: attack.warhead, loadout: attack.loadout
     };
   }
   function attackTarget(c) {
@@ -2427,7 +2432,7 @@
     if (bad) return fail(bad);
     if (m === 'fire') {
       let silo = attack.arm.find(x => attack.targets[x] === undefined);
-      if (silo === undefined && attack.arm.length < RT.MAX_MISSILES_PER_ATTACK && energyLeft() >= CONST.MISSILE_ENERGY) {
+      if (silo === undefined && attack.arm.length < RT.MAX_MISSILES_PER_ATTACK && energyLeft() >= Realtime.missileEnergy(attack.warhead)) {
         silo = Realtime.readyLaunchers(state, P, 'silo').map(b => b.cell).find(x => !attack.arm.includes(x));
         if (silo !== undefined) attack.arm.push(silo);
       }
@@ -2451,6 +2456,7 @@
       return { cell: b.cell, label: 'Silo ' + cellName(b.cell) + (b.level > 1 ? ' ★' : ''), ready: Realtime.isReady(state, b), on: armed,
         status: !Realtime.isReady(state, b) ? launcherStatus(b) : armed ? (to !== undefined ? '→ ' + cellName(to) : tap.toLowerCase() + ' map') : 'ready' };
     };
+    const kitList = (table, sel) => Object.keys(table).map(k => ({ key: k, name: table[k].name, desc: table[k].desc, energy: table[k].energy, on: k === sel }));
     const hangarItem = b => ({ cell: b.cell, label: (b.level > 1 ? 'Heavy mech ' : 'Mech ') + cellName(b.cell), status: launcherStatus(b), ready: Realtime.isReady(state, b), on: attack.hangars.has(b.cell) });
     const unaimed = attack.arm.length - plan.missiles.length;
     let reason = Realtime.attackReason(state, P, plan);
@@ -2466,10 +2472,11 @@
       hangars: R.buildingsOf(state, P, 'hangar').map(hangarItem),
       strike: up ? { cell: up.cell, label: 'Strike', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strikeOn,
         status: up.charge < CONST.STRIKE_CHARGE ? Math.floor(100 * up.charge / CONST.STRIKE_CHARGE) + '%' : attack.strikeTo !== undefined ? '→ ' + cellName(attack.strikeTo) : attack.strikeOn ? tap.toLowerCase() + ' map' : 'ready' } : null,
+      warheads: kitList(RT.WARHEADS, attack.warhead), loadouts: kitList(RT.LOADOUTS, attack.loadout),
       cost: Realtime.attackCost(plan), energy: state.sides[P].energy,
       reason,
       odds: odds + (unaimed > 0 ? (odds ? '<br>' : '') + unaimed + ' armed missile' + (unaimed > 1 ? 's have' : ' has') + ' no target yet and will stay home' : '')
-        + (plan.hangars.length && plan.landing !== undefined ? (odds ? '<br>' : '') + 'Dropship to ' + cellName(plan.landing) + ': ' + (RT.SHIP_HULL + plan.hangars.length - 1) + ' AA hits bring it down'
+        + (plan.hangars.length && plan.landing !== undefined ? (odds ? '<br>' : '') + 'Dropship to ' + cellName(plan.landing) + ': ' + (RT.SHIP_HULL + plan.hangars.length - 1 + (RT.LOADOUTS[attack.loadout].hull || 0)) + ' AA hits bring it down'
           + (knownDefences(plan.landing).length ? ', and ' + knownDefences(plan.landing).length + ' known AA cover the drop zone' : ', no known AA covers the drop zone')
           + '. Mechs fight inside the box for ' + RT.MECH_TIME + 's, then fly home.' : '')
     });
@@ -2503,6 +2510,17 @@
       refreshAll();
       return;
     }
+    if (what === 'kit') {   // kind: 'warhead' | 'loadout', cell: the choice's key
+      const table = kind === 'warhead' ? RT.WARHEADS : RT.LOADOUTS;
+      if (!table[cell]) return;
+      SND.play('uiClick');
+      attack[kind] = cell; lastKit[kind] = cell;
+      // the new kit may cost more: drop the launchers the energy no longer covers
+      while (energyLeft() < 0 && kind === 'warhead' && attack.arm.length) { const c = attack.arm.pop(); delete attack.targets[c]; }
+      while (energyLeft() < 0 && kind === 'loadout' && attack.hangars.size) attack.hangars.delete([...attack.hangars].pop());
+      refreshAttack();
+      return;
+    }
     if (what === 'launch') {
       if (livePaused) return fail('Paused: Space resumes the battle');
       const plan = attackPlan();
@@ -2513,8 +2531,8 @@
       for (const m of plan.missiles) { const b = R.buildingAt(state, m.from); if (b) Renderer.aimTurret(b.id, m.to); }
       const parts = [];
       if (plan.strikeTo !== undefined) parts.push('orbital strike → ' + describeCell(plan.strikeTo));
-      if (plan.missiles.length) parts.push(plan.missiles.length + ' missile' + (plan.missiles.length > 1 ? 's' : '') + ' → ' + [...new Set(plan.missiles.map(m => describeCell(m.to)))].join(', '));
-      if (plan.hangars.length) parts.push(plan.hangars.length + ' mech' + (plan.hangars.length > 1 ? 's' : '') + ' → ' + cellName(plan.landing));
+      if (plan.missiles.length) parts.push(plan.missiles.length + ' ' + RT.WARHEADS[plan.warhead].name + ' missile' + (plan.missiles.length > 1 ? 's' : '') + ' → ' + [...new Set(plan.missiles.map(m => describeCell(m.to)))].join(', '));
+      if (plan.hangars.length) parts.push(plan.hangars.length + ' ' + RT.LOADOUTS[plan.loadout].name + ' mech' + (plan.hangars.length > 1 ? 's' : '') + ' → ' + cellName(plan.landing));
       UI.log('Attack launched: ' + parts.join('; '), 'player');
       UI.toast('Attack away', 'good');
       UI.hideTip();
@@ -2732,6 +2750,9 @@
         v = liveVis[f.id] = flightPath(f);
         v.obj = f.kind === 'ship' ? Models.pod(f.side) : Models.missile(f.side);
         v.obj.scale.setScalar(f.kind === 'ship' ? missileScale() * 0.85 : missileScale());   // both grow with camera distance
+        // warheads read at a glance: stubby cluster bombs, long slim penetrators
+        if (f.warhead === 'cluster') v.obj.scale.multiply(new THREE.Vector3(1.35, 0.85, 1.35));
+        else if (f.warhead === 'penetrator') v.obj.scale.multiply(new THREE.Vector3(0.85, 1.35, 0.85));
         v.prev = v.a.clone();
         Renderer.add(v.obj);
       }
