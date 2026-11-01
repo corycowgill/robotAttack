@@ -653,6 +653,70 @@ window.UI = (function () {
   @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: max(110px, calc(100vh - 480px)); } #orders { max-height: max(150px, calc(100vh - 410px)); } }
   /* very short windows: the orders and log panel opens from a button instead */
   @media (max-height: 540px) { body:not(.compact) #orders { display: none; z-index: 4; max-height: calc(100vh - 210px); } body:not(.compact) #orders.open { display: flex; } body:not(.compact) #b-log { display: grid; } }
+
+  /* ══ Iron Strait in-battle skin: steel panels with cyan corner ticks, chamfered controls,
+     Oxanium numerals; cyan is ours, orange/red the enemy's. Colours, borders and type only:
+     sizes and layout stay with the rules above (and the phone rules) ══ */
+  .panel { border-radius: 3px; border-color: rgba(212,222,230,.14);
+    background:
+      linear-gradient(var(--c-player), var(--c-player)) top left / 12px 2px no-repeat,
+      linear-gradient(var(--c-player), var(--c-player)) top left / 2px 12px no-repeat,
+      linear-gradient(rgba(46,196,255,.55), rgba(46,196,255,.55)) bottom right / 12px 2px no-repeat,
+      linear-gradient(rgba(46,196,255,.55), rgba(46,196,255,.55)) bottom right / 2px 12px no-repeat,
+      linear-gradient(180deg, rgba(23,43,59,.9), rgba(7,17,28,.92));
+    box-shadow: inset 0 1px 0 rgba(212,222,230,.07), 0 10px 30px rgba(0,0,0,.45); }
+  /* HUD: labels in tracked caps, values in Oxanium */
+  #hud .lbl { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: .2em; font-size: 10.5px; }
+  #hud .val { font-family: 'Oxanium', 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: .01em; }
+  #hud .cell { border-right-color: rgba(212,222,230,.1); }
+  #hud .bar, #hud .segs span { border-radius: 0; }
+  #hud .bar > i, #hud .segs i { border-radius: 0; }
+  #hud-turn .val { font-family: 'Oxanium', 'Share Tech Mono', monospace; letter-spacing: .06em; }
+  #hud-phase { font-weight: 700; letter-spacing: .3em; }
+  #h-ehq, .hq-cell.foe .val { color: #ffd3bd; }
+  /* build cards and action buttons: chamfered steel plates */
+  .card, .abtn, .sbtn, .navbtn.small, .iconbtn.panel, .toast {
+    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
+  .card { border-radius: 0; border-color: rgba(212,222,230,.14); background: linear-gradient(180deg, rgba(30,54,72,.92), rgba(9,20,31,.94)); }
+  .card .nm { font-family: 'Rajdhani', sans-serif; letter-spacing: .03em; text-transform: uppercase; font-size: 11.5px; }
+  .card .cost { font-family: 'Oxanium', 'Rajdhani', sans-serif; }
+  .card:hover { border-color: rgba(46,196,255,.7); background: linear-gradient(180deg, rgba(36,70,94,.95), rgba(10,26,40,.95)); }
+  .card.sel { background: linear-gradient(180deg, rgba(22,82,116,.95), rgba(8,34,54,.95)); box-shadow: inset 0 0 0 1px rgba(46,196,255,.5), inset 0 -3px 0 var(--c-player); }
+  .abtn { border-radius: 0; border-color: rgba(212,222,230,.14); background: linear-gradient(180deg, rgba(30,54,72,.92), rgba(9,20,31,.94));
+    font-family: 'Rajdhani', sans-serif; text-transform: uppercase; letter-spacing: .1em; }
+  .abtn.fire .ico { color: var(--c-player); } .abtn.fire.sel { border-color: var(--c-player); background: linear-gradient(180deg, rgba(22,82,116,.95), rgba(8,34,54,.95)); }
+  .abtn.end { background: linear-gradient(180deg, rgba(22,82,116,.95), rgba(8,34,54,.95)); border-color: rgba(46,196,255,.65); }
+  .sbtn { border-radius: 0; font-family: 'Rajdhani', sans-serif; text-transform: uppercase; letter-spacing: .08em; background: linear-gradient(180deg, rgba(30,54,72,.9), rgba(9,20,31,.92)); }
+  .sbtn.up { border-color: rgba(46,196,255,.55); color: #bfeaff; }
+  #crews { border-radius: 0; background: rgba(7,17,28,.85); border-color: rgba(46,196,255,.3); font-family: 'Share Tech Mono', monospace; }
+  /* side panels: section titles like the HUD labels */
+  #orders h4, #ord-title, .ohead { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: .24em; color: #8fa3b5; }
+  .order { border-radius: 0; background: rgba(212,222,230,.035); border-left: 2px solid rgba(46,196,255,.45); }
+  .order.incoming { border-left-color: var(--c-hostile); background: rgba(255,122,61,.07); }
+  #selected h3 { font-family: 'Oxanium', 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: .03em; }
+  #selected .side { font-weight: 700; letter-spacing: .22em; }
+  #selected .hpb, #selected .hpb i { border-radius: 0; }
+  #objectives h4 { color: var(--c-player); letter-spacing: .22em; } .obj b { color: var(--c-player); }
+  #attack .ah b { color: var(--c-player); letter-spacing: .2em; font-family: 'Oxanium', 'Rajdhani', sans-serif; }
+  #attack .ach { border-radius: 0; } #attack .ach.on { border-color: var(--c-player); background: rgba(46,196,255,.18); } #attack .ach.on small { color: #bfeaff; }
+  #attack .arow.kit .seg { border-radius: 0; }
+  .toast { border-radius: 0; background: linear-gradient(180deg, rgba(23,43,59,.95), rgba(7,17,28,.95)); font-family: 'Rajdhani', sans-serif; letter-spacing: .06em; }
+  #tip { border-radius: 0; }
+  /* banners, results and briefings: the wordmark's steel and Oxanium */
+  #banner .t { font-family: 'Oxanium', 'Rajdhani', sans-serif; font-weight: 800; font-style: italic; letter-spacing: .14em; color: #eef3f6; text-shadow: 0 2px 0 #04090f, 0 0 26px rgba(46,196,255,.45); }
+  #banner.red .t { color: #ffd0c0; text-shadow: 0 2px 0 #04090f, 0 0 26px rgba(255,68,34,.65); }
+  #go-title { font-family: 'Oxanium', 'Rajdhani', sans-serif; font-weight: 800; font-style: italic; letter-spacing: .12em; }
+  #briefing h2, #help h2, #settings h2, #achievements h2 { font-family: 'Oxanium', 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: .14em; }
+  .speaker { border-radius: 0; background: linear-gradient(180deg, rgba(212,222,230,.05), rgba(212,222,230,.02)); border-left: 2px solid rgba(46,196,255,.5); }
+  .bigbtn { border-radius: 0; clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    background: linear-gradient(180deg, rgba(22,82,116,.95), rgba(8,34,54,.95)); font-family: 'Rajdhani', sans-serif; text-transform: uppercase; letter-spacing: .14em; }
+  .bigbtn:hover { background: linear-gradient(180deg, rgba(30,104,146,.98), rgba(10,44,70,.98)); }
+  .bigbtn.alt { background: linear-gradient(180deg, rgba(30,54,72,.92), rgba(9,20,31,.94)); }
+  .seg button { border-radius: 0; }
+  .medal { border-radius: 0; }
+  .abtn small, .abtn kbd { text-transform: none; }
+  #br-foe.speaker { border-left-color: rgba(255,122,61,.65); }
+  body.go-on #toasts { top: auto; bottom: 26px; }   /* results: unlock toasts sit below the panel, not over the headline */
   `;
 
   function el(tag, attrs, html) {
@@ -1328,7 +1392,7 @@ window.UI = (function () {
   function showMenu(on, enter, view) {
     $('menu').classList.toggle('show', on);
     $('menu').classList.toggle('enter', !!(on && enter));
-    if (on) { $('gameover').classList.remove('show'); if (view) menuView(view, true); }
+    if (on) { $('gameover').classList.remove('show'); document.body.classList.remove('go-on'); if (view) menuView(view, true); }
   }
   function menuView(view, quiet) {
     const m = $('menu');
@@ -1487,6 +1551,7 @@ window.UI = (function () {
   }
 
   function showGameOver(g) {
+    document.body.classList.add('go-on');
     $('go-next').style.display = g.next ? '' : 'none';
     $('go-again').textContent = g.again || 'Rematch';
     const q = $('go-quote');
@@ -1573,7 +1638,7 @@ window.UI = (function () {
     hit.addEventListener('pointerleave', () => { xh.style.display = 'none'; tip.style.display = 'none'; });
   }
 
-  function hideGameOver() { $('gameover').classList.remove('show'); }
+  function hideGameOver() { $('gameover').classList.remove('show'); document.body.classList.remove('go-on'); }
 
   function showHelp(on) { $('help').classList.toggle('show', on); }
   // values: { vol, musicOn, music, sfx, ui, amb, style, bgMute, quality, speed, shake, intents }; null closes
