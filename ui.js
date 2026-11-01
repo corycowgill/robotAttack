@@ -1245,6 +1245,8 @@ window.UI = (function () {
   // Stylised commander bust (SVG), coloured per commander
   function portrait(c) {
     const L = c.look, id = 'p' + Math.random().toString(36).slice(2, 7);
+    const ph = photo(c, id);
+    if (ph) return `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#121a24"/>${ph}</svg>`;
     const gear = {
       beret: `<path d="M30 30 Q48 10 72 24 Q74 30 66 32 L32 34 Z" fill="#1d3b55" stroke="${L.color}" stroke-width="2"/><circle cx="62" cy="24" r="3" fill="${L.color}"/>`,
       patch: `<path d="M34 52 L52 47 L52 58 L36 60 Z" fill="#0b0e13"/><path d="M26 44 L74 52" stroke="#0b0e13" stroke-width="2.5"/>`,
@@ -1261,6 +1263,15 @@ window.UI = (function () {
       <path d="M33 50 L67 50" stroke="#fff" stroke-opacity=".7" stroke-width="1.5"/>
       <rect x="24" y="44" width="6" height="16" rx="2" fill="#55626f"/><rect x="70" y="44" width="6" height="16" rx="2" fill="#55626f"/>
       ${gear}</svg>`;
+  }
+  // generated character art, clipped to the portrait's circle, over the drawn one
+  function photo(c, id) {
+    if (typeof PORTRAITS === 'undefined' || typeof COMMANDERS === 'undefined') return '';
+    const key = Object.keys(COMMANDERS).find(k => COMMANDERS[k] === c);
+    if (!key || !PORTRAITS.includes(key)) return '';
+    return `<clipPath id="${id}c"><circle cx="50" cy="50" r="46"/></clipPath>` +
+      `<image href="assets/portraits/${key}.webp" x="4" y="4" width="92" height="92" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id}c)"/>` +
+      `<circle cx="50" cy="50" r="46" fill="none" stroke="${c.look.color}" stroke-opacity=".7" stroke-width="2.5"/>`;
   }
 
   // missions: [{ id, name, enemy, state: 'locked'|'open'|'done' }]

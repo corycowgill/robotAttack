@@ -288,6 +288,10 @@ const COMMANDERS = {
     lines: { lost: ['You scratched the ground. I own the sky.', 'Insignificant. Charge the array.'], won: ['From orbit, everything is a target.', 'The network sees every one of you.'] } }
 };
 
+// Generated character art for the dialog portraits: list a commander's key here once
+// assets/portraits/<key>.webp exists (see docs/portrait-prompts.md). Others keep the drawn portrait.
+const PORTRAITS = [];
+
 const CAMPAIGN = [
   {
     id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12, locked: ['uplink'],
@@ -355,4 +359,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, CAMPAIGN, RT, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, PORTRAITS, CAMPAIGN, RT, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };
