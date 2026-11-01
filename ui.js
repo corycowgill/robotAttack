@@ -140,7 +140,7 @@ window.UI = (function () {
   .order .x:hover { color: var(--c-bad); }
   .order.missile .ico { color: var(--c-warn); } .order.drop .ico { color: var(--c-player); } .order.incoming { background: rgba(255,60,40,.12); } .order.incoming .ico { color: var(--c-bad); }
   .empty { color: var(--c-dim); font-size: 13px; padding: 6px 8px; }
-  #log { flex: 1; overflow-y: auto; padding: 6px 10px 10px; font-size: 13px; line-height: 1.35; min-height: 60px; max-height: 32vh; }
+  #log { -webkit-mask-image: linear-gradient(transparent, #000 14px); mask-image: linear-gradient(transparent, #000 14px); flex: 1; overflow-y: auto; padding: 6px 10px 10px; font-size: 13px; line-height: 1.35; min-height: 60px; max-height: 32vh; }
   #log div { padding: 1px 0; color: #aab8c6; }
   #log .player { color: #8fdcff; } #log .enemy { color: #ff9a85; } #log .good { color: var(--c-credit); } #log .bad { color: var(--c-bad); } #log .sys { color: var(--c-warn); }
   #log .turn { color: var(--c-dim); letter-spacing: .12em; text-transform: uppercase; font-size: 11px; margin-top: 6px; border-top: 1px solid var(--c-line); padding-top: 4px; }
@@ -197,6 +197,9 @@ window.UI = (function () {
   .sethead { margin: 14px 0 2px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--c-dim); font-weight: 600; }
   #settings h2 + .sethead { margin-top: 0; }
   #settings .menu-box { max-height: 92vh; overflow-y: auto; }
+  /* Done stays reachable while the list scrolls */
+  #settings .set-done-row { position: sticky; bottom: -24px; text-align: center; margin: 16px -26px -24px; padding: 12px 0 16px; background: linear-gradient(rgba(12,18,25,0), rgba(12,18,25,.98) 35%); }
+  body.compact #settings .set-done-row { bottom: -12px; margin: 10px -16px -12px; padding: 8px 0 10px; }
   .setpair { display: flex; align-items: center; gap: 12px; }
   .setpair input[type=range] { width: min(120px, 24vw); }
   .setrow small { display: block; font-size: 12px; color: var(--c-dim); }
@@ -538,6 +541,14 @@ window.UI = (function () {
     body.compact #toasts { top: 120px; }
     body.compact #cards { max-width: calc(100vw - 200px); }
   }
+  /* phone portrait: stack the dock, every build card visible in two rows of six above the attack buttons */
+  @media (max-width: 600px) and (orientation: portrait) {
+    body.compact #dock { flex-direction: column; align-items: stretch; gap: 4px; left: calc(var(--safe-l) + 4px); right: calc(var(--safe-r) + 4px); transform: none; max-width: none; }
+    body.compact #cards { max-width: none; flex-wrap: wrap; overflow: visible; justify-content: center; }
+    body.compact .card { width: calc((100vw - var(--safe-l) - var(--safe-r) - 8px - 12px - 26px) / 6); height: 50px; }
+    body.compact #actions { justify-content: center; }
+    body.compact .abtn { flex: 1 1 0; height: 48px; }
+  }
 
   @media (max-height: 820px) { #selected .desc { display: none; } #selected ul { font-size: 12px; } #selected h3 { font-size: 17px; } #selected { padding: 10px 12px; max-height: max(110px, calc(100vh - 480px)); } #orders { max-height: max(150px, calc(100vh - 410px)); } }
   /* very short windows: the orders and log panel opens from a button instead */
@@ -683,8 +694,8 @@ window.UI = (function () {
         <div class="setrow"><span>Graphics<small>Auto lowers detail if the frame rate drops</small></span>${seg('quality', [['auto', 'Auto'], [0, 'Low'], [1, 'Medium'], [2, 'High']])}</div>
         <div class="setrow"><span>Real-time pace<small>How fast the battle clock runs. Slow gives you more time to think</small></span>${seg('pace', [[0.75, 'Slow'], [1, 'Normal'], [1.5, 'Fast']])}</div>
         <div class="setrow"><span>Camera shake</span>${seg('shake', [[1, 'On'], [0, 'Off']])}</div>
-        <div class="setrow"><span>Mech arrows<small>Where visible mechs go next turn</small></span>${seg('intents', [[1, 'On'], [0, 'Off']])}</div>
-        <p style="text-align:center;margin:16px 0 0"><button class="bigbtn" id="set-done">Done</button></p>
+        <div class="setrow"><span>Mech arrows<small>Where visible mechs are heading</small></span>${seg('intents', [[1, 'On'], [0, 'Off']])}</div>
+        <p class="set-done-row"><button class="bigbtn" id="set-done">Done</button></p>
       </div>`));
 
     root.appendChild(el('div', { id: 'handoff', class: 'screen' }, `
@@ -994,9 +1005,19 @@ window.UI = (function () {
   function hideHandoff() { $('handoff').classList.remove('show'); }
   function isHandoffOpen() { return $('handoff').classList.contains('show'); }
 
+  // the structure panel sits under the log on wide screens: shrink the log to end above it
+  function fitLogAbove(sel) {
+    const o = $('orders');
+    if (!o) return;
+    if (!sel || document.body.classList.contains('compact')) { o.style.maxHeight = ''; return; }
+    requestAnimationFrame(() => {
+      const top = sel.getBoundingClientRect().top, ot = o.getBoundingClientRect().top;
+      if (top > ot + 120) o.style.maxHeight = Math.floor(top - ot - 10) + 'px';
+    });
+  }
   function showSelected(info) {
     const p = $('selected');
-    if (!info) { p.classList.remove('show'); return; }
+    if (!info) { p.classList.remove('show'); fitLogAbove(null); return; }
     const frac = info.hp / info.maxHp;
     const col = frac > 0.6 ? '#66ff66' : frac > 0.3 ? '#ffc030' : '#ff3b2f';
     let btns = '';
@@ -1021,6 +1042,7 @@ window.UI = (function () {
       <div class="desc">${esc(info.desc)}</div>
       <ul>${info.stats.map(s => '<li>' + esc(s) + '</li>').join('')}</ul>${btns}`;
     p.classList.add('show');
+    fitLogAbove(p);
     const rep = $('s-rep'), sell = $('s-sell'), upb = $('s-up');
     if (upb) upb.addEventListener('click', () => H.onAction('upgrade'));
     if (rep) rep.addEventListener('click', () => H.onAction('repair'));
@@ -1032,9 +1054,9 @@ window.UI = (function () {
     if (!list) { box.style.display = 'none'; return; }
     box.style.display = '';
     // one slim line over the strait: progress + the current objective
-    const done = list.filter(o => o.done).length;
+    // the step on screen and how many there are (steps finished early are skipped, not counted ahead)
     const cur = list.find(o => !o.done);
-    box.innerHTML = `<h4>Briefing ${done}/${list.length}</h4>` +
+    box.innerHTML = `<h4>Briefing ${cur ? list.indexOf(cur) + 1 : list.length}/${list.length}</h4>` +
       (cur ? `<div class="obj cur"><b>▸</b><span>${cur.text}</span></div>` : '') + `<span class="x" id="obj-x" title="Hide briefing">&times;</span>`;
     $('obj-x').addEventListener('click', () => H.onAction('hideObjectives'));
   }

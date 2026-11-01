@@ -446,7 +446,7 @@
         for (const f of rt.flights) {
           if (f.done || !f.launched || f.side === def || f.kind === 'strike') continue;
           const p = progress(state, f);
-          if (p < T.ENGAGE_FROM || (t + T.SHOT_TIME - f.launchAt) / f.flight >= 1) continue;
+          if (p < (f.kind === 'ship' ? T.SHIP_ENGAGE_FROM : T.ENGAGE_FROM) || (t + T.SHOT_TIME - f.launchAt) / f.flight >= 1) continue;
           if (R.dist(bat.cell, f.to) > range + 0.01) continue;
           const pending = rt.shots.filter(sh => !sh.done && sh.flight === f.id).length;
           if (f.kind === 'missile' ? pending > 0 : pending >= f.hull) continue;

@@ -83,7 +83,8 @@ const RT = {
   SALVO_GAP: 0.4,         // missiles in one attack leave one after another
   SHIP_DELAY: 1.0,        // the dropship follows the last missile
   SHIP_FLIGHT: 10,
-  SHIP_HULL: 3,           // AA hits to bring a dropship down, +1 per extra mech aboard
+  SHIP_HULL: 2,           // AA hits to bring a dropship down, +1 per extra mech aboard
+  SHIP_ENGAGE_FROM: 0.3,  // AA can start shooting at a dropship 30% into its flight (missiles: ENGAGE_FROM)
   MECHS_PER_SHIP: 3,
   MECH_TIME: 30,          // seconds a landed mech fights before its dropship collects it
   MECH_ZONE: 2,           // mechs fight inside the 5x5 around where they landed
@@ -162,7 +163,7 @@ const BUILDINGS = {
     stats: () => [Math.round(0.7 * RT.AA_HIT_MUL * 100) + '% hit, then reloads', 'Covers radius 3']
   },
   shield: {
-    name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 50, range: 1, pool: 50, regen: 20,
+    name: 'Shield Generator', short: 'SHD', key: '6', cost: 120, hp: 50, range: 1, pool: 70, regen: 25,
     desc: 'Projects a 3x3 energy dome that absorbs missile and orbital-strike damage. Mechs that walk inside the dome hit at full force.',
     stats: () => ['Absorbs 50 damage', 'Regenerates 20 / turn']
   },
@@ -178,7 +179,7 @@ const BUILDINGS = {
     stats: () => ['2 shots x 12 damage / turn', 'Range 3 (mechs only)']
   },
   decoy: {
-    name: 'Decoy', short: 'DCY', key: '9', cost: 30, hp: 20,
+    name: 'Decoy', short: 'DCY', key: '9', cost: 40, hp: 20,
     desc: 'Inflatable fake. The enemy sees it as a real high-value structure — it draws missiles and mechs away from your base.',
     stats: () => ['Disguised as a random silo, hangar, power plant, depot or AA', 'Exposed only when destroyed'],
     disguises: ['silo', 'hangar', 'power', 'depot', 'aa']
@@ -220,7 +221,7 @@ const UPGRADES = {
   depot:  { name: 'Logistics Hub',   desc: 'More credits per second', credits: 50 },
   power:  { name: 'Fusion Core',     desc: 'More energy per second, +20 capacity', energy: 11, cap: 20 },
   gunpod: { name: 'Rotary Cannons',  desc: '3 shots per volley', shots: 3 },
-  shield: { name: 'Hardened Field',  desc: 'Dome absorbs 90, regenerates 35', pool: 90, regen: 35 },
+  shield: { name: 'Hardened Field',  desc: 'Dome absorbs 110, regenerates 40', pool: 110, regen: 40 },
   hangar: { name: 'Heavy Mechs',     desc: 'Mechs get 75 HP and hit for 30', mechHp: 75, mechDmg: 30 },
   radar:  { name: 'Phased Array',    desc: 'Scan radius 15', range: 15 },
   factory: { name: 'Assembly Line',  desc: 'Counts as two factories', factories: 2 }
@@ -324,7 +325,7 @@ const CAMPAIGN = [
   },
   {
     id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 16, locked: ['uplink'],
-    rtBonus: 25,    // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 75,    // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
@@ -343,7 +344,7 @@ const CAMPAIGN = [
   },
   {
     id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 16,
-    rtBonus: 60,    // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 120,   // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Director Sol runs the orbital network itself: strikes early and often, shields that go up the moment you fire, eyes on everything. Our Uplink is half charged. Make the first strike count.',
     taunt: 'I have watched your little war from above. It ends today.',

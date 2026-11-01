@@ -332,7 +332,7 @@
       UI.log((state.daily ? 'Daily Operation ' + state.daily : 'Operation started') + ' — opponent: ' + CONST.DIFFICULTY[diff].name + (style && style.key !== 'balanced' ? ' (' + style.name + ')' : '') + (state.realtime ? ' · real time, ' + fmtClock(state.rt.timeLimit) + ' on the clock' : ''), 'sys');
       if (style && style.key !== 'balanced') UI.log(style.name + ': ' + style.desc, 'enemy');
       if (customSummary(custom)) UI.log('Battle options: ' + customSummary(custom), 'sys');
-      UI.log(state.realtime ? 'Destroy every enemy base: the Command Center and the ' + RT.BASES_PER_SIDE + ' bases marked on the red island. Lose all of yours and the war is lost.' : 'Destroy the enemy Command Center (red, far right).', 'sys');
+      UI.log(state.realtime ? 'Destroy all ' + (RT.BASES_PER_SIDE + 1) + ' enemy bases (red island). Lose all of yours and the war is lost.' : 'Destroy the enemy Command Center (red, far right).', 'sys');
     }
     if (saved && hotseat) {
       // a resumed two-player game opens on Player 1's turn: don't show their base to whoever holds the device
@@ -899,8 +899,8 @@
   ];
   // Real-time battles: the same lessons, with attacks launched from the attack panel
   const OBJECTIVES_RT = [
-    { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> near your HQ, a cell or two apart: hits splash onto neighbours', done: s => built(s, 'depot') },
-    { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => built(s, 'power') },
+    { text: 'Build a <b>Supply Depot</b> <kbd>1</kbd> near your HQ. Leave a gap between buildings: blasts hit neighbours', done: s => has(s, 'depot') },
+    { text: 'Build a <b>Power Plant</b> <kbd>2</kbd> for energy', done: s => has(s, 'power') },
     { text: 'Build a <b>Factory</b> <kbd>B</kbd>: everything builds and reloads faster', done: s => has(s, 'factory') },
     { text: 'Attack: press <kbd>Q</kbd>, click an outer <b>enemy Base</b> (less AA there), then <b>Launch</b> <kbd>Enter</kbd>', touch: 'Attack: tap <b>Fire Missile</b>, tap an outer <b>enemy Base</b> twice, then <b>Launch</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.rt.flights.some(f => f.side === P) },
     { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
@@ -917,7 +917,8 @@
     const latched = state.objDone || (state.objDone = []);
     const list = (state.realtime ? OBJECTIVES_RT : OBJECTIVES).map((o, i) => {
       if (!latched.includes(i) && o.done(state)) latched.push(i);
-      return { text: touch && o.touch ? o.touch : o.text, done: latched.includes(i) };
+      // touch: no key badges (and no stray space before the punctuation they were next to)
+      return { text: touch ? (o.touch || o.text.replace(/\s*<kbd>[^<]*<\/kbd>/g, '')) : o.text, done: latched.includes(i) };
     });
     if (list.every(o => o.done)) { objectivesHidden = true; UI.setObjectives(null); UI.toast('Briefing complete — good luck, Commander', 'good'); return; }
     UI.setObjectives(list);
@@ -1111,6 +1112,8 @@
       return;
     }
     if (mode === 'build') {
+      // like the pause: the attack planner's stopped clock is for aiming, not free building
+      if (phase === 'live' && attack) return fail('Time is stopped for your attack: launch it (Enter) or cancel (Esc) to build');
       const r = R.build(state, P, buildType, c);
       if (!r.ok) return fail(r.reason);
       if (r.mine) {
@@ -1195,6 +1198,7 @@
     SND.play('uiClick');
     pendingTap = -1;
     if (phase === 'live' && livePaused) return fail('Paused: Space resumes the battle');
+    if (phase === 'live' && attack) return fail('Time is stopped for your attack: launch it (Enter) or cancel (Esc) to build');
     if (UI.isCompact() && !(mode === 'build' && buildType === type)) UI.toast(def.name + ' · ' + cost + 'c — ' + def.stats()[0], 'good');
     if (mode === 'build' && buildType === type) { mode = 'select'; buildType = null; }
     else { mode = 'build'; buildType = type; selectedCell = -1; }
@@ -2198,9 +2202,8 @@
     Timeline.open();
     if (first) {
       if (!state.mission) UI.banner('BATTLE STATIONS', 'Real time — the enemy can strike at any moment', true);
-      UI.log('Real-time battle: credits and energy flow every second, and silos and hangars reload on their own.', 'sys');
-      UI.log('To attack, press Q (missiles), E (mechs) or R (orbital strike): time stops while you click a target for each missile, where the mechs land and where the strike falls. Enter launches.', 'sys');
-      UI.log('Enemy launches are announced with a countdown: repair, shield or build AA before they land. Space pauses.', 'sys');
+      // one line to act on; the briefing and the help (?) carry the rest
+      UI.log(UI.isCompact() ? 'Attack: tap Fire Missile or Drop Mech, pick targets, then Launch.' : 'Attack: Q missiles · E mechs · R strike, click targets, Enter launches. Space pauses.', 'sys');
     } else {
       UI.banner('RESUMED', fmtClock(state.rt.t) + ' of ' + fmtClock(state.rt.timeLimit), false);
     }

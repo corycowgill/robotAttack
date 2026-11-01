@@ -34,7 +34,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
 
   The AI builds its first factory early in its opening and a second one about 2½ minutes in.
 - **Attacks launch whenever you're ready.** There is no End Turn: silos reload in 16 seconds and hangars build a new mech in 20. The starting silo finishes loading 24 seconds in, and the AI holds its first wave for 25 seconds (Patrol 45, Warlord 20), so each battle opens with a short calm to build in.
-  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan**. The Fire Missile button pulses when a loaded silo has sat idle for 12 seconds, or when your energy is full.
+  - To attack, press `Q` (missiles), `E` (mechs) or `R` (orbital strike). **Time stops while you plan** (you can't build until you launch or cancel). The Fire Missile button pulses when a loaded silo has sat idle for 12 seconds, or when your energy is full.
   - Each click on the map gives the next loaded missile its own target, up to 4 missiles per attack. With `E`, the click picks where the mechs land: the 5×5 box they will fight in, outlined on the map. With `R`, it picks the strike's target. `Q`/`E`/`R` switch what the next click aims.
   - The attack panel lists every silo and hangar with its status (ready, reloading, or its target). Click a chip to add or free a silo, mech or the strike. It shows the energy cost and, for each target, how many missiles should get past the defences you know about. `Enter` or **Launch** sends it all; `Esc` cancels.
   - Missiles leave one after another. The dropship carrying the mechs follows them.
@@ -48,7 +48,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
   - So that walls of AA don't stall the late game, each AA Battery you own makes the next one 20 credits dearer.
   - A battery destroyed while its interceptor is in the air loses guidance.
-- **Dropships can be shot down.** One ship carries up to 3 mechs and takes 3 AA hits to destroy, plus 1 per extra mech. If it goes down, its mechs are lost and their hangars start building new ones.
+- **Dropships can be shot down.** One ship carries up to 3 mechs and takes 2 AA hits to destroy, plus 1 per extra mech. AA can start shooting at a dropship 30% into its flight (missiles: halfway). If it goes down, its mechs are lost and their hangars start building new ones.
 - **Mechs raid a zone and leave.** Landed mechs fight inside their 5×5 landing box for 30 seconds, then their dropship takes them home. They leave early if the box is clear. They fight mechs that close in first, then a base if one is within 2 cells, then sentry turrets, then the nearest building.
 - **Mechs defend at home.** When enemy mechs land on your island, up to 3 ready mechs scramble from their hangars for free and hunt them down. They return when the raiders are gone. Enemy raids are outlined on the map, and every raid gets a row in the list with its time left. The hangar has a new mech ready 20 seconds after it returns or dies.
 - **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds. A new radar comes online 5 seconds after it is built.
@@ -61,7 +61,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
 The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about two thirds of Commander mirrors end with one side's bases all destroyed, in a median of about 11 minutes; the rest are decided on the clock.
 
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3, 4, 5 and 7 give you 150, 50, 25 and 60 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 100, 72, 57, 42, 50 and 38% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3, 4, 5 and 7 give you 150, 50, 75 and 120 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 97, 73, 57, 45, 43 and 40% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
 
 ## Fog of war and reading the battle
 
@@ -87,10 +87,10 @@ Per-turn figures below arrive over a 15-second round ("per turn" = per 15 s).
 | 3 | Radar | 90 | 30 | Reveals enemy cells and detects incoming missiles within radius 12; comes online the turn after it is built |
 | 4 | Missile Silo | 140 | 50 | 1 missile per turn (8 energy); 45 damage + 15 splash; maximum 5 |
 | 5 | AA Battery | 110 | 45 | 46% hit (55% upgraded, +8% under radar, never above 70%) at missiles and dropships aimed within radius 3, then reloads for 3.5 s; if it misses, other batteries in range get a shot |
-| 6 | Shield Generator | 120 | 50 | 50-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 20 per turn |
+| 6 | Shield Generator | 120 | 50 | 70-point dome over a 3×3 area that absorbs missiles and strikes (not mech melee); regenerates 25 per turn |
 | 7 | Robot Hangar | 160 | 60 | Drops 1 mech per turn (12 energy). Mechs have 50 HP, deal 20 melee damage and move 2 cells. Drop pods can't be intercepted. Maximum 6 mechs. |
 | 8 | Sentry Turret | 90 | 50 | 2 shots × 12 damage per turn against mechs within range 3 |
-| 9 | Decoy | 30 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
+| 9 | Decoy | 40 | 20 | Inflatable fake: the enemy sees a random silo, hangar, power plant, depot or AA (with matching HP). It draws missiles and mechs and is exposed only when destroyed. |
 | N | Minefield | 40 | — | Buried charges, maximum 6. Never a structure: the enemy can't see, target or count them. The first enemy mech to step on one takes 40 damage (it stops there), and the mine is used up. Your own mechs walk over them. A missile or strike landing on or next to a mine sets it off harmlessly, so shelling a landing zone first clears it. The AI starts laying mines once it has seen your hangars or your mechs, favours the spots where your raids have landed, and steers its own raids away from places its mechs hit mines. |
 | 0 | Strike Uplink | 200 | 70 | Superweapon, maximum 1. Charges for 4 turns, then `R` calls down an orbital strike (15 energy): 80 damage to the target and 40 to every structure around it. AA can't intercept it, but Shields absorb it, and the target always sees it coming. Not available in missions 1–5. |
 - **Repair:** 1 credit per HP, up to 30 HP per structure per turn.
@@ -108,7 +108,7 @@ Select one of your structures and press `U` to upgrade it once. An upgrade costs
 | Supply Depot | Logistics Hub | +50 credits/turn |
 | Power Plant | Fusion Core | +11 energy/turn, +20 capacity |
 | Sentry Turret | Rotary Cannons | 3 shots/turn |
-| Shield Generator | Hardened Field | Absorbs 90, regenerates 35 |
+| Shield Generator | Hardened Field | Absorbs 110, regenerates 40 |
 | Robot Hangar | Heavy Mechs | Mechs get 75 HP and hit for 30 |
 | Radar | Phased Array | Scan radius 15 |
 
