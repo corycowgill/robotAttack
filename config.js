@@ -305,7 +305,7 @@ const CAMPAIGN = [
   {
     id: 3, name: 'Iron Strait', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
     atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
-    rtBonus: 125,   // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 150,   // real time: extra starting credits for the player (tuned in simulation)
     brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
@@ -314,7 +314,7 @@ const CAMPAIGN = [
   },
   {
     id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 17, locked: ['uplink'],
-    rtBonus: 250,   // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 50,    // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'storm',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
@@ -324,6 +324,7 @@ const CAMPAIGN = [
   },
   {
     id: 5, name: 'Black Tide', enemy: 'nyx', difficulty: 'warlord', mapSeed: 5531, land: 110, par: 16, locked: ['uplink'],
+    rtBonus: 25,    // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'NYX sees everything and out-produces us. There is no trick left — only everything you have learned. End this.',
     taunt: 'PROBABILITY OF YOUR SURVIVAL: 3.1%. PROCEEDING.',
@@ -342,6 +343,7 @@ const CAMPAIGN = [
   },
   {
     id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 16,
+    rtBonus: 60,    // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Director Sol runs the orbital network itself: strikes early and often, shields that go up the moment you fire, eyes on everything. Our Uplink is half charged. Make the first strike count.',
     taunt: 'I have watched your little war from above. It ends today.',

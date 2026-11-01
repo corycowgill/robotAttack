@@ -61,7 +61,7 @@ The campaign is always played in real time, and skirmishes play in real time by 
 The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about two thirds of Commander mirrors end with one side's bases all destroyed, in a median of about 11 minutes; the rest are decided on the clock.
 
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3 and 4 give you 125 and 250 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 100, 70, 60, 45, 47 and 30% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3, 4, 5 and 7 give you 150, 50, 25 and 60 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 100, 72, 57, 42, 50 and 38% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
 
 ## Fog of war and reading the battle
 

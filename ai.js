@@ -143,7 +143,8 @@
       rtOpening: ['depot', 'depot', 'power', 'aa', 'silo', 'shield', 'depot', 'aa', 'radar'],
       after: (n, basic, state) => state.turn >= (state.realtime ? 10 : 7) && n('uplink') < 1 && unlocked(state, 'uplink') ? 'uplink'
         // reloading AA makes turtling stronger in real time: fewer batteries before it turns to offence
-        : n('aa') < (state.realtime ? 2 : 3) ? 'aa' : n('shield') < (state.realtime ? 1 : 2) ? 'shield' : n('silo') < 4 ? 'silo' : !state.realtime && basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
+        // real time: AA got shorter-ranged and less accurate, so it needs three batteries, two shields and upgrades
+        : n('aa') < 3 ? 'aa' : n('shield') < 2 ? 'shield' : n('silo') < 4 ? 'silo' : basic('aa') ? 'up:aa' : basic('silo') ? 'up:silo' : null
     },
     // mech swarms on a second front: hangars and heavy mechs
     raider: {
@@ -217,8 +218,15 @@
         return R.rand(state) < 0.2 ? order[Math.min(order.length - 1, order.indexOf(t) + 1)] : t;
       }
     }
-    const pool = ['depot', 'power', 'silo', 'aa', 'gunpod', 'hangar', 'shield', 'decoy', 'uplink'].filter(t => unlocked(state, t));
-    return pool[Math.floor(R.rand(state) * pool.length)];
+    // then a weighted pick with caps, so it never buries the map in cheap decoys and turrets
+    const n = t => count(state, t);
+    const energyShort = R.income(state, ME).energy < (n('silo') * C.MISSILE_ENERGY + n('hangar') * C.DROP_ENERGY) * 0.8;
+    const weights = { depot: 3, silo: n('silo') < 5 ? 3 : 0, power: energyShort ? 3 : 0.5, aa: n('aa') < 4 ? 2 : 0, hangar: n('hangar') < 3 ? 2 : 0,
+      gunpod: n('gunpod') < 3 ? 1 : 0, shield: n('shield') < 2 ? 1 : 0, decoy: n('decoy') < 3 ? 1 : 0, uplink: n('uplink') < 1 ? 1 : 0 };
+    const pool = Object.keys(weights).filter(t => weights[t] > 0 && unlocked(state, t));
+    let total = pool.reduce((a, t) => a + weights[t], 0), r = R.rand(state) * total;
+    for (const t of pool) { r -= weights[t]; if (r <= 0) return t; }
+    return pool[0] || null;
   }
 
   function planBuilds(state, mem, smart) {
