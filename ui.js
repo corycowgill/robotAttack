@@ -411,7 +411,7 @@ window.UI = (function () {
   body.compact .mainnav { gap: 6px; } body.compact .tagline { margin: 8px 0 12px; font-size: 11px; letter-spacing: .35em; }
   body.splash-on #sysbtns, body.splash-on #hud { visibility: hidden; }
   .tag { color: var(--c-dim); letter-spacing: .3em; text-transform: uppercase; font-size: 13px; margin: 18px 0 28px; }
-  .diffs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .diffs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .diff { padding: 18px 16px; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
   .diff:hover { transform: translateY(-4px); border-color: rgba(46,196,255,.7); }
   .diff h3 { margin: 0 0 6px; font-size: 24px; letter-spacing: .1em; text-transform: uppercase; }
@@ -616,7 +616,7 @@ window.UI = (function () {
   body.compact #splash .bars::before, body.compact #splash .bars::after { height: 7vh; } body.compact #splash .foot { bottom: calc(7vh + 8px); font-size: 10px; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
   body.compact .missions { gap: 5px; margin-bottom: 12px; } body.compact .mission { padding: 6px; } body.compact .mission h4 { font-size: 12px; }
   body.compact .mission .vs { font-size: 10px; } body.compact .mission .vs svg { width: 20px; height: 20px; }
-  body.compact .diff { padding: 10px; } body.compact .diff h3 { font-size: 16px; } body.compact .diff p { font-size: 11px; }
+  body.compact .diff { padding: 10px 8px; } body.compact .diff h3 { font-size: 15px; letter-spacing: .04em; } body.compact .diff p { font-size: 11px; }
   body.compact .menu-foot { margin-top: 10px; font-size: 12px; }
   body.compact .bigbtn { padding: 8px 16px; font-size: 14px; }
   body.compact #briefing .menu-box, body.compact #gameover .menu-box, body.compact #help .menu-box { padding: 14px 16px; max-height: none; }
@@ -716,6 +716,61 @@ window.UI = (function () {
   .seg button { border-radius: 0; }
   .medal { border-radius: 0; }
   .abtn small, .abtn kbd { text-transform: none; }
+  /* ── touch screens: every control at least ~36-44px to hit with a thumb ── */
+  @media (pointer: coarse) {
+    .seg button { min-height: 36px; padding-left: 10px; padding-right: 10px; }
+    #m-opts .seg button { min-height: 34px; }
+    .chk { min-height: 40px; } .chk input { width: 22px; height: 22px; }
+    #objectives .x { display: inline-grid; place-items: center; min-width: 36px; min-height: 36px; margin: -8px -8px -8px 0; font-size: 20px; }
+    #attack .akit { min-height: 36px; padding: 6px 10px; } #attack .ach { min-height: 36px; }
+    #attack .afoot .bigbtn { min-height: 44px; }
+    #help .close, #set-done, #ach-done { min-height: 44px; }
+    #orders .ordx, .order .x { min-width: 32px; min-height: 32px; }
+    .sbtn { min-height: 40px; }
+    #settings input[type=range] { height: 32px; }
+    .diff h3 { overflow-wrap: anywhere; }
+  }
+  /* phones, while planning an attack: no build cards (you can't build then), a tighter panel,
+     and Launch / Cancel pinned to the bottom of it so they never scroll out of reach */
+  body.compact.attacking #cards, body.compact.attacking #crews { display: none !important; }
+  /* only the rows for what you are aiming now (Fire Missile / Drop Mech switch between them) */
+  body.compact #attack[data-cursor="fire"] .r-hangar, body.compact #attack[data-cursor="fire"] .k-loadout,
+  body.compact #attack[data-cursor="drop"] .r-silo, body.compact #attack[data-cursor="drop"] .k-warhead,
+  body.compact #attack[data-cursor="strike"] .k-warhead, body.compact #attack[data-cursor="strike"] .k-loadout { display: none; }
+  body.compact #attack .aodds { max-height: 3.9em; overflow-y: auto; }
+  body.compact #attack .ah { font-size: 12.5px; margin-bottom: 4px; } body.compact #attack .ah .k { display: none; }
+  body.compact #attack .arow { margin: 3px 0; gap: 4px; } body.compact #attack .al { width: 52px; font-size: 9.5px; }
+  body.compact #attack .arow.kit { margin: 1px 0 5px; } body.compact #attack .aodds { font-size: 11px; margin: 4px 0; }
+  body.compact #attack .afoot { position: sticky; bottom: -8px; margin: 4px -10px -8px; padding: 6px 10px 8px; background: #0a1620; border-top: 1px solid rgba(212,222,230,.1); z-index: 1; }
+  body.compact #attack .afoot .cost { font-size: 11px; } body.compact #attack .afoot .bad { font-size: 11px; flex: 1 1 100%; order: -1; }
+  body.compact #attack .afoot { flex-wrap: wrap; }
+  body.compact #attack .afoot .bigbtn { padding: 7px 12px; margin: 0 2px; font-size: 13px; letter-spacing: .1em; }
+  body.compact #attack .afoot .cost { margin-right: auto; }
+  body.compact #attack .arow.kit .al { display: none; }
+  body.compact #attack .arow.kit .seg { display: flex; width: 100%; } body.compact #attack .arow.kit .akit { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
+  /* phone landscape: the HUD hugs the left so the corner buttons never sit on it */
+  @media (orientation: landscape) and (max-height: 500px) {
+    body.compact #hud { left: calc(var(--safe-l) + 6px); transform: none; max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 230px); }
+    /* the landing screen fits a short screen without scrolling */
+    #menu .home .emblem { width: 96px; } #menu .home .title .logo-main { font-size: clamp(30px, 9vh, 44px); } #menu .home .logo-sub { font-size: 10px; margin-top: .3em; }
+    #menu .home .tagline { margin: 4px 0 8px; font-size: 10px; }
+    #menu .home .mainnav { width: min(560px, 80vw); gap: 5px; } #menu .home .navbtn { padding: 7px 14px; font-size: 15px; } #menu .home .navbtn.primary { padding: 8px 14px; font-size: 17px; }
+    #menu .home .navbtn small { display: none; } #menu .home .menu-foot { margin-top: 4px; }
+  }
+  /* the narrowest iPhones (SE, mini): every HUD figure still fits */
+  @media (max-width: 360px) { body.compact #hud .val { font-size: 11.5px; } body.compact #hud-turn .val { font-size: 11px; } body.compact #hud .cell { padding: 4px 4px; } }
+  /* the log panel opens below the corner buttons, so its own button stays tappable */
+  body.compact #orders { top: 46px; }
+  @media (max-width: 600px) and (orientation: portrait) {
+    body.compact #orders { top: 92px; max-height: calc(100% - var(--dock-h, 220px) - 104px); }
+    /* the structure panel sits above the stacked dock, full width, so its buttons are reachable */
+    body.compact #selected { left: calc(var(--safe-l) + 6px); right: calc(var(--safe-r) + 6px); width: auto; bottom: calc(var(--dock-h, 220px) + 10px); max-height: 38vh; }
+    body.compact #selected .side { display: block; }
+    /* HUD: every figure fits on a 375-390px screen */
+    body.compact #hud .val { font-size: 13px; letter-spacing: 0; } body.compact #hud-turn .val { font-size: 12.5px; }
+    body.compact #hud .cell { padding: 4px 5px; } body.compact .hq-cell .val::before { font-size: 8px; margin-right: 2px; }
+    body.compact #attack { left: calc(var(--safe-l) + 6px); right: calc(var(--safe-r) + 6px); width: auto; transform: none; bottom: calc(var(--dock-h, 80px) + 6px); max-height: calc(100% - var(--dock-h, 80px) - 96px); overflow-y: auto; }
+  }
   #br-foe.speaker { border-left-color: rgba(255,122,61,.65); }
   body.go-on #toasts { top: auto; bottom: 26px; }   /* results: unlock toasts sit below the panel, not over the headline */
   `;
@@ -1081,7 +1136,16 @@ window.UI = (function () {
     const dots = Array.from({ length: total }, (_, i) => i < busy ? '●' : '○').join('');
     box.innerHTML = 'BUILD CREWS <b>' + dots + '</b>' + (queued ? ' <span class="q">· ' + queued + ' queued</span>' : '');
   }
+  // the dock's live height, for panels that must sit above it (phone portrait stacks it)
+  let dockObs = null;
+  function watchDock() {
+    const d = $('dock');
+    if (!d || dockObs || typeof ResizeObserver === 'undefined') return;
+    dockObs = new ResizeObserver(() => { const h = d.classList.contains('hidden') ? 0 : Math.round(innerHeight - d.getBoundingClientRect().top); document.getElementById('ui').style.setProperty('--dock-h', Math.max(0, h) + 'px'); });
+    dockObs.observe(d);
+  }
   function setCards(list) {
+    watchDock();
     const box = $('cards');
     if (box.children.length !== list.length) {
       box.innerHTML = '';
@@ -1336,8 +1400,8 @@ window.UI = (function () {
   function showAttack(d) {
     const p = $('attack');
     const chip = (kind, it) => `<button class="ach" data-kind="${kind}" data-cell="${it.cell}">${icon(kind === 'silo' ? 'missile' : kind === 'hangar' ? 'drop' : 'strike')}<span>${esc(it.label)}</span><small></small></button>`;
-    const row = (label, kind, list, none) => `<div class="arow"><span class="al">${label}</span>${list.length ? list.map(x => chip(kind, x)).join('') : '<span class="none">' + none + '</span>'}</div>`;
-    const kitRow = (label, kit, list) => `<div class="arow kit"><span class="al">${label}</span><div class="seg">${(list || []).map(k => `<button class="akit" data-kit="${kit}" data-v="${k.key}" title="${esc(k.desc)}">${esc(k.name)} <small>${k.energy}e</small></button>`).join('')}</div><span class="kdesc" data-kit="${kit}"></span></div>`;
+    const row = (label, kind, list, none) => `<div class="arow r-${kind}"><span class="al">${label}</span>${list.length ? list.map(x => chip(kind, x)).join('') : '<span class="none">' + none + '</span>'}</div>`;
+    const kitRow = (label, kit, list) => `<div class="arow kit k-${kit}"><span class="al">${label}</span><div class="seg">${(list || []).map(k => `<button class="akit" data-kit="${kit}" data-v="${k.key}" title="${esc(k.desc)}">${esc(k.name)} <small>${k.energy}e</small></button>`).join('')}</div><span class="kdesc" data-kit="${kit}"></span></div>`;
     const shape = JSON.stringify([d.silos.map(x => x.cell + x.label), d.hangars.map(x => x.cell + x.label), !!d.strike]);
     if (shape !== attackShape) {
       attackShape = shape;
@@ -1362,6 +1426,7 @@ window.UI = (function () {
     });
     p.querySelectorAll('.akit').forEach(b => { const list = b.dataset.kit === 'warhead' ? d.warheads : d.loadouts; const k = list && list.find(x => x.key === b.dataset.v); b.classList.toggle('on', !!(k && k.on)); });
     p.querySelectorAll('.kdesc').forEach(el => { const list = el.dataset.kit === 'warhead' ? d.warheads : d.loadouts; const k = list && list.find(x => x.on); const t = k ? k.desc : ''; if (el.textContent !== t) el.textContent = t; });
+    p.dataset.cursor = d.cursor || '';
     p.querySelector('.tg').textContent = d.target;
     const odds = p.querySelector('.aodds');
     if (odds.innerHTML !== (d.odds || '')) odds.innerHTML = d.odds || '';
@@ -1370,8 +1435,9 @@ window.UI = (function () {
     const go = $('at-go');
     if (go.disabled !== !!d.reason) go.disabled = !!d.reason;
     p.classList.add('show');
+    document.body.classList.add('attacking');
   }
-  function hideAttack() { $('attack').classList.remove('show'); attackShape = ''; }
+  function hideAttack() { $('attack').classList.remove('show'); attackShape = ''; document.body.classList.remove('attacking'); }
   function isAttackOpen() { return $('attack').classList.contains('show'); }
   // the End Turn button doubles as Pause in a real-time battle
   function setEndLabel(text) {

@@ -1726,7 +1726,7 @@ window.Renderer = (function () {
   function setOcclusion(left, right, top, bottom) { occl = { left: left || 0, right: right || 0, top: top || 0, bottom: bottom || 0 }; }
   const fitCam = new THREE.PerspectiveCamera();
   const corners = [[-CELL, -CELL], [MAP_W + CELL, -CELL], [-CELL, MAP_H + CELL], [MAP_W + CELL, MAP_H + CELL]].map(c => new THREE.Vector3(c[0], 0, c[1]));
-  function screenBox(gx, gz, d) {
+  function screenBox(gx, gz, d, pts) {
     fitCam.copy(camera);
     const o = camOffset(d);
     fitCam.position.set(gx + o.x, o.y, gz + o.z);
@@ -1734,7 +1734,7 @@ window.Renderer = (function () {
     fitCam.updateMatrixWorld(true);
     const W = window.innerWidth, H = window.innerHeight, v = new THREE.Vector3();
     const box = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
-    for (const c of corners) {
+    for (const c of pts || corners) {
       v.copy(c).project(fitCam);
       const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
       box.x0 = Math.min(box.x0, x); box.x1 = Math.max(box.x1, x);
@@ -1742,26 +1742,28 @@ window.Renderer = (function () {
     }
     return box;
   }
-  function frameAll(instant) {
+  // region: optional { x0, z0, x1, z1 } in world units to frame instead of the whole map
+  function frameAll(instant, region) {
+    const pts = region ? [[region.x0, region.z0], [region.x1, region.z0], [region.x0, region.z1], [region.x1, region.z1]].map(c => new THREE.Vector3(c[0], 0, c[1])) : null;
     const W = window.innerWidth, H = window.innerHeight, pad = 10;
     const ax0 = occl.left + pad, ax1 = W - occl.right - pad, ay0 = occl.top + pad, ay1 = H - occl.bottom - pad;
-    let gx = MAP_W / 2, gz = MAP_H / 2, d = 400;
+    let gx = region ? (region.x0 + region.x1) / 2 : MAP_W / 2, gz = region ? (region.z0 + region.z1) / 2 : MAP_H / 2, d = 400;
     for (let iter = 0; iter < 3; iter++) {
       // closest distance at which the map fits the free area
       let lo = 150, hi = 1800;
       for (let k = 0; k < 24; k++) {
-        const mid = (lo + hi) / 2, bx = screenBox(gx, gz, mid);
+        const mid = (lo + hi) / 2, bx = screenBox(gx, gz, mid, pts);
         if (bx.x1 - bx.x0 <= ax1 - ax0 && bx.y1 - bx.y0 <= ay1 - ay0) hi = mid; else lo = mid;
       }
       d = hi;
       // centre the projected map in the free area
-      const bx = screenBox(gx, gz, d);
+      const bx = screenBox(gx, gz, d, pts);
       const worldPerPx = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * d) / H;
       panScreen(gx, gz, (ax0 + ax1) / 2 - (bx.x0 + bx.x1) / 2, (ay0 + ay1) / 2 - (bx.y0 + bx.y1) / 2, worldPerPx);
       gx = cam.gx; gz = cam.gz;
     }
     cam.gx = gx; cam.gz = gz; cam.gdist = Math.min(1500, d);
-    framedDist = cam.gdist;
+    if (!region) framedDist = cam.gdist;
     if (instant) { cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; }
   }
   function addTrauma(t, pos) {

@@ -462,6 +462,21 @@
     Renderer.setOcclusion(0, ord ? window.innerWidth - ord.left : 0, hud ? hud.bottom : 80, Math.max(dockH, UI.isCompact() ? 64 : 120));
     Renderer.frameAll(instant);
   }
+  // Phone, planning an attack: frame the enemy island in the space left above the attack panel
+  function frameForAttack() {
+    if (!UI.isCompact() || !state) return;
+    requestAnimationFrame(() => {
+      const panel = document.getElementById('attack'), hud = document.getElementById('objectives') && document.getElementById('objectives').offsetParent ? document.getElementById('objectives') : document.getElementById('hud');
+      if (!panel || !panel.classList.contains('show')) return;
+      const pr = panel.getBoundingClientRect(), top = hud ? hud.getBoundingClientRect().bottom : 60;
+      const landscape = innerWidth > innerHeight;
+      // landscape: the panel is a column on the left; portrait: a sheet at the bottom
+      if (landscape) Renderer.setOcclusion(pr.right + 4, 0, top, 60);
+      else Renderer.setOcclusion(0, 0, top, innerHeight - pr.top + 4);
+      const C = CONST.CELL, x0 = CONST.AI_MIN_X * C - C, x1 = CONST.GRID_W * C + C;
+      Renderer.frameAll(false, { x0, z0: -C, x1, z1: CONST.GRID_H * C + C });
+    });
+  }
 
   function beginPlanning(first) {
     phase = 'planning';
@@ -2414,6 +2429,7 @@
     attack = { arm: [], targets: {}, hangars: new Set(), landing: undefined, strikeOn: false, strikeTo: undefined, cursor: m, warhead: lastKit.warhead, loadout: lastKit.loadout };
     setCursor(m);
     UI.banner('PLANNING', 'Time stopped: pick targets, then Launch', false);
+    setTimeout(frameForAttack, 30);
   }
   // armed silos count against the budget even before they have a target, so the planner never
   // arms more than the energy pays for
@@ -2493,6 +2509,7 @@
     const hint = { fire: tap + ' a target for each missile', drop: tap + ' where the mechs land: they fight inside the 5×5 box', strike: tap + ' the strike\'s target' }[attack.cursor];
     UI.showAttack({
       target: hint + ' · time stopped',
+      cursor: attack.cursor,
       silos: R.buildingsOf(state, P, 'silo').map(siloItem),
       hangars: R.buildingsOf(state, P, 'hangar').map(hangarItem),
       strike: up ? { cell: up.cell, label: 'Strike', ready: up.charge >= CONST.STRIKE_CHARGE, on: attack.strikeOn,
@@ -2508,9 +2525,11 @@
     refreshMarkers();
   }
   function closeAttack() {
+    const was = !!attack;
     attack = null;
     UI.hideAttack();
     markerKey = '';
+    if (was && UI.isCompact()) setTimeout(() => { if (!attack && state) frameView(false); }, 50);
   }
   function attackAction(what, kind, cell) {
     if (!attack || phase !== 'live') return;
