@@ -98,7 +98,7 @@ test('real time: the clock runs, build anytime, pick an attack, see it in the ai
   await page.waitForFunction(() => __game.state.rt.t > 2);
   const c0 = await page.evaluate(() => __game.state.sides.player.credits);
   await page.waitForFunction(c => __game.state.sides.player.credits > c, c0);
-  assert.match(await page.textContent('#hud'), /\d:\d\d \/ 15:00/, 'a battle clock instead of turns');
+  assert.match(await page.textContent('#hud'), /\d:\d\d \/ 10:00/, 'a battle clock instead of turns');
   // building works while the clock runs
   await page.click('.card[data-type="depot"]');
   await clickCell(page, await freeCell(page, 'depot'));

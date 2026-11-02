@@ -81,8 +81,12 @@
   function factories(state, side) {
     return R.buildingsOf(state, side, 'factory').filter(R.online).reduce((n, b) => n + (R.stat(b, 'factories') || 1), 0);
   }
+  // comeback and endgame multipliers
+  function rallying(state, side) { return !!(state.rt.rally && state.rt.rally[side] > state.rt.t); }
+  function finalPhase(state) { return state.rt.t >= state.rt.timeLimit * T.FINAL_PHASE - 1e-6; }
+  function tempo(state, side) { return (finalPhase(state) ? T.FINAL_TEMPO : 1) * (rallying(state, side) ? T.RALLY_RELOAD : 1); }
   function buildSpeed(state, side) { return 1 + T.FACTORY_BUILD_BOOST * factories(state, side); }
-  function reloadSpeed(state, side) { return 1 + T.FACTORY_RELOAD_BOOST * factories(state, side); }
+  function reloadSpeed(state, side) { return (1 + T.FACTORY_RELOAD_BOOST * factories(state, side)) * tempo(state, side); }
   // Seconds until a structure under construction is finished at the current speed
   function buildLeft(state, b) {
     if (R.online(b)) return 0;
@@ -219,6 +223,7 @@
     const a = norm(raw);
     const rt = state.rt, t = rt.t, s = state.sides[side];
     s.energy -= attackCost(a);
+    if ((a.missiles.length && a.warhead !== 'he') || (a.hangars.length && a.loadout !== 'assault')) s.stats.kitUsed = (s.stats.kitUsed || 0) + 1;
     const ids = [];
     let at = t;
     // the strike first (it never misses), then missiles one after another, then the dropship
@@ -299,9 +304,9 @@
 
     // 1. Economy: one turn's income arrives over ROUND seconds
     for (const side of [P, A]) {
-      const s = state.sides[side], f = rt.frac[side], inc = R.income(state, side);
-      f.c += inc.credits * dt / T.ROUND;
-      f.e += inc.energy * dt / T.ROUND;
+      const s = state.sides[side], f = rt.frac[side], inc = R.income(state, side), mul = rallying(state, side) ? T.RALLY_INCOME : 1;
+      f.c += inc.credits * mul * dt / T.ROUND;
+      f.e += inc.energy * mul * dt / T.ROUND;
       const dc = Math.floor(f.c + 1e-6), de = Math.floor(f.e + 1e-6);
       if (dc) { s.credits += dc; f.c -= dc; }
       if (de) { s.energy = Math.min(R.energyCap(state, side), s.energy + de); f.e -= de; }
@@ -330,9 +335,12 @@
         const whole = Math.floor(b.poolAcc + 1e-6);
         if (whole) { b.pool = Math.min(R.stat(b, 'pool'), Math.floor(b.pool) + whole); b.poolAcc -= whole; }
       }
-      if (b.type === 'uplink') b.charge = Math.min(C.STRIKE_CHARGE, (b.charge || 0) + C.STRIKE_CHARGE * dt / T.STRIKE_CHARGE_TIME);
+      if (b.type === 'uplink') b.charge = Math.min(C.STRIKE_CHARGE, (b.charge || 0) + C.STRIKE_CHARGE * dt * (finalPhase(state) ? T.FINAL_TEMPO : 1) / T.STRIKE_CHARGE_TIME);
       if ((b.type === 'silo' || b.type === 'hangar') && b.readyAt === undefined) b.readyAt = t + reloadOf(b) / 2;
     }
+
+    // the final phase of the clock begins
+    if (!rt.final && finalPhase(state)) { rt.final = true; ev({ type: 'finalPhase', left: rt.timeLimit - t }); }
 
     // 2. Rounds: the turn counter keeps radar start-up, craters and repair allowances working
     if (t >= rt.nextRound - 1e-6) {
@@ -655,9 +663,24 @@
     return bases(state, side).reduce((n, b) => n + b.hp, 0) / max;
   }
 
+  // A base fell but the war goes on: patch up the survivors, rush credits, speed up production
+  function rally(state, side, ev) {
+    const rt = state.rt;
+    rt.rally = rt.rally || { player: 0, ai: 0 };
+    rt.rally[side] = rt.t + T.RALLY_TIME;
+    let repaired = 0;
+    for (const b of bases(state, side)) { const add = Math.min(b.maxHp - b.hp, Math.round(b.maxHp * T.RALLY_REPAIR)); b.hp += add; repaired += add; }
+    state.sides[side].credits += T.RALLY_CREDITS;
+    ev({ type: 'rally', side, until: rt.rally[side], repaired, credits: T.RALLY_CREDITS });
+  }
+
   function endCheck(state, destroyed, ev) {
     const lostBase = destroyed.filter(b => b.type === 'hq' || b.type === 'base');
-    for (const b of lostBase) ev({ type: 'baseLost', side: b.side, cell: b.cell, kind: b.type, left: bases(state, b.side).length });
+    for (const b of lostBase) {
+      const left = bases(state, b.side).length;
+      ev({ type: 'baseLost', side: b.side, cell: b.cell, kind: b.type, left });
+      if (left > 0) rally(state, b.side, ev);
+    }
     const pDead = lostBase.length && !bases(state, P).length;
     const aDead = lostBase.length && !bases(state, A).length;
     if (pDead && aDead) { state.winner = 'draw'; state.endReason = 'Mutual destruction'; }
@@ -687,7 +710,7 @@
   const api = {
     init, step, attackReason, attackCost, missileEnergy, dropEnergy, mechKit, launchAttack, readyLaunchers, readyIn, isReady,
     factories, buildSpeed, reloadSpeed, buildLeft, isQueued, sitesOf,
-    landingCells, inbound, progress, detects, mechsCommitted, bases, baseIntegrity
+    landingCells, inbound, progress, detects, mechsCommitted, bases, baseIntegrity, rallying, finalPhase
   };
   root.Realtime = api;
   if (typeof module !== 'undefined') module.exports = api;

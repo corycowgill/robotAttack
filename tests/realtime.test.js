@@ -348,3 +348,36 @@ test('mech loadouts: raiders are fast and light, breachers slow and tough; ships
   assert.equal(ship.mechs[0].kind, 'breacher');
   assert.equal(s.sides[P].energy, 40 - RT.LOADOUTS.breacher.energy);
 });
+
+test('losing a base mobilizes the side: survivors patched, credits, faster production for a while', () => {
+  const s = game(8);
+  const bases = RTE.bases(s, P);
+  assert.ok(bases.length >= 2);
+  for (const b of bases) b.hp = Math.round(b.maxHp / 2);
+  const lost = bases.find(b => b.type === 'base');
+  const c0 = s.sides[P].credits;
+  const inc0 = RTE.reloadSpeed(s, P);
+  lost.hp = 1;
+  const hit = R.damageBuilding(s, lost, 50, A, []);
+  assert.ok(hit.destroyed);
+  const ev = run(s, 0.2);
+  const rally = ev.find(e => e.type === 'rally' && e.side === P);
+  assert.ok(rally, 'a rally event');
+  assert.ok(rally.repaired > 0 && s.sides[P].credits >= c0 + RT.RALLY_CREDITS);
+  assert.ok(RTE.rallying(s, P) && RTE.reloadSpeed(s, P) > inc0, 'production speeds up');
+  run(s, RT.RALLY_TIME + 1);
+  assert.ok(!RTE.rallying(s, P), 'and the surge ends');
+  assert.ok(!ev.some(e => e.type === 'rally' && e.side === A), 'only the side that lost a base');
+});
+
+test('the last third of the clock is the final phase: faster reloads and uplink charge', () => {
+  const s = game(8);
+  const r0 = RTE.reloadSpeed(s, P);
+  assert.ok(!RTE.finalPhase(s));
+  s.rt.t = s.rt.timeLimit * RT.FINAL_PHASE - 0.05;
+  const ev = run(s, 0.2);
+  assert.ok(ev.some(e => e.type === 'finalPhase'), 'announced once');
+  assert.ok(RTE.finalPhase(s) && Math.abs(RTE.reloadSpeed(s, P) - r0 * RT.FINAL_TEMPO) < 1e-9);
+  assert.ok(!run(s, 1).some(e => e.type === 'finalPhase'), 'not repeated');
+  assert.equal(s.rt.timeLimit, CONST.MAX_TURNS * RT.CLOCK_PER_TURN);
+});

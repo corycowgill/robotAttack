@@ -90,7 +90,7 @@
     return {
       damageDealt: 0, damageTaken: 0, built: 0, destroyed: 0, lost: 0,
       missilesFired: 0, missilesHit: 0, intercepts: 0, strikes: 0, missileDamageTaken: 0,
-      robotsDeployed: 0, robotsLost: 0, robotsKilled: 0, minesHit: 0
+      robotsDeployed: 0, robotsLost: 0, robotsKilled: 0, minesHit: 0, kitUsed: 0
     };
   }
 

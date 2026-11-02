@@ -661,7 +661,8 @@
     const s = state.sides[P];
     const inc = R.income(state, P);
     const hq = R.buildingsOf(state, P, 'hq')[0];
-    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : attack ? 'Planning' : pace === 1 ? 'Live' : 'Live ×' + pace }[phase] || '';
+    const live = state && state.rt && Realtime.rallying(state, P) ? 'Mobilized' : state && state.rt && state.rt.final ? 'Final phase' : 'Live';
+    const phaseName = { planning: 'Planning', resolving: 'Combat', gameover: 'Game over', live: livePaused ? 'Paused' : attack ? 'Planning' : pace === 1 ? live : live + ' ×' + pace }[phase] || '';
     if (state.realtime) {
       const left = Math.max(0, state.rt.timeLimit - state.rt.t);
       // the HQ bars follow every base, Command Center included
@@ -908,6 +909,7 @@
     { text: 'Attack: press <kbd>Q</kbd>, click an outer <b>enemy Base</b> (less AA there), then <b>Launch</b> <kbd>Enter</kbd>', touch: 'Attack: tap <b>Fire Missile</b>, tap an outer <b>enemy Base</b> twice, then <b>Launch</b>', done: s => s.sides[P].stats.missilesFired > 0 || s.rt.flights.some(f => f.side === P) },
     { text: 'Build a second <b>Missile Silo</b> <kbd>4</kbd>: salvos beat AA, single missiles rarely do', done: s => R.buildingsOf(s, P, 'silo').length >= 2 },
     { text: 'Build a <b>Radar</b> <kbd>3</kbd> on your east coast to see what enemy fire is aimed at', done: s => has(s, 'radar') },
+    { text: 'In the attack panel, pick a <b>warhead</b> or <b>mech loadout</b> for the target: <b>Penetrators</b> punch through shields, <b>Clusters</b> splash packed bases, <b>Breachers</b> survive turrets', done: s => (s.sides[P].stats.kitUsed || 0) > 0 },
     { text: 'Enemy launches come with a countdown: guard your HQ with an <b>AA Battery</b> <kbd>5</kbd>', done: s => has(s, 'aa') },
     { text: 'Enemy mechs? A <b>Sentry Turret</b> <kbd>8</kbd> shreds them, and hidden <b>Minefields</b> <kbd>N</kbd> on the approaches blow them up', done: s => has(s, 'gunpod') || R.minesOf(s, P).length > 0 }
   ];
@@ -1049,6 +1051,29 @@
     return n + ' missile' + (n > 1 ? 's' : '') + ' vs ' + known.length + ' known shot' + (known.length > 1 ? 's' : '') + ' (' + known.map(d => d.name + ' ' + Math.round(d.p * 100) + '%').join(', ') + ') → ~' + land.toFixed(1) + ' expected to land'
       // batteries fire once, then reload: more missiles than shots get through
       + (land < 0.5 ? ' <span class="bad">— likely all shot down. Wait for more silos to load and send ' + (Math.ceil(known.length) + 1) + '+ together, or pick a target outside the AA</span>' : '');
+  }
+  // What you know is at a cell (seen intel, or what you can see now), for kit advice
+  function knownType(c) {
+    const b = R.buildingAt(state, c);
+    if (b && playerSees(c)) return R.apparent(b).type;
+    const s = state.sides[P].intel.seen[c];
+    return s ? s.type : null;
+  }
+  // a one-line suggestion when another warhead or loadout fits the target better
+  function kitAdvice(plan) {
+    const out = [];
+    if (plan.missiles.length) {
+      const to = plan.missiles[0].to;
+      const shielded = R.neighbors(to, 1).concat([to]).some(c => knownType(c) === 'shield' && R.ownerOfCell(c) === A);
+      const packed = R.neighbors(to, 1).filter(c => { const t = knownType(c); return t && t !== 'mine' && R.ownerOfCell(c) === A; }).length;
+      if (shielded && plan.warhead !== 'penetrator') out.push('A shield dome covers ' + cellName(to) + ': a <b>Penetrator</b> puts half its hit straight through');
+      else if (!shielded && packed >= 2 && plan.warhead !== 'cluster') out.push(packed + ' known structures around ' + cellName(to) + ': a <b>Cluster</b> warhead splashes them all');
+    }
+    if (plan.hangars.length && plan.landing !== undefined) {
+      const guns = Object.keys(state.sides[P].intel.seen).filter(k => knownType(+k) === 'gunpod' && R.cheb(+k, plan.landing) <= 3).length;
+      if (guns && plan.loadout !== 'breacher') out.push(guns + ' known sentry turret' + (guns > 1 ? 's' : '') + ' near the drop zone: <b>Breachers</b> survive them');
+    }
+    return out.length ? '<span class="tipkit">Tip: ' + out.join(' · ') + '</span>' : '';
   }
   function knownDefences(cell) {
     const seen = state.sides[P].intel.seen;
@@ -2475,7 +2500,7 @@
       warheads: kitList(RT.WARHEADS, attack.warhead), loadouts: kitList(RT.LOADOUTS, attack.loadout),
       cost: Realtime.attackCost(plan), energy: state.sides[P].energy,
       reason,
-      odds: odds + (unaimed > 0 ? (odds ? '<br>' : '') + unaimed + ' armed missile' + (unaimed > 1 ? 's have' : ' has') + ' no target yet and will stay home' : '')
+      odds: (kitAdvice(plan) ? kitAdvice(plan) + '<br>' : '') + odds + (unaimed > 0 ? (odds ? '<br>' : '') + unaimed + ' armed missile' + (unaimed > 1 ? 's have' : ' has') + ' no target yet and will stay home' : '')
         + (plan.hangars.length && plan.landing !== undefined ? (odds ? '<br>' : '') + 'Dropship to ' + cellName(plan.landing) + ': ' + (RT.SHIP_HULL + plan.hangars.length - 1 + (RT.LOADOUTS[attack.loadout].hull || 0)) + ' AA hits bring it down'
           + (knownDefences(plan.landing).length ? ', and ' + knownDefences(plan.landing).length + ' known AA cover the drop zone' : ', no known AA covers the drop zone')
           + '. Mechs fight inside the box for ' + RT.MECH_TIME + 's, then fly home.' : '')
@@ -2665,6 +2690,21 @@
           SND.play(own ? 'alarm' : 'achievement');
           commanderSays(own ? 'won' : 'lost', e.left);
         }
+        return true;
+      }
+      case 'rally': {
+        const own = e.side === P;
+        if (own) {
+          UI.banner('MOBILIZE', 'Bases patched · +' + e.credits + ' credits · faster production for ' + RT.RALLY_TIME + 's', false);
+          UI.log('Emergency mobilization: surviving bases repaired (+' + e.repaired + ' HP), +' + e.credits + ' credits, income and reloads ×' + RT.RALLY_INCOME + ' for ' + RT.RALLY_TIME + 's. Hit back!', 'good');
+          SND.play('achievement');
+        } else UI.log('The enemy mobilizes: their bases are patched up and production surges for ' + RT.RALLY_TIME + 's', 'bad');
+        return true;
+      }
+      case 'finalPhase': {
+        UI.banner('FINAL PHASE', fmtClock(e.left) + ' left · launchers reload and uplinks charge ' + RT.FINAL_TEMPO + '× faster', true);
+        UI.log('Final phase: ' + fmtClock(e.left) + ' left. Every launcher reloads ' + RT.FINAL_TEMPO + '× faster. When the clock runs out, the side with the most base health left wins.', 'sys');
+        SND.play('alarm', { gain: 0.6 });
         return true;
       }
       case 'scramble': {

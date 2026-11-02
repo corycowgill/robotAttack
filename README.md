@@ -69,14 +69,16 @@ The campaign is always played in real time, and skirmishes play in real time by 
 - **Intel:** an impact, or an AA battery or gun that fires, stays revealed for 30 seconds. A new radar comes online 5 seconds after it is built.
 - **Orbital strikes** charge for 90 seconds and land 11 seconds after launch: a long, loud warning. Splash is 34, so a full-health depot or power plant survives it.
 - **Repairs** restore up to 15 HP per structure every 15 seconds; bases and the Command Center can't be repaired. A structure sold within 5 seconds of building refunds in full.
-- **The clock:** the turn-limit option becomes a battle clock (30 turns = 15 minutes). When time runs out, the side with more of its bases' health left wins.
+- **The clock:** the turn-limit option becomes a battle clock (20 turns = 10 minutes by default; 15 or 22.5 minutes in the battle options). When time runs out, the side with more of its bases' health left wins.
+- **Final phase:** the last third of the clock (from 6:40 on a 10-minute battle) is announced with a banner: every launcher reloads and every uplink charges 1.5× faster, so battles build to a climax instead of petering out.
+- **Emergency mobilization:** when you lose a base but others still stand, your surviving bases are patched up (+25% of their health), 150 credits arrive, and income and reloads run 1.6× and 1.4× faster for 40 seconds. It works for the AI too. In AI-vs-AI simulations it raised the share of battles won from more than 25% behind from about one in four to about one in three; about 60% of battles now reach the final phase, and about 10% go to the clock.
 - **Pause:** `Space` pauses, and the game also pauses when you switch tabs. While paused you can look around and inspect, but building and attacking wait until you resume.
 - **Saving:** the battle autosaves every 15 seconds, and **Continue** resumes it, missiles in flight included.
 
-The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about two thirds of Commander mirrors end with one side's bases all destroyed, in a median of about 11 minutes; the rest are decided on the clock.
+The AI plays with the same rules. It builds with the turn-based planners and attacks in waves when its silos are loaded, choosing targets (bases rank just below the Command Center) with the turn-based target pickers. A wave can be missiles plus a dropship aimed nearby. In AI-vs-AI simulations about 90% of Commander mirrors end with one side's bases all destroyed, in a median of about 7 minutes; the rest are decided on the clock.
 
 
-In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3, 4, 5 and 7 give you 150, 50, 75 and 120 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 97, 73, 57, 45, 43 and 40% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls.
+In the campaign, a mission's par medal is a clock time: its par in turns × 30 seconds (for example, mission 1 is 6:00). Missions 3, 4, 5 and 7 give you 150, 50, 75 and 200 extra starting credits. In simulations (a Commander-level player) the win rates run about 100, 100, 57, 53, 43, 47 and 38% for missions 1–7. Mission 1's briefing checklist teaches the real-time controls, including a step that asks you to try a warhead or loadout; the briefings for missions 2–4 suggest the kit for each opponent (Breachers against Vey's turret, Clusters against Kord's packed bases, Penetrators against Vey's shield domes), and the attack panel suggests a better warhead or loadout when your target calls for one.
 
 ## Fog of war and reading the battle
 
@@ -153,7 +155,7 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 **Skirmish** plays a random island map against any of the three opponents. The options row above the opponent cards sets:
 - island size: small (95 cells), normal (120) or large (150);
 - starting credits: 250, 350 or 600;
-- length: a 10, 15 or 22.5-minute battle clock;
+- length: a 10 (default), 15 or 22.5-minute battle clock;
 - whether the Strike Uplink is allowed;
 - the opponent's style:
   - **Balanced:** the standard AI.
@@ -165,7 +167,7 @@ Your best medals show on the mission cards and in the briefing. Replay a mission
 
 The browser remembers your choices.
 
-**Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 10-minute blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
+**Daily Operation** is one seeded battle per day: the same map, the same twist (large islands, a war chest, a 7.5-minute blitz…) and the same opponent (Commander on weekdays, Warlord at weekends) for everyone.
 - A win scores 1000, plus 30 for every 30 seconds left on the clock, plus 5 for every % of your bases' health left.
 - A loss scores 10 for every % of the enemy bases' health you destroyed.
 - The browser keeps your best score for each day, and **Retry Daily** replays the same battle.

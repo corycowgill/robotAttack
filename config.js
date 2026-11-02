@@ -15,7 +15,7 @@ const CONST = {
 
   BUILD_RADIUS: 3,          // Chebyshev distance from an existing own building
   START_BUILDINGS: [{ type: 'silo', dx: 2, dy: 0 }],   // relative to HQ, mirrored for the AI
-  MAX_TURNS: 30,
+  MAX_TURNS: 20,             // real time: 30 s each, so a 10-minute battle clock
   LAND_TARGET: 120,          // cells per island (each side's zone is 14x16 = 224 cells)
 
   // Economy
@@ -76,7 +76,7 @@ const CONST = {
 const RT = {
   TICK: 0.1,              // simulation step, seconds
   ROUND: 15,              // seconds over which one turn's income, regen and repair allowance arrive
-  CLOCK_PER_TURN: 30,     // the turn-limit option becomes a clock: 30 turns = 15 minutes
+  CLOCK_PER_TURN: 30,     // the turn-limit option becomes a clock: 20 turns = 10 minutes
   SILO_RELOAD: 16,        // seconds before a silo can fire again
   HANGAR_RELOAD: 20,      // seconds to ready a new mech after the last one came home or died
   MISSILE_FLIGHT: 8,      // launch to impact, plus a little per cell travelled
@@ -124,6 +124,11 @@ const RT = {
   DEFENDER_STEP: 1.0,     // defenders hurry: seconds per move or blow
   DEFENDER_TIME: 60,
   MAX_MISSILES_PER_ATTACK: 4,
+  // Comebacks: losing a base (while others stand) mobilizes the side for RALLY_TIME seconds:
+  // surviving bases are patched up, a lump of credits arrives, income and reloads speed up
+  RALLY_TIME: 40, RALLY_REPAIR: 0.25, RALLY_CREDITS: 150, RALLY_INCOME: 1.6, RALLY_RELOAD: 1.4,
+  // The clock: the last third of a battle is the final phase, with faster reloads and uplink charge
+  FINAL_PHASE: 2 / 3, FINAL_TEMPO: 1.5,
   // Warheads (chosen per attack): multiply the silo's damage and splash; energy per missile
   WARHEADS: {
     he:         { name: 'HE',         desc: 'Balanced blast: full hit plus splash on the 3x3', dmgMul: 1, splashMul: 1, energy: 8 },
@@ -242,7 +247,7 @@ const UPGRADES = {
 const SKIRMISH_OPTIONS = {
   land:    { label: 'Islands',       choices: [[95, 'Small'], [120, 'Normal'], [150, 'Large']], def: 120 },
   credits: { label: 'Start credits', choices: [[250, 'Lean'], [350, 'Standard'], [600, 'Rich']], def: 350 },
-  turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 30 },
+  turns:   { label: 'Turn limit',    choices: [[20, '20'], [30, '30'], [45, '45']], def: 20 },
   uplink:  { label: 'Superweapon',   choices: [[1, 'On'], [0, 'Off']], def: 1 },
   style:   { label: 'Opponent',      choices: [[0, 'Balanced'], [1, 'Blitz'], [2, 'Fortress'], [3, 'Raider']], def: 0, solo: true }
 };
@@ -260,7 +265,7 @@ const DAILY_TWISTS = [
   { id: 'small',   name: 'Cramped islands',   opts: { land: 95 } },
   { id: 'rich',    name: 'War chest',         opts: { credits: 600 } },
   { id: 'lean',    name: 'Lean supply',       opts: { credits: 250 } },
-  { id: 'blitz',   name: 'Blitz (10 minutes)', opts: { turns: 20 } },
+  { id: 'blitz',   name: 'Blitz (7.5 minutes)', opts: { turns: 15 } },
   { id: 'noorbit', name: 'No superweapons',   opts: { uplink: 0 } }
 ];
 
@@ -314,7 +319,7 @@ const CAMPAIGN = [
   },
   {
     id: 2, name: 'Coral Gate', enemy: 'vey', difficulty: 'patrol', mapSeed: 2207, land: 125, par: 18, locked: ['uplink'],
-    brief: 'Vey has dug in behind AA batteries and a sentry turret. Saturate her air defense — send several missiles in one attack — or slip mechs past it.',
+    brief: 'Vey has dug in behind AA batteries and a sentry turret. Saturate her air defense — send several missiles in one attack — or slip mechs past it. Tip: Breacher mechs (attack panel → Loadout) shrug off her sentry turret.',
     taunt: 'My batteries have never let a missile through. Try your luck.',
     win: 'Her defenses cracked. Remember: volume beats precision against AA.',
     start: { player: [], ai: [{ type: 'aa', dx: 2, dy: -2 }, { type: 'aa', dx: 2, dy: 2 }, { type: 'gunpod', dx: 3, dy: 0 }] }
@@ -323,7 +328,7 @@ const CAMPAIGN = [
     id: 3, name: 'The Narrows', enemy: 'kord', difficulty: 'commander', mapSeed: 3313, land: 120, par: 19, locked: ['uplink'],
     atmos: 'dusk',   // the light the battle is fought in (renderer.js ATMOS)
     rtBonus: 150,   // real time: extra starting credits for the player (tuned in simulation)
-    brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover.',
+    brief: 'Marshal Kord reads the battlefield and adapts. Scout with Radar, use Decoys to waste his salvos, and strike what he cannot cover. Tip: his structures sit close together — a Cluster warhead hits every one around the target.',
     taunt: 'I have studied your every move, Commander. You are predictable.',
     win: 'Kord underestimated you. The strait is ours.',
     credits: { player: 450 },
@@ -333,7 +338,7 @@ const CAMPAIGN = [
     id: 4, name: 'Fortress Isle', enemy: 'vey', difficulty: 'commander', mapSeed: 4421, land: 110, par: 17, locked: ['uplink'],
     rtBonus: 50,    // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'storm',   // the light the battle is fought in (renderer.js ATMOS)
-    brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls.',
+    brief: 'Vey is back with a fortress: shields, layered AA and sentry turrets around her HQ. Starve her economy first, then break the walls. Her bases sit under shield domes: switch the warhead to Penetrator — half of each hit goes straight through the shield.',
     taunt: 'Coral Gate was a lesson. This time I built walls.',
     win: 'The fortress fell. Only one enemy remains.',
     credits: { player: 600 },
@@ -360,7 +365,7 @@ const CAMPAIGN = [
   },
   {
     id: 7, name: 'Zero Hour', enemy: 'sol', difficulty: 'warlord', mapSeed: 7741, land: 110, par: 16,
-    rtBonus: 120,   // real time: extra starting credits for the player (tuned in simulation)
+    rtBonus: 200,   // real time: extra starting credits for the player (tuned in simulation)
     atmos: 'night',   // the light the battle is fought in (renderer.js ATMOS)
     brief: 'Director Sol runs the orbital network itself: strikes early and often, shields that go up the moment you fire, eyes on everything. Our Uplink is half charged. Make the first strike count.',
     taunt: 'I have watched your little war from above. It ends today.',

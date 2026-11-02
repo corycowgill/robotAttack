@@ -243,6 +243,7 @@ window.UI = (function () {
   #attack .kdesc { flex: 1 1 100%; padding-left: 70px; font: 400 11.5px 'Inter', sans-serif; color: var(--c-dim); }
   body.compact #attack .kdesc { display: none; } body.compact #attack .akit { padding: 4px 7px; font-size: 12px; }
   #attack .aodds { font-size: 12px; color: var(--c-dim); margin: 6px 0 8px; } #attack .aodds .good { color: var(--c-credit); }
+  #attack .tipkit { color: #bfeaff; } #attack .tipkit b { color: var(--c-player); }
   #attack .afoot { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   #attack .afoot .cost { margin-right: auto; } #attack .afoot .bad { color: var(--c-bad); }
   #attack .afoot button { padding: 7px 16px; font-size: 14px; }
@@ -969,7 +970,7 @@ window.UI = (function () {
     }).join('');
     return `<div class="menu-box panel">
       <h2>How to play</h2>
-      <p><b>Goal:</b> destroy every enemy base: the <b style="color:var(--c-ai)">Command Center</b> and its ${RT.BASES_PER_SIDE} outer <b>Bases</b>, all marked on the right side of the map. Lose all of yours and you lose. When the ${Math.round(CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60)}-minute clock runs out, the side with more base health left wins.</p>
+      <p><b>Goal:</b> destroy every enemy base: the <b style="color:var(--c-ai)">Command Center</b> and its ${RT.BASES_PER_SIDE} outer <b>Bases</b>, all marked on the right side of the map. Lose all of yours and you lose. When the ${Math.round(CONST.MAX_TURNS * RT.CLOCK_PER_TURN / 60)}-minute clock runs out, the side with more base health left wins. In the <b>final phase</b> (the last third of the clock) launchers reload and uplinks charge ${RT.FINAL_TEMPO}× faster. Lose a base and you <b>mobilize</b>: surviving bases are patched up, ${RT.RALLY_CREDITS} credits arrive and production surges for ${RT.RALLY_TIME}s.</p>
       <h4>Real-time battle</h4>
       <ul>
         <li><b>Destroy every enemy base.</b> Each side has its Command Center and ${RT.BASES_PER_SIDE} more Bases, all marked on the map (decoys may pose as one). Lose all yours and the war is lost. Bases can't be repaired.</li>
