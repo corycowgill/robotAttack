@@ -798,8 +798,12 @@ window.Renderer = (function () {
     const g = cv.getContext('2d');
     const col = side === CONST.SIDE_PLAYER ? '#2ec4ff' : '#ff4422';
     g.fillStyle = 'rgba(8,12,18,0.82)';
-    g.beginPath(); g.arc(48, 48, 40, 0, Math.PI * 2); g.fill();
-    g.lineWidth = 6; g.strokeStyle = col; g.stroke();
+    // shape as well as colour tells the sides apart: yours are circles, the enemy's are diamonds
+    g.beginPath();
+    if (side === CONST.SIDE_PLAYER) g.arc(48, 48, 38, 0, Math.PI * 2);
+    else { g.moveTo(48, 4); g.lineTo(92, 48); g.lineTo(48, 92); g.lineTo(4, 48); g.closePath(); }
+    g.fill();
+    g.lineWidth = 6; g.lineJoin = 'round'; g.strokeStyle = col; g.stroke();
     const tex = new THREE.CanvasTexture(cv);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 });
     badgeMats[key] = mat;
@@ -811,9 +815,11 @@ window.Renderer = (function () {
     }
     return mat;
   }
+  // Always-on badges; the rest only appear when damaged or still being built, to keep the map readable
+  const MAJOR_BADGE = { hq: 1, base: 1, silo: 1, aa: 1, hangar: 1, uplink: 1 };
   function makeBadge(type, side) {
     const s = new THREE.Sprite(badgeMaterial(type, side));
-    const k = type === 'hq' ? 14 : type === 'base' ? 12 : 8.5;   // bases stand out; the rest stay small
+    const k = type === 'hq' ? 14 : type === 'base' ? 12 : MAJOR_BADGE[type] ? 8.5 : 7;   // bases stand out; the rest stay small
     s.scale.set(k, k, 1);
     s.renderOrder = 28;
     return s;
@@ -2078,7 +2084,8 @@ window.Renderer = (function () {
       if (g.visible) Models.animate(g, time, dt);
       if (decorHidden) rec.bar.visible = false;
       if (rec.bar.visible) rec.bar.quaternion.copy(q);
-      rec.badge.visible = g.visible && rec.collapse < 0;
+      rec.badge.visible = g.visible && rec.collapse < 0 &&
+        (MAJOR_BADGE[rec.b.type] || rec.hp < rec.maxHp * 0.67 || (rec.build !== undefined && rec.build < 1));
       if (rec.dome) {
         rec.domeFlash = Math.max(0, rec.domeFlash - dt * 2.5);
         const u = rec.dome.material.uniforms;

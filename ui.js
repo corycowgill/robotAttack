@@ -944,7 +944,6 @@ window.UI = (function () {
     // Wire events (stopPropagation is not needed: input lives on the canvas only)
     root.querySelectorAll('.diff').forEach(d => {
       d.addEventListener('click', () => H.onStart(d.dataset.diff, $('m-tut').checked));
-      d.addEventListener('mouseenter', () => H.onHover && H.onHover());
     });
     $('m-help').addEventListener('click', () => showHelp(true));
     $('menu').addEventListener('keydown', e => { if ((e.code === 'Enter' || e.code === 'Space') && e.target.matches('.mission, .diff')) { e.preventDefault(); e.stopPropagation(); e.target.click(); } });
@@ -1001,7 +1000,7 @@ window.UI = (function () {
     $('vol').addEventListener('input', e => H.onVolume(+e.target.value));
     root.addEventListener('input', e => { if (e.target.type === 'range') fillRange(e.target); });
     root.addEventListener('mouseover', e => {
-      const t = e.target.closest && e.target.closest('.card,.abtn,.sbtn,.diff,.bigbtn,.iconbtn');
+      const t = e.target.closest && e.target.closest('.card,.abtn,.sbtn,.diff,.bigbtn,.iconbtn,.navbtn,.mission:not(.locked)');
       if (t && t !== lastHoverEl && H.onHover) H.onHover();
       lastHoverEl = t;
     });
