@@ -1,6 +1,7 @@
 // Offline support: the game's own files are fetched network-first (so updates show up as soon as
-// you're online) with the cache as fallback; web fonts are cache-first.
-const CACHE = 'iron-strait-v57';
+// you're online) with the cache as fallback; web fonts are cache-first. The intro video is left to the
+// browser: it streams with range requests, and is too big to keep offline.
+const CACHE = 'iron-strait-v58';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'vendor/three.min.js', 'config.js', 'rules.js', 'ai.js', 'realtime.js', 'audio.js', 'models.js', 'fx.js', 'renderer.js', 'ui.js', 'main.js',
@@ -50,6 +51,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (/\.(mp4|webm)$/.test(url.pathname)) return;
   if (url.origin === self.location.origin) e.respondWith(networkFirst(req));
   else if (/^fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) e.respondWith(cacheFirst(req));
 });

@@ -94,12 +94,17 @@
     try { seen = !!sessionStorage.getItem('ra_intro'); sessionStorage.setItem('ra_intro', '1'); } catch (e) { /* private mode */ }
     Renderer.setAtmosphere('dusk');
     setupBackdrop(true);
-    UI.showSplash(seen, () => {
+    const titleScreen = fast => UI.showSplash(fast, () => {
       SND.unlock();
       SND.play('titleSting');
       SND.setMode('menu');
       UI.showMenu(true, true, 'home');
     });
+    // the opening cinematic plays first on a fresh visit (?intro=1 forces it, ?intro=0 or automated browsers skip it);
+    // it ends on the title card, so the title screen picks up without replaying its logo reveal
+    const q = new URLSearchParams(location.search).get('intro');
+    if (q === '1' || (!seen && q !== '0' && !navigator.webdriver)) UI.showIntro(SND.isMuted() ? 0 : SND.getVolume(), () => titleScreen(true));
+    else titleScreen(seen);
 
     const canvas = document.getElementById('game-canvas');
     canvas.addEventListener('mousemove', onMouseMove);

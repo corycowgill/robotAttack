@@ -257,6 +257,12 @@ python tools/gen_audio.py --only alarm --more 6         # add 6 fresh takes per 
 
 Stable Audio 3 is released under the Stability AI Community License; check it before shipping generated audio commercially.
 
+### Intro cinematic
+
+A one-minute opening cinematic plays before the title screen on a fresh visit (once per browser session). **SKIP** or Esc / Enter / Space jumps to the title screen. Browsers won't autoplay sound before the first click or tap, so it usually starts muted with a **SOUND ON** button. `?intro=1` forces it to play, `?intro=0` skips it, and automated test browsers skip it unless asked.
+
+The files are in `assets/video/`: H.264 MP4 at 1080p for large screens and 720p for the rest, plus a 720p VP9 WebM for browsers without H.264. The service worker leaves them alone, so they stream with range requests and aren't stored for offline play. If the video can't load or doesn't start within 10 seconds, the title screen appears instead. To replace the cinematic, overwrite those three files (keep 16:9, `+faststart` on the MP4s). The shots were generated with MiniMax H3 from keyframes made with FLUX.2; see `THIRD_PARTY_NOTICES.md`.
+
 ## License and credits
 
 The game's code is under the MIT License (`LICENSE`). three.js, the fonts and the generated audio are under their own terms, listed in `THIRD_PARTY_NOTICES.md`. The same credits are shown in the game's help screen.
