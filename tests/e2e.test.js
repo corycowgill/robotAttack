@@ -82,6 +82,30 @@ async function startSkirmish(page, diff = 'patrol') {
 
 
 
+test('intro cinematic plays before the title screen and can be skipped', async t => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  t.after(() => ctx.close());
+  await ctx.route('https://fonts.**', r => r.abort());
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '?intro=1');   // automated browsers skip it unless asked
+  await page.waitForFunction(() => window.__game && UI.isIntroOpen());
+  assert.ok(await page.$('#intro video source[src$=".webm"]'), 'a WebM fallback is offered');
+  assert.strictEqual(await page.evaluate(() => UI.isSplashOpen()), false, 'the title screen waits for the intro');
+  await page.click('#intro .skip');
+  await page.waitForSelector('#splash.show');
+  assert.strictEqual(await page.evaluate(() => UI.isIntroOpen()), false);
+  await page.waitForFunction(() => !document.querySelector('#intro video'));   // the player is torn down
+  // Escape skips too, and the title screen still takes the next key
+  await page.goto(base + '?intro=1');
+  await page.waitForFunction(() => window.__game && UI.isIntroOpen());
+  await page.keyboard.press('Escape');
+  await dismissSplash(page);
+  await page.waitForSelector('#menu.show');
+  assert.deepStrictEqual(errors, []);
+});
+
 test('defeat screen explains what went wrong', async t => {
   const { page, errors } = await open(t);
   await startSkirmish(page);

@@ -332,6 +332,16 @@ window.UI = (function () {
   #splash.skip .foot { animation-delay: .2s; }
   #splash.out { opacity: 0; transition: opacity .7s .35s; pointer-events: none; }
   #splash.out .logo { transform: scale(1.06); transition: transform 1s ease-out; }
+  /* opening cinematic (plays before the title screen) */
+  #intro { position: absolute; inset: 0; display: none; background: #000; pointer-events: auto; z-index: 40; }
+  #intro.show { display: block; }
+  #intro.out { opacity: 0; transition: opacity .6s; pointer-events: none; }
+  #intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #intro .ibtn { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); padding: 9px 18px; border-radius: 6px; border: 1px solid rgba(46,196,255,.55); background: rgba(3,8,14,.6);
+    color: #e8f6ff; font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: .3em; cursor: pointer; opacity: 0; animation: fadeIn .5s 1s forwards; }
+  #intro .ibtn:hover, #intro .ibtn:focus-visible { background: rgba(46,196,255,.25); border-color: #2ec4ff; outline: none; }
+  #intro .skip { right: calc(var(--safe-r, 0px) + 22px); }
+  #intro .sound { left: calc(var(--safe-l, 0px) + 22px); display: none; } #intro.muted .sound { display: block; }
   /* menu header + entrance */
   .title { margin-bottom: 4px; } .title .logo-main { font-size: clamp(42px, min(7.4vw, 13vh), 116px); }
   #menu.enter .menu-box > * { opacity: 0; transform: translateY(18px); animation: menuIn .55s cubic-bezier(.2,.8,.2,1) forwards; }
@@ -916,6 +926,7 @@ window.UI = (function () {
     root.appendChild(el('div', { id: 'help', class: 'screen' }, helpHTML()));
 
     root.appendChild(el('div', { id: 'splash', class: 'screen' }));
+    root.appendChild(el('div', { id: 'intro' }));
     root.appendChild(el('div', { id: 'achievements', class: 'screen' }, `<div class="menu-box panel"><h2>ACHIEVEMENTS</h2><div class="achs" id="ach-list"></div><p style="text-align:center;margin:0"><button class="bigbtn" id="ach-done">Close</button></p></div>`));
 
     const seg = (key, choices) => `<div class="opt"><div class="seg">${choices.map(c => `<button data-set="${key}" data-v="${c[0]}">${c[1]}</button>`).join('')}</div></div>`;
@@ -1062,6 +1073,7 @@ window.UI = (function () {
         3D engine: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> r128 (MIT).
         Fonts: Oxanium, Rajdhani, Inter, Russo One and Share Tech Mono (SIL Open Font License 1.1).
         Music and sound effects generated with Stable Audio &mdash; Powered by Stability AI.
+        Intro cinematic generated with MiniMax H3, from keyframes made with FLUX.2 and Krea.
         Not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.</p>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
     </div>`;
@@ -1536,6 +1548,53 @@ window.UI = (function () {
     window.addEventListener('keydown', go, true);
   }
   function isSplashOpen() { return $('splash').classList.contains('show') && !$('splash').classList.contains('out'); }
+  // Opening cinematic, played before the title screen. Skip with the button or Esc / Enter / Space.
+  // Browsers refuse to autoplay with sound before a user gesture, so it falls back to muted with a
+  // "sound on" button; a missing file, an unplayable format or a stalled download goes straight on.
+  function showIntro(volume, onDone) {
+    const box = $('intro');
+    const big = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) >= 1600;
+    box.innerHTML = `<video playsinline preload="auto">
+        <source src="assets/video/intro-${big ? 1080 : 720}.mp4" type='video/mp4; codecs="avc1.640028, mp4a.40.2"'>
+        <source src="assets/video/intro-720.webm" type='video/webm; codecs="vp9, opus"'>
+      </video>
+      <button class="ibtn sound">SOUND ON</button><button class="ibtn skip">SKIP &#9656;</button>`;
+    box.className = 'show';
+    document.body.classList.add('splash-on');
+    const v = box.querySelector('video');
+    v.volume = Math.max(0, Math.min(1, volume));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(stall);
+      window.removeEventListener('keydown', key, true);
+      v.pause();
+      box.classList.add('out');
+      setTimeout(() => { box.className = ''; box.innerHTML = ''; }, 700);
+      onDone();
+    };
+    const unmute = () => { v.muted = false; box.classList.remove('muted'); };
+    const key = e => {
+      if (e.metaKey || e.ctrlKey) return;
+      e.stopPropagation(); e.preventDefault(); // the intro owns the keyboard
+      if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) finish();
+    };
+    box.querySelector('.skip').addEventListener('click', e => { e.stopPropagation(); finish(); });
+    box.querySelector('.sound').addEventListener('click', e => { e.stopPropagation(); unmute(); });
+    v.addEventListener('click', () => { if (v.muted) unmute(); });
+    v.addEventListener('ended', finish);
+    box.querySelector('source:last-of-type').addEventListener('error', finish); // every source failed
+    const stall = setTimeout(() => { if (v.currentTime < 0.1) finish(); }, 10000);
+    v.addEventListener('playing', () => clearTimeout(stall), { once: true });
+    window.addEventListener('keydown', key, true);
+    v.play().catch(err => {
+      if (!err || err.name !== 'NotAllowedError') return finish();
+      v.muted = true; box.classList.add('muted');
+      v.play().catch(finish);
+    });
+  }
+  function isIntroOpen() { return $('intro').classList.contains('show') && !$('intro').classList.contains('out'); }
   function setContinue(label) {
     $('m-cont-wrap').style.display = label ? '' : 'none';
     $('m-cont-sub').textContent = label ? '— ' + label : '';
@@ -1739,7 +1798,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setCrews, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, isMenuOpen, menuView, menuKey, showHandoff, hideHandoff, isHandoffOpen,
+    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showIntro, isIntroOpen, showSplash, isSplashOpen,isMenuOpen, menuView, menuKey, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, comms, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
