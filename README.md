@@ -257,10 +257,6 @@ python tools/gen_audio.py --only alarm --more 6         # add 6 fresh takes per 
 
 Stable Audio 3 is released under the Stability AI Community License; check it before shipping generated audio commercially.
 
-### Generated art and intro video
-
-The commander portraits in `assets/portraits/` come from the prompts in `docs/portrait-prompts.md`. The title screen can also play a short cinematic first: `docs/intro-video.md` has the shot prompts, the file format, and the `INTRO_VIDEO` setting in `config.js` that turns it on. Until a clip is added, the game goes straight to the logo reveal.
-
 ## License and credits
 
 The game's code is under the MIT License (`LICENSE`). three.js, the fonts and the generated audio are under their own terms, listed in `THIRD_PARTY_NOTICES.md`. The same credits are shown in the game's help screen.

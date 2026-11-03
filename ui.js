@@ -316,12 +316,6 @@ window.UI = (function () {
   .logo.reveal.skip .logo-main .ch, .logo.reveal.skip .logo-sub, .logo.reveal.skip .logo-sub i { animation-delay: 0s !important; animation-duration: .01s !important; }
   .logo.reveal.skip .logo-main::before { animation: none; }
   /* title screen */
-  #intro { position: fixed; inset: 0; z-index: 40; background: #000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity .6s; }
-  #intro.out { opacity: 0; pointer-events: none; }
-  #intro video { width: 100%; height: 100%; object-fit: cover; }
-  #intro .skipv { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); padding: 9px 18px; min-height: 40px;
-    font: 700 13px/1 'Rajdhani', 'Oxanium', sans-serif; letter-spacing: .24em; color: #e8f6ff; background: rgba(7,17,28,.72); border: 1px solid rgba(46,196,255,.55); cursor: pointer; opacity: 0; animation: fadeIn .5s 1s forwards; }
-  #intro .skipv:hover, #intro .skipv:focus-visible { background: rgba(23,43,59,.9); border-color: #2ec4ff; outline: none; }
   #splash { background: radial-gradient(ellipse at 50% 42%, rgba(5,8,12,0) 30%, rgba(5,8,12,.7) 100%); flex-direction: column; cursor: pointer; z-index: 25; }
   #splash .bars::before, #splash .bars::after { content: ''; position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform .8s cubic-bezier(.6,0,.2,1); z-index: 1; }
   #splash .bars::before { top: 0; } #splash .bars::after { bottom: 0; }
@@ -1541,34 +1535,6 @@ window.UI = (function () {
     sp.addEventListener('click', go);
     window.addEventListener('keydown', go, true);
   }
-  // Optional intro cinematic: muted (browsers only autoplay muted video), skippable with a click,
-  // a tap or any key, and it gives up quietly if the file is missing or will not play
-  function playIntro(src, done) {
-    const old = $('intro'); if (old) old.remove();
-    const box = el('div', { id: 'intro' }, `<video muted playsinline preload="auto"></video><button class="skipv">SKIP &#9654;</button>`);
-    document.body.appendChild(box);
-    const v = box.querySelector('video');
-    let over = false, stall;
-    const finish = e => {
-      if (over) return;
-      if (e && e.type === 'keydown') { if (e.repeat) return; e.stopPropagation(); e.preventDefault(); }
-      over = true; clearTimeout(stall);
-      window.removeEventListener('keydown', finish, true);
-      box.classList.add('out');
-      try { v.pause(); } catch (err) { /* already stopped */ }
-      setTimeout(() => box.remove(), 700);
-      done();
-    };
-    v.addEventListener('ended', finish);
-    v.addEventListener('error', finish);
-    box.addEventListener('click', finish);
-    window.addEventListener('keydown', finish, true);
-    stall = setTimeout(() => { if (v.readyState < 2) finish(); }, 4000);   // slow network: skip rather than stare at black
-    v.src = src;
-    const p = v.play();
-    if (p && p.catch) p.catch(finish);
-  }
-  function isIntroOpen() { const b = $('intro'); return !!b && !b.classList.contains('out'); }
   function isSplashOpen() { return $('splash').classList.contains('show') && !$('splash').classList.contains('out'); }
   function setContinue(label) {
     $('m-cont-wrap').style.display = label ? '' : 'none';
@@ -1773,7 +1739,7 @@ window.UI = (function () {
 
   return {
     init, icon, esc, isCompact, portrait, setCampaign, medalLabels, showBriefing, closeBriefing, isBriefingOpen, warnOverwrite, showGameUI, setHUD, setDock, setCards, setCrews, setActions, setOrders, log, clearLog, showSelected, setObjectives,
-    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, playIntro, isIntroOpen, isMenuOpen, menuView, menuKey, showHandoff, hideHandoff, isHandoffOpen,
+    showSettings, paintSettings, isSettingsOpen, setDaily, setAchCount, showAchievements, getLog, setLog, getSkirmishOptions, showSplash, isSplashOpen, isMenuOpen, menuView, menuKey, showHandoff, hideHandoff, isHandoffOpen,
     toast, showTip, hideTip, banner, floatText, setCombatHint, setDanger, flashScreen, comms, showReport, hideReport, showAttack, hideAttack, isAttackOpen, setEndLabel, setLiveMode, showMenu, setContinue, setMusicChecked,
     showGameOver, hideGameOver, showHelp, isHelpOpen, setMuted, setVolume
   };
