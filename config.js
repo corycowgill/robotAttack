@@ -309,6 +309,10 @@ const COMMANDERS = {
 // assets/portraits/<key>.webp exists (see docs/portrait-prompts.md). Others keep the drawn portrait.
 const PORTRAITS = ['hale', 'rusk', 'vey', 'kord', 'nyx', 'sol'];
 
+// Optional cinematic played once per visit before the title screen (see docs/intro-video.md).
+// Leave empty to go straight to the logo reveal; e.g. 'assets/brand/intro.mp4'.
+const INTRO_VIDEO = '';
+
 const CAMPAIGN = [
   {
     id: 1, name: 'Operation Sandbar', enemy: 'rusk', difficulty: 'patrol', mapSeed: 1101, land: 140, par: 12, locked: ['uplink'],
@@ -376,4 +380,4 @@ const CAMPAIGN = [
 ];
 
 
-if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, PORTRAITS, CAMPAIGN, RT, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };
+if (typeof module !== 'undefined') module.exports = { CONST, BUILDINGS, BUILD_ORDER, UPGRADES, UPGRADE_COST, UPGRADE_HP, COMMANDERS, PORTRAITS, INTRO_VIDEO, CAMPAIGN, RT, SKIRMISH_OPTIONS, AI_STYLE_INFO, DAILY_TWISTS, ACHIEVEMENTS };

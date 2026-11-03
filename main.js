@@ -94,12 +94,14 @@
     try { seen = !!sessionStorage.getItem('ra_intro'); sessionStorage.setItem('ra_intro', '1'); } catch (e) { /* private mode */ }
     Renderer.setAtmosphere('dusk');
     setupBackdrop(true);
-    UI.showSplash(seen, () => {
+    const splash = () => UI.showSplash(seen, () => {
       SND.unlock();
       SND.play('titleSting');
       SND.setMode('menu');
       UI.showMenu(true, true, 'home');
     });
+    if (!seen && typeof INTRO_VIDEO !== 'undefined' && INTRO_VIDEO) UI.playIntro(INTRO_VIDEO, splash);
+    else splash();
 
     const canvas = document.getElementById('game-canvas');
     canvas.addEventListener('mousemove', onMouseMove);
