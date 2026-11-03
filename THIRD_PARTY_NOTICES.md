@@ -23,6 +23,14 @@ The game's own code, 3D models (built procedurally in `models.js`), icons and te
 - Powered by Stability AI.
 - The model is released under the Stability AI Community License (https://stability.ai/license). Free use is limited to individuals and organisations with under US$1M in annual revenue; above that, an enterprise license from Stability AI is required. Check the license that ships with the model before any commercial release.
 
+## Intro cinematic
+
+- Files: `assets/video/intro-1080.mp4`, `assets/video/intro-720.mp4`, `assets/video/intro-720.webm`
+- Video and its sound effects and dialogue generated with **MiniMax H3** (MiniMax, MiniMax H3 Community License, https://huggingface.co/MiniMaxAI/MiniMax-H3) through Hugging Face Inference Providers (fal). Keyframes generated with **FLUX.2 [dev]**, **FLUX.1 Krea [dev]** (Black Forest Labs) and **Krea 2 Turbo** (Krea), several of them from the commander portraits above.
+- The opening card uses the Hallucinated Games logo (the project owner's) and the **Press Start 2P** font by CodeMan38 (SIL Open Font License 1.1, https://fonts.google.com/specimen/Press+Start+2P), rendered into the video.
+- The music bed is the game's own `menu` track and the title sting is `titleSting`, both from `assets/audio/` (see above); the closing title card is a capture of the game's title screen.
+- Check each model's license before any commercial release.
+
 ## Development only (not deployed)
 
 - Playwright (Apache-2.0), used for the browser tests.
