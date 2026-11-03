@@ -330,6 +330,9 @@ window.UI = (function () {
   @keyframes pressPulse { 50% { opacity: .35; } }
   #splash .foot { position: absolute; bottom: calc(11vh + 14px); left: 0; right: 0; text-align: center; font-size: 12px; letter-spacing: .32em; text-transform: uppercase; color: rgba(200,225,240,.55); opacity: 0; animation: fadeIn 1s 3.4s forwards; z-index: 3; }
   #splash.skip .foot { animation-delay: .2s; }
+  #splash .studio { position: absolute; bottom: 0; left: 0; right: 0; height: 11vh; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: .28em; text-transform: uppercase;
+    color: rgba(200,225,240,.42); opacity: 0; animation: fadeIn 1s 3.6s forwards; z-index: 3; pointer-events: none; }
+  #splash.skip .studio { animation-delay: .3s; }
   #splash.out { opacity: 0; transition: opacity .7s .35s; pointer-events: none; }
   #splash.out .logo { transform: scale(1.06); transition: transform 1s ease-out; }
   /* opening cinematic (plays before the title screen) */
@@ -623,7 +626,7 @@ window.UI = (function () {
   body.compact .screen { align-items: flex-start; overflow-y: auto; padding: 12px calc(var(--safe-r) + 12px) 24px calc(var(--safe-l) + 12px); -webkit-overflow-scrolling: touch; }
   body.compact .title .logo-main { font-size: 34px; } body.compact .title .logo-sub { font-size: 10px; margin-top: .3em; }
   body.compact #splash { align-items: center; justify-content: center; padding: 0; overflow: hidden; }
-  body.compact #splash .bars::before, body.compact #splash .bars::after { height: 7vh; } body.compact #splash .foot { bottom: calc(7vh + 8px); font-size: 10px; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
+  body.compact #splash .bars::before, body.compact #splash .bars::after { height: 7vh; } body.compact #splash .foot { bottom: calc(7vh + 8px); font-size: 10px; } body.compact #splash .studio { height: 7vh; font-size: 9px; letter-spacing: .2em; } body.compact .tag { margin: 8px 0 12px; font-size: 10px; letter-spacing: .18em; }
   body.compact .missions { gap: 5px; margin-bottom: 12px; } body.compact .mission { padding: 6px; } body.compact .mission h4 { font-size: 12px; }
   body.compact .mission .vs { font-size: 10px; } body.compact .mission .vs svg { width: 20px; height: 20px; }
   body.compact .diff { padding: 10px 8px; } body.compact .diff h3 { font-size: 15px; letter-spacing: .04em; } body.compact .diff p { font-size: 11px; }
@@ -1524,7 +1527,8 @@ window.UI = (function () {
     const touch = matchMedia('(pointer: coarse)').matches;
     sp.innerHTML = `<div class="black"></div><div class="bars"></div>${logoHTML('reveal sweep' + (fast ? ' skip' : ''))}
       <div class="press"><span>${touch ? 'TAP TO START' : 'PRESS START'}</span></div>
-      <div class="foot">Build &middot; Strike &middot; Dominate</div>`;
+      <div class="foot">Build &middot; Strike &middot; Dominate</div>
+      <div class="studio">A Hallucinated Game Studios Production</div>`;
     sp.className = 'screen show' + (fast ? ' skip' : '');
     document.body.classList.add('splash-on');
     const t0 = performance.now();
