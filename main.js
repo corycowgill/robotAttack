@@ -65,7 +65,7 @@
       onDaily: startDaily,
       onAchievements: () => { SND.play('uiClick'); const got = loadAch(); UI.showAchievements(ACHIEVEMENTS.map(a => Object.assign({ got: !!got[a.id] }, a))); },
       onMission: id => { SND.play('uiClick'); SND.play('radio'); UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
-      onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) startMission(id); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
+      onLaunchMission: id => { if (confirmOverwrite('mission:' + id)) cutscene('m' + id + '-intro', () => startMission(id)); else UI.showBriefing(CAMPAIGN[id - 1], bestMedals(id)); },
       onBriefingBack: () => { SND.play('uiClick'); toMenu(); },
       onNextMission: () => { const n = CAMPAIGN[state.mission]; if (n) { UI.hideGameOver(); UI.showBriefing(n, bestMedals(n.id)); } },
       onMenu: toMenu,
@@ -155,6 +155,15 @@
   function refreshCampaign() {
     const done = campaignDone();
     UI.setCampaign(CAMPAIGN.map(m => ({ id: m.id, name: m.name, enemy: m.enemy, medals: bestMedals(m.id), state: m.id <= done ? 'done' : m.id === done + 1 ? 'open' : 'locked' })));
+  }
+  // Campaign cutscenes (assets/video/campaign): the enemy commander before a mission, their defeat after a
+  // win, and the finale after the last one. The game's own sound goes quiet under them; automated
+  // browsers skip them unless ?intro=1, and ?intro=0 skips them too.
+  function cutscene(name, then) {
+    const q = new URLSearchParams(location.search).get('intro');
+    if (q === '0' || (navigator.webdriver && q !== '1')) return then();
+    SND.hush(true);
+    UI.showIntro(SND.isMuted() ? 0 : SND.getVolume(), () => { SND.hush(false); then(); }, 'campaign/' + name);
   }
   function startMission(id) {
     const m = CAMPAIGN[id - 1];
@@ -2163,7 +2172,6 @@
     // after progress and medals are saved, so the campaign/medal achievements see them
     achHeld = achHeld || [];
     checkEndAchievements();
-    setTimeout(releaseAch, state.realtime ? 4200 : 2600);
     UI.setDock(false);
     UI.setOrders([], []);
     Renderer.setMarkers([], []);
@@ -2193,7 +2201,8 @@
     // missiles still in the air when the game ended never had a chance to land
     const landed = side => state.sides[side].stats.missilesFired - state.missiles.filter(m => m.side === side && !m.strike).length;
     const acc = (s, side) => landed(side) > 0 ? Math.round(100 * s.missilesHit / landed(side)) + '%' : '—';
-    setTimeout(() => {
+    const debrief = () => {
+      releaseAch();
       if (phase !== 'gameover') return;
       UI.showGameOver({
         title,
@@ -2220,6 +2229,12 @@
           ['Mines set off', ps.minesHit || 0, as.minesHit || 0]
         ]
       });
+    };
+    setTimeout(() => {
+      if (phase !== 'gameover') return releaseAch();
+      // campaign win: the beaten commander's last word, and the finale after the last mission
+      if (!mission || w !== P) return debrief();
+      cutscene('m' + mission.id + '-defeat', () => CAMPAIGN[mission.id] ? debrief() : cutscene('finale', debrief));
     }, state.realtime ? 4200 : 2600);   // real time: let the last base's chain of blasts play out
   }
 

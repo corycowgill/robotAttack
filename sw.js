@@ -1,7 +1,7 @@
 // Offline support: the game's own files are fetched network-first (so updates show up as soon as
-// you're online) with the cache as fallback; web fonts are cache-first. The intro video is left to the
-// browser: it streams with range requests, and is too big to keep offline.
-const CACHE = 'iron-strait-v58';
+// you're online) with the cache as fallback; web fonts are cache-first. The intro and campaign videos
+// are left to the browser: they stream with range requests, and are too big to keep offline.
+const CACHE = 'iron-strait-v59';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'vendor/three.min.js', 'config.js', 'rules.js', 'ai.js', 'realtime.js', 'audio.js', 'models.js', 'fx.js', 'renderer.js', 'ui.js', 'main.js',

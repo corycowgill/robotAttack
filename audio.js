@@ -971,14 +971,21 @@
     if (!isFinite(v)) return;
     volume = clamp(v, 0, 1);
     lsSet('ra_volume', volume);
-    try { if (ok() && !muted) fadeTo(master.gain, volume, 0.06); } catch (e) { /* ignore */ }
+    try { if (ok() && !muted && !hushed) fadeTo(master.gain, volume, 0.06); } catch (e) { /* ignore */ }
   }
 
   function toggleMute() {
     muted = !muted;
     lsSet('ra_muted', muted ? '1' : '0');
-    try { if (ok()) fadeTo(master.gain, muted ? 0 : volume, 0.06); } catch (e) { /* ignore */ }
+    try { if (ok()) fadeTo(master.gain, muted || hushed ? 0 : volume, 0.06); } catch (e) { /* ignore */ }
     return muted;
+  }
+
+  // Silence the whole mix while a cutscene video plays its own sound track, then bring it back
+  var hushed = false;
+  function hush(on) {
+    hushed = !!on;
+    try { if (ok() && !muted) fadeTo(master.gain, hushed ? 0 : volume, hushed ? 0.4 : 1.2); } catch (e) { /* ignore */ }
   }
 
   function setMusicEnabled(b) {
@@ -1046,6 +1053,7 @@
     unlock: unlock,
     play: play,
     setMode: setMode,
+    hush: hush,
     getMode: function () { return mode; },
     setTension: setTension,
     setVolume: setVolume,

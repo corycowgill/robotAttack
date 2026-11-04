@@ -1076,7 +1076,7 @@ window.UI = (function () {
         3D engine: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> r128 (MIT).
         Fonts: Oxanium, Rajdhani, Inter, Russo One and Share Tech Mono (SIL Open Font License 1.1).
         Music and sound effects generated with Stable Audio &mdash; Powered by Stability AI.
-        Intro cinematic generated with MiniMax H3, from keyframes made with FLUX.2 and Krea.
+        Intro cinematic and campaign cutscenes generated with MiniMax H3, from keyframes made with FLUX.2 and Krea.
         Not affiliated with, endorsed by, or connected to any other game, developer or publisher; all trademarks belong to their respective owners.</p>
       <p style="text-align:center;margin-top:18px"><button class="bigbtn close">Got it</button></p>
     </div>`;
@@ -1552,15 +1552,16 @@ window.UI = (function () {
     window.addEventListener('keydown', go, true);
   }
   function isSplashOpen() { return $('splash').classList.contains('show') && !$('splash').classList.contains('out'); }
-  // Opening cinematic, played before the title screen. Skip with the button or Esc / Enter / Space.
+  // Opening cinematic, played before the title screen, and the campaign cutscenes (name: 'campaign/m1-intro').
+  // Skip with the button or Esc / Enter / Space.
   // Browsers refuse to autoplay with sound before a user gesture, so it falls back to muted with a
   // "sound on" button; a missing file, an unplayable format or a stalled download goes straight on.
-  function showIntro(volume, onDone) {
+  function showIntro(volume, onDone, name = 'intro') {
     const box = $('intro');
-    const big = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) >= 1600;
+    const big = name === 'intro' && Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) >= 1600;   // the cutscenes are 720p only
     box.innerHTML = `<video playsinline preload="auto">
-        <source src="assets/video/intro-${big ? 1080 : 720}.mp4" type='video/mp4; codecs="avc1.640028, mp4a.40.2"'>
-        <source src="assets/video/intro-720.webm" type='video/webm; codecs="vp9, opus"'>
+        <source src="assets/video/${name}-${big ? 1080 : 720}.mp4" type='video/mp4; codecs="avc1.640028, mp4a.40.2"'>
+        <source src="assets/video/${name}-720.webm" type='video/webm; codecs="vp9, opus"'>
       </video>
       <button class="ibtn sound">SOUND ON</button><button class="ibtn skip">SKIP &#9656;</button>`;
     box.className = 'show';
@@ -1576,6 +1577,7 @@ window.UI = (function () {
       v.pause();
       box.classList.add('out');
       setTimeout(() => { box.className = ''; box.innerHTML = ''; }, 700);
+      if (name !== 'intro') document.body.classList.remove('splash-on');   // the title screen clears it after the opening one
       onDone();
     };
     const unmute = () => { v.muted = false; box.classList.remove('muted'); };
