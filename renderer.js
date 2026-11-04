@@ -1586,7 +1586,8 @@ window.Renderer = (function () {
   // ── Robots ────────────────────────────────────────────────
   function addRobot(r) {
     removeRobot(r.id);
-    const g = Models.robot(r.side);
+    const kind = r.kind === 'raider' || r.kind === 'breacher' ? r.kind : 'assault';
+    const g = Models.robot(r.side, kind);
     const rp = g.userData.parts || {};
     // one vertex-coloured material per mech, so a hit flashes the whole armour
     const body = vertexMaterial();
@@ -1595,11 +1596,11 @@ window.Renderer = (function () {
     body.userData.baseEmissive = 0; body.userData.baseIntensity = 1;
     g.userData._own.push(body);
     g.userData.flashMats = [body, g.userData.visorMat];
-    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side, body, Models.armorTexture());
+    bakePivots(g, Object.keys(rp).sort().map(k => rp[k]), 'robot_' + r.side + '_' + kind, body, Models.armorTexture());
     // cheap blob shadow instead of shadow-map casting (mechs are small and always moving)
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
     g.add(blobShadow());
-    const kindScale = r.kind === 'raider' ? 0.83 : r.kind === 'breacher' ? 1.2 : 1;   // loadouts read by size
+    const kindScale = kind === 'raider' ? 0.88 : kind === 'breacher' ? 1.14 : 1;   // loadouts differ in size as well as kit
     g.scale.setScalar(1.3 * kindScale);
     const p = cellCenter(r.cell);
     g.position.copy(p);

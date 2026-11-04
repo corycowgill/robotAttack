@@ -49,7 +49,7 @@
 
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
-    window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; } }; // debug handle
+    window.__game = { get state() { return state; }, get phase() { return phase; }, get side() { return P; }, setSpeed(v) { speed = v; }, sync() { syncWorld(true); } }; // debug handle
     Renderer.init();
     // storms: a screen flash with each bolt, and the thunder rolling in a moment later
     Renderer.setLightningHook(() => {
@@ -2827,11 +2827,9 @@
       let v = liveVis[f.id];
       if (!v) {
         v = liveVis[f.id] = flightPath(f);
-        v.obj = f.kind === 'ship' ? Models.pod(f.side) : Models.missile(f.side);
+        // warheads read at a glance: fat cluster buses, long slim penetrators
+        v.obj = f.kind === 'ship' ? Models.pod(f.side) : Models.missile(f.side, f.warhead);
         v.obj.scale.setScalar(f.kind === 'ship' ? missileScale() * 0.85 : missileScale());   // both grow with camera distance
-        // warheads read at a glance: stubby cluster bombs, long slim penetrators
-        if (f.warhead === 'cluster') v.obj.scale.multiply(new THREE.Vector3(1.35, 0.85, 1.35));
-        else if (f.warhead === 'penetrator') v.obj.scale.multiply(new THREE.Vector3(0.85, 1.35, 0.85));
         v.prev = v.a.clone();
         Renderer.add(v.obj);
       }

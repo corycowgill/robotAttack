@@ -1418,8 +1418,13 @@
   // ════════════════════════════════════════════════════════
   function GL2() { return MAT.glass(); }
   function sx2(i) { return i < 2 ? -1 : 1; }
-  function robot(side) {
+  // Mechs: one frame, three loadouts with their own silhouette. Assault: shoulder cannon and
+  // missile rack. Raider: stripped down, jump jets and a long rifle. Breacher: slab armour, a riot
+  // shield on the fist arm and a twin-barrel cannon.
+  function robot(side, kind) {
     side = sideKey(side);
+    kind = kind === 'raider' || kind === 'breacher' ? kind : 'assault';
+    var RAID = kind === 'raider', HEAVY = kind === 'breacher';
     var g = new THREE.Group();
     g.name = 'robot';
     var own = [];
@@ -1443,21 +1448,29 @@
     var HIP_Y = 4.6;
     add(g, box(2.4, 0.8, 1.5), ST, 0, HIP_Y + 0.1, 0);
     add(g, box(1.2, 0.6, 0.4), pnt, 0, HIP_Y - 0.1, 0.8);
+    // armoured skirt plates over the hip joints, and a hazard-striped crotch guard
+    [-1, 1].forEach(function (sx) { add(g, box(0.75, 0.75, 0.16), GM, sx * 0.62, HIP_Y - 0.25, 0.86).rotation.x = 0.22; });
+    addFlat(g, box(1.0, 0.14, 0.06), MAT.hazard(), 0, HIP_Y + 0.12, 1.01);
 
     function leg(sx) {
       var hip = group(g, sx * 1.15, HIP_Y, 0);
       var j = add(hip, cyl(0.5, 0.5, 0.7, 12), ST, 0, 0, 0); j.rotation.z = PI / 2;
       add(hip, box(0.95, 2.0, 1.15), hull, 0, -1.15, 0);
       add(hip, box(0.18, 1.5, 0.95), pnt, sx * 0.56, -1.05, 0);
+      add(hip, box(0.8, 1.2, 0.2), pnt, 0, -1.05, 0.66);                  // thigh plate
+      bolts(hip, ST, 0, -0.55, 0.78, 0.28, 0);
       var knee = group(hip, 0, -2.2, 0);
       var kj = add(knee, cyl(0.42, 0.42, 0.85, 10), ST, 0, 0, 0); kj.rotation.z = PI / 2;
       add(knee, box(0.75, 0.75, 0.45), pnt, 0, 0.05, 0.55);
       var shin = add(knee, frustum(0.5, 0.62, 1.9), hull, 0, -1.05, 0);
       add(knee, box(0.75, 1.3, 0.25), pnt, 0, -0.9, 0.62);
+      add(knee, box(0.82, 0.55, 0.24), GM, 0, 0.42, 0.62).rotation.x = -0.45;      // knee cap
+      addFlat(knee, box(0.76, 0.16, 0.05), MAT.hazard(), 0, -0.36, 0.76);        // warning band on the shin
+      if (HEAVY) { add(knee, box(1.0, 1.5, 0.3), GM, 0, -1.0, 0.82); bolts(knee, ST, 0, -0.35, 0.98, 0.35, 0); }
       beam(knee, V(0, -0.3, -0.6), V(0, -1.7, -0.5), 0.1, MAT.steelLight(), 6);
       // foot
       add(knee, box(0.5, 0.35, 0.5), ST, 0, -2.0, 0);
-      add(knee, box(1.3, 0.4, 2.1), GM, 0, -2.2, 0.3);
+      add(knee, HEAVY ? box(1.6, 0.45, 2.3) : box(1.3, 0.4, 2.1), GM, 0, -2.2, 0.3);
       add(knee, box(1.35, 0.15, 0.6), pnt, 0, -2.0, 1.05);
       add(knee, box(0.6, 0.3, 0.5), GM, 0, -2.25, -0.85);
       return { hip: hip, knee: knee };
@@ -1480,19 +1493,39 @@
     add(torso, frustum(1.6, 1.25, 1.4), hull, 0, 1.2, 0);
     add(torso, box(3.6, 1.5, 2.4), hull, 0, 2.5, 0);
     add(torso, box(2.8, 1.5, 0.35), pnt, 0, 2.45, 1.25);
-    var core = addFlat(torso, cyl(0.38, 0.38, 0.2, 14), visor, 0, 2.35, 1.48); core.rotation.x = PI / 2;
-    halo(torso, teamColor(side), 1.6, 0, 2.35, 1.7);
+    var cz = HEAVY ? 1.74 : 1.48;                                                 // reactor core sits proud of the applique armour
+    var core = addFlat(torso, cyl(0.38, 0.38, 0.2, 14), visor, 0, 2.35, cz); core.rotation.x = PI / 2;
+    halo(torso, teamColor(side), 1.6, 0, 2.35, cz + 0.22);
     addFlat(torso, box(0.12, 0.9, 0.08), T, 1.2, 2.5, 1.44);
     addFlat(torso, box(0.12, 0.9, 0.08), T, -1.2, 2.5, 1.44);
     // chest vents and armour ribs
     for (var vi = 0; vi < 4; vi++) add(torso, box(0.9, 0.09, 0.12), ST, sx2(vi) * 0.95, 1.95 + (vi % 2) * 0.22, 1.42);
     add(torso, box(3.7, 0.18, 2.5), GM, 0, 3.28, 0);
+    add(torso, box(2.3, 0.4, 0.55), GM, 0, 3.15, 1.1);                          // armoured collar
+    add(torso, box(3.0, 0.55, 0.28), pnt, 0, 1.55, 1.3).rotation.x = 0.35;       // belly glacis
+    if (HEAVY) {                                                                  // bolted applique armour
+      add(torso, box(3.2, 1.15, 0.3), GM, 0, 2.5, 1.55);
+      bolts(torso, ST, 0, 2.5, 1.72, 1.35, 0);
+      addFlat(torso, box(3.0, 0.16, 0.06), MAT.hazard(), 0, 1.97, 1.72);
+    }
     add(torso, box(0.3, 1.3, 2.45), GM, 1.78, 2.5, 0); add(torso, box(0.3, 1.3, 2.45), GM, -1.78, 2.5, 0);
-    // missile rack on the right shoulder: six tubes
-    var rack = group(torso, -1.5, 3.85, -0.4);
-    add(rack, box(1.1, 0.9, 1.4), GM, 0, 0, 0);
-    add(rack, box(1.15, 0.12, 1.0), pnt, 0, 0.5, -0.1);
-    for (var ti = 0; ti < 6; ti++) addFlat(rack, cyl(0.13, 0.13, 0.08, 8), MAT.pit(), -0.3 + (ti % 3) * 0.3, -0.15 + (ti / 3 | 0) * 0.32, 0.71).rotation.x = PI / 2;
+    if (!RAID) {
+      // missile rack on the right shoulder: six tubes
+      var rack = group(torso, -1.5, 3.85, -0.4);
+      add(rack, box(1.1, 0.9, 1.4), GM, 0, 0, 0);
+      add(rack, box(1.15, 0.12, 1.0), pnt, 0, 0.5, -0.1);
+      for (var ti = 0; ti < 6; ti++) addFlat(rack, cyl(0.13, 0.13, 0.08, 8), MAT.pit(), -0.3 + (ti % 3) * 0.3, -0.15 + (ti / 3 | 0) * 0.32, 0.71).rotation.x = PI / 2;
+    } else {
+      // jump jets: two canted thrusters on the backpack, glowing nozzles
+      [-1, 1].forEach(function (sx) {
+        var jj = group(torso, sx * 0.95, 2.6, -2.2);
+        jj.rotation.x = 0.45;
+        add(jj, cyl(0.34, 0.42, 1.5, 10), ST, 0, 0, 0);
+        add(jj, cyl(0.46, 0.36, 0.35, 10), GM, 0, -0.85, 0);
+        addFlat(jj, cyl(0.3, 0.3, 0.05, 10), additive('mechHeat', 0xff7a30, 0.55), 0, -1.04, 0);
+        add(jj, box(0.1, 0.7, 0.6), pnt, sx * 0.4, 0.2, 0);
+      });
+    }
     // backpack + exhausts
     add(torso, box(2.4, 1.9, 1.0), GM, 0, 2.3, -1.6);
     addFlat(torso, box(1.6, 0.35, 0.06), additive('mechHeat', 0xff7a30, 0.55), 0, 1.75, -2.12);
@@ -1515,13 +1548,20 @@
     add(head, box(0.35, 0.3, 0.5), GM, 0.72, 0.85, 0.2);                 // sensor pod
     addFlat(head, cyl(0.1, 0.1, 0.06, 8), GL2(), 0.72, 0.85, 0.47).rotation.x = PI / 2;
     add(head, box(1.36, 0.12, 0.3), ST, 0, 0.32, 0.6);                  // chin guard
+    if (RAID) { add(head, box(0.1, 0.8, 1.1), pnt, 0, 1.6, -0.35).rotation.x = -0.4; add(head, cyl(0.025, 0.025, 2.0, 4), ST, -0.45, 2.0, -0.45); }
+    if (HEAVY) add(head, box(1.5, 0.5, 0.25), GM, 0, 0.55, 0.78);              // armoured visor shutter, slit left open
     parts.head = head;
 
     function arm(sx, isRight) {
       var sh = group(torso, sx * 2.3, 2.85, 0);
       add(sh, sph(0.55, 10, 8), ST, 0, 0, 0);
-      add(sh, box(1.4, 1.0, 1.6), pnt, sx * 0.15, 0.25, 0);
-      add(sh, box(1.5, 0.2, 1.7), GM, sx * 0.15, 0.82, 0);               // pauldron lip
+      add(sh, RAID ? box(1.1, 0.8, 1.3) : box(1.4, 1.0, 1.6), pnt, sx * 0.15, 0.25, 0);
+      add(sh, RAID ? box(1.2, 0.16, 1.4) : box(1.5, 0.2, 1.7), GM, sx * 0.15, RAID ? 0.72 : 0.82, 0);   // pauldron lip
+      if (HEAVY) { add(sh, box(1.75, 0.4, 1.95), GM, sx * 0.2, 1.05, 0); add(sh, box(0.3, 1.2, 1.9), pnt, sx * 0.95, 0.35, 0); }
+      if (!isRight && !RAID) {                                                  // shoulder lamp
+        add(sh, box(0.45, 0.35, 0.4), GM, sx * 0.35, 1.08, 0.55);
+        addFlat(sh, box(0.32, 0.2, 0.05), MAT.lamp(), sx * 0.35, 1.08, 0.77);
+      }
       var sm = decalMat('st_' + side + '_MX-' + (side === 'ai' ? 7 : 2) + (isRight ? 1 : 4), function () { return stencilTexture(side, 'MX-' + (side === 'ai' ? 7 : 2) + (isRight ? 1 : 4)); });
       var tag = addFlat(sh, geo('mechTag', function () { return new THREE.PlaneGeometry(1.0, 0.31); }), sm, sx * 0.9, 0.3, 0);
       tag.rotation.y = sx * PI / 2;
@@ -1534,6 +1574,22 @@
         add(el, box(0.2, 1.2, 0.8), pnt, sx * 0.55, -0.9, 0.05);
         add(el, box(1.1, 0.9, 1.1), GM, 0, -2.05, 0.1); // fist
         add(el, box(1.15, 0.2, 0.3), ST, 0, -2.0, 0.6);
+        if (HEAVY) {                                                            // riot shield on the forearm
+          var shd = group(el, sx * 0.75, -1.2, 0.35);
+          add(shd, box(0.22, 2.7, 2.1), GM, 0, 0, 0);
+          add(shd, box(0.12, 2.3, 1.7), pnt, sx * 0.14, 0.05, 0);
+          addFlat(shd, box(0.05, 0.3, 1.9), MAT.hazard(), sx * 0.21, -1.1, 0);
+          addFlat(shd, box(0.05, 0.12, 0.7), MAT.pit(), sx * 0.21, 0.85, 0.3);   // vision slit
+          bolts(shd, ST, sx * 0.16, 0.5, 0, 0, 0.8);
+        }
+      } else if (RAID) {
+        // long rifle with a scope and a muzzle brake
+        add(el, box(0.85, 1.3, 0.9), hull, 0, -0.8, 0);
+        add(el, box(0.55, 0.6, 1.5), GM, 0, -1.55, 0.35);
+        add(el, cyl(0.15, 0.15, 2.4, 8), ST, 0, -2.9, 0.35);
+        add(el, box(0.36, 0.3, 0.55), GM, 0, -4.1, 0.35);
+        add(el, box(0.24, 0.24, 0.9), GM, sx * 0.4, -1.5, 0.35);
+        addFlat(el, cyl(0.08, 0.08, 0.04, 8), GL2(), sx * 0.4, -1.03, 0.35);
       } else {
         // gun-arm
         add(el, box(0.95, 1.4, 1.0), hull, 0, -0.85, 0);
@@ -1545,18 +1601,24 @@
     parts.shoulderL = arm(1, false);
     parts.shoulderR = arm(-1, true);
 
-    // shoulder cannon (on torso, left side, does not swing with the arm)
-    var cannon = group(torso, 1.45, 3.75, -0.3);
-    add(cannon, box(0.9, 0.75, 1.6), GM, 0, 0, 0);
-    add(cannon, box(0.95, 0.12, 1.2), pnt, 0, 0.42, -0.1);
-    add(cannon, cyl(0.2, 0.24, 2.0, 10), ST, 0, 0.05, 1.6).rotation.x = PI / 2;
-    add(cannon, cyl(0.3, 0.3, 0.35, 10), GM, 0, 0.05, 2.55).rotation.x = PI / 2;
-    addFlat(cannon, box(0.08, 0.15, 1.0), T, 0.48, 0.1, 0);
-    var mz = new THREE.Object3D(); mz.position.set(0, 0.05, 2.8); cannon.add(mz);
+    // shoulder cannon (on torso, left side, does not swing with the arm); raiders carry none
+    var cannon = group(torso, 1.45, 3.75, -0.3), mz = new THREE.Object3D();
+    if (!RAID) {
+      add(cannon, box(0.9, 0.75, 1.6), GM, 0, 0, 0);
+      add(cannon, box(0.95, 0.12, 1.2), pnt, 0, 0.42, -0.1);
+      (HEAVY ? [-0.22, 0.22] : [0]).forEach(function (bx) {
+        add(cannon, cyl(0.2, 0.24, 2.0, 10), ST, bx, 0.05, 1.6).rotation.x = PI / 2;
+        add(cannon, cyl(0.28, 0.28, 0.35, 10), GM, bx, 0.05, 2.55).rotation.x = PI / 2;
+        addFlat(cannon, cyl(0.12, 0.12, 0.04, 8), MAT.pit(), bx, 0.05, 2.74).rotation.x = PI / 2;
+      });
+      add(cannon, box(0.5, 0.4, 0.7), ST, 0, -0.4, -0.5);                       // recoil housing
+      addFlat(cannon, box(0.08, 0.15, 1.0), T, 0.48, 0.1, 0);
+    }
+    mz.position.set(0, 0.05, 2.8); cannon.add(mz);
     parts.cannon = cannon;
 
     g.userData = {
-      type: 'robot', side: side, parts: parts, muzzle: mz, height: 9.2,
+      type: 'robot', side: side, kind: kind, parts: parts, muzzle: mz, height: 9.2,
       flashMats: [visor], visorMat: visor, _own: own, _torsoY: TORSO_Y
     };
     return g;
@@ -1638,16 +1700,32 @@
     return _msTex;
   }
 
-  function missile(side) {
+  // warhead: 'he' (default), 'cluster' (fat bomblet bus with a blunt nose) or 'penetrator'
+  // (long hardened ogive with a dark tungsten tip)
+  function missile(side, warhead) {
     side = sideKey(side);
     var g = new THREE.Group();
     g.name = 'missile';
-    var GM = MAT.gunmetal(), ST = MAT.steel();
+    var GM = std('missileFin', { color: 0x3c4148, roughness: 0.5, metalness: 0.55, map: armorTexture() }), ST = MAT.steel();
     var BODY = std('missileBody', { color: 0x6c7073, roughness: 0.55, metalness: 0.35, map: missileTexture() });
     var NOSE = std('missileNose', { color: 0x3b3f3c, roughness: 0.5, metalness: 0.4, map: metalTexture() });
     add(g, cyl(0.3, 0.3, 2.6, 14), BODY, 0, -0.15, 0); // body -1.45..1.15
-    add(g, cone(0.3, 1.0, 14), NOSE, 0, 1.65, 0);
-    add(g, cone(0.08, 0.15, 8), ST, 0, 2.2, 0);
+    if (warhead === 'cluster') {
+      // wider bomblet bus: segmented doors, release bands and a rounded nose
+      add(g, cyl(0.46, 0.4, 1.25, 14), BODY, 0, 1.6, 0);
+      var cap = add(g, sph(0.46, 14, 8, 0, PI / 2), NOSE, 0, 2.22, 0); cap.scale.y = 0.75;
+      for (var d = 0; d < 6; d++) { var a0 = d * PI / 3; add(g, box(0.05, 1.1, 0.06), GM, Math.sin(a0) * 0.45, 1.6, Math.cos(a0) * 0.45).rotation.y = a0; }
+      add(g, cyl(0.47, 0.47, 0.1, 14), MAT.hazard(), 0, 1.05, 0);
+      add(g, cyl(0.47, 0.47, 0.1, 14), MAT.hazard(), 0, 2.15, 0);
+    } else if (warhead === 'penetrator') {
+      add(g, cyl(0.24, 0.3, 0.9, 14), NOSE, 0, 1.6, 0);
+      add(g, cone(0.24, 1.6, 14), NOSE, 0, 2.85, 0);
+      add(g, cone(0.09, 0.45, 8), MAT.pit(), 0, 3.55, 0);                        // tungsten tip
+      add(g, cyl(0.31, 0.31, 0.12, 14), ST, 0, 1.2, 0);
+    } else {
+      add(g, cone(0.3, 1.0, 14), NOSE, 0, 1.65, 0);
+      add(g, cone(0.08, 0.15, 8), ST, 0, 2.2, 0);
+    }
     addFlat(g, cyl(0.31, 0.31, 0.3, 14), trim(side), 0, 0.85, 0);
     add(g, cyl(0.31, 0.31, 0.2, 14), paint(side), 0, 0.4, 0);
     add(g, cyl(0.32, 0.28, 0.35, 14), GM, 0, -1.55, 0);
@@ -1661,7 +1739,7 @@
       sf.rotation.y = a + PI / 2;
     }
     var ex = exhaust(g, 1.6, 0.26, -1.95);
-    g.userData = { type: 'missile', side: side, exhaust: ex, _own: [] };
+    g.userData = { type: 'missile', side: side, warhead: warhead || 'he', exhaust: ex, _own: [] };
     return g;
   }
 
@@ -1710,8 +1788,10 @@
     side = sideKey(side);
     var g = new THREE.Group();
     g.name = 'pod';
-    var HULL = std('shipHull', { color: 0x6a7178, roughness: 0.42, metalness: 0.7, map: metalTexture(), normalMap: metalNormal(), normalScale: new THREE.Vector2(0.5, 0.5) });
-    var GM = MAT.gunmetal(), ST = MAT.steel(), T = trim(side), P = paint(side), GL = MAT.glass();
+    var HULL = std('shipHull', { color: 0x6a7178, roughness: 0.42, metalness: 0.7, map: armorTexture(), normalMap: armorNormal(), normalScale: new THREE.Vector2(0.5, 0.5) });
+    // one armour panel per face: the tiled plate texture reads as brickwork on these small parts
+    var GM = std('shipGM', { color: 0x464b52, roughness: 0.48, metalness: 0.6, map: armorTexture(), normalMap: armorNormal(), normalScale: new THREE.Vector2(0.5, 0.5) });
+    var ST = MAT.steel(), T = trim(side), P = paint(side), GL = MAT.glass();
     var ship = group(g, 0, 0, 0);
     // fuselage: armoured box, flattened wedge nose, dorsal spine, intakes
     add(ship, box(2.0, 1.1, 4.6), HULL, 0, 0, -0.2);

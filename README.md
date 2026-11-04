@@ -58,6 +58,8 @@ The campaign is always played in real time, and skirmishes play in real time by 
   | Raider | 10 | 0.6× HP, 0.8× blows, acts almost twice as often, and its dropship arrives 25% sooner |
   | Breacher | 16 | 1.6× HP, 1.5× blows, slower; its dropship takes one more AA hit to bring down |
 
+  Each one looks different in the air and on the ground. Cluster missiles carry a fat, banded bomblet bus and Penetrators a long, dark-tipped nose. Raiders are stripped-down mechs with jump jets and a long rifle. Breachers wear bolted slab armour and a riot shield and carry a twin-barrel cannon. Assault mechs keep the shoulder cannon and missile rack.
+
   Upgraded silos and Heavy Mechs (hangar upgrade) scale with the kit. The AI picks penetrators for shielded bases, clusters for packed targets and breachers into turret cover. In AI-vs-AI simulations, a Commander using the kit beats one that doesn't about two games in three.
 - **AA reloads between shots.** A battery fires at missiles in the second half of their flight, then reloads for 3.5 seconds (HQ point defence: 6 seconds). An AA Battery hits 46% (55% upgraded) and HQ point defence 26%; an **online Radar guides the batteries in its range** (+8%), and no shot is ever better than 70%. Salvos are how you break through.
   - A salvo with more missiles than the defence has shots gets through. The attack panel estimates how many will land against the defences you know about.
