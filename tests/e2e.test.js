@@ -261,6 +261,16 @@ test('campaign: briefing, victory, next briefing and back to the menu', async t 
   assert.deepStrictEqual(errors, []);
 });
 
+// Cutscene clips are only 5-7 s long: pause one the moment it opens, so it can't end on its own
+// before the test has checked it and skipped it
+// (only once it is playing: pausing earlier aborts its play() call, which closes the cutscene)
+const holdCutscene = () => {
+  if (!UI.isIntroOpen()) return false;
+  const v = document.querySelector('#intro video');
+  if (!v || v.currentTime <= 0) return false;
+  v.pause();
+  return true;
+};
 test('campaign cutscenes: the commander before the mission, their defeat before the debrief', async t => {
   const { page, errors } = await open(t);
   await page.goto(base + '?intro=1');   // automated browsers skip cutscenes unless asked
@@ -271,14 +281,14 @@ test('campaign cutscenes: the commander before the mission, their defeat before 
   await page.click('.mission:not(.locked)');
   await page.waitForSelector('#briefing.show');
   await page.click('#br-go');
-  await page.waitForFunction(() => UI.isIntroOpen());
+  await page.waitForFunction(holdCutscene);
   assert.ok(await page.$('#intro video source[src*="campaign/m1-intro-"]'), 'Rusk introduces Mission 1');
   assert.notStrictEqual(await page.evaluate(() => __game.phase), 'live', 'the battle waits for the cutscene');
   await page.click('#intro .skip');
   await page.waitForFunction(() => __game.phase === 'live' && __game.state.mission === 1);
   assert.ok(await page.isVisible('#hud'), 'the HUD comes back after the cutscene');
   await page.evaluate(() => { for (const b of Realtime.bases(__game.state, 'ai')) b.dead = true; });   // every enemy base falls
-  await page.waitForFunction(() => UI.isIntroOpen(), null, { timeout: 60000 });
+  await page.waitForFunction(holdCutscene, null, { timeout: 60000 });
   assert.ok(await page.$('#intro video source[src*="campaign/m1-defeat-"]'), 'Rusk\'s defeat plays after the win');
   assert.ok(!(await page.isVisible('#go-next')), 'the debrief waits for the cutscene');
   await page.keyboard.press('Escape');
